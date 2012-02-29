@@ -18,7 +18,7 @@ from copy import deepcopy
 #       - func                  : output subdirectory (using kanwisher lab convention)
 root_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/'
 base_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/data/'
-base_resting_dir = '/mindhive/gablab/sad/SAD_STUDY_Resting/data'
+
 
 # list of subjects
 subjects = ['SAD_018']
@@ -36,7 +36,7 @@ crash_dir = root_dir
 run_on_grid = False
 
 # - 'fwhm' full width at half max (currently only the second value is used)
-fwhm = [5]
+fwhm = [0, 5]
 
 # - 'num_noise_components' number of principle components of the noise to use
 num_noise_components = 5
@@ -77,7 +77,7 @@ overlaythresh = (3.09, 10.00)
 #                       FUNCTIONS
 #____________________________________________________________________________________________________________
 #
-def create_dataflow(subj, name="datasource"):
+def create_dataflow(name="datasource"):
     import nipype.pipeline.engine as pe
     import nipype.interfaces.io as nio 
     # create a node to obtain the functional images
@@ -87,22 +87,8 @@ def create_dataflow(subj, name="datasource"):
     datasource.inputs.base_directory = base_dir
     datasource.inputs.template ='*'
     datasource.inputs.field_template = dict(func='%s/f%s.nii',struct='%s/struct.nii')
-    datasource.inputs.subject_id = subj
+    #datasource.inputs.subject_id = subj
     datasource.inputs.template_args = dict(func=[['subject_id',['3']]], struct=[['subject_id']])#,'2','3','4','5','6']]])
-    return datasource
-
-def resting_dataflow(subj, name="datasource"):
-    import nipype.pipeline.engine as pe
-    import nipype.interfaces.io as nio 
-    # create a node to obtain the functional images
-    datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
-                                                   outfields=['func','struct']),
-                         name = name)
-    datasource.inputs.base_directory = base_resting_dir
-    datasource.inputs.template ='*'
-    datasource.inputs.field_template = dict(func='%s/resting.nii',struct='%s/struct.nii')
-    datasource.inputs.subject_id = subj
-    datasource.inputs.template_args = dict(func=[['subject_id']], struct=[['subject_id']])#,'2','3','4','5','6']]])
     return datasource
 
 def get_onsets(subject_id):

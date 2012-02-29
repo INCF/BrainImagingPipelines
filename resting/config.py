@@ -35,13 +35,13 @@ crash_dir = root_dir
 run_on_grid = False
 
 # - 'fwhm' full width at half max (currently only the second value is used)
-fwhm = [5]
+fwhm = [0, 5]
 
 # - 'num_noise_components' number of principle components of the noise to use
 num_noise_components = 5
 
 # - 'TR' 
-TR = 2.5
+TR = 6.0
 
 # Motion correction params
 Interleaved = True
