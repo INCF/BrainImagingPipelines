@@ -81,7 +81,7 @@ overlaythresh = (3.09, 10.00)
 #____________________________________________________________________________________________________________
 #
 
-def create_dataflow(subj, name="datasource"):
+def create_dataflow(name="datasource"):
     import nipype.pipeline.engine as pe
     import nipype.interfaces.io as nio 
     # create a node to obtain the functional images
@@ -91,7 +91,6 @@ def create_dataflow(subj, name="datasource"):
     datasource.inputs.base_directory = base_dir
     datasource.inputs.template ='*'
     datasource.inputs.field_template = dict(func='%s/resting.nii',struct='%s/struct.nii')
-    datasource.inputs.subject_id = subj
     datasource.inputs.template_args = dict(func=[['subject_id']], struct=[['subject_id']])#,'2','3','4','5','6']]])
     return datasource
 

@@ -267,7 +267,8 @@ def prep_workflow(subj):
     modelflow = pe.Workflow(name='preproc')
     
     # generate preprocessing workflow
-    dataflow =                                          create_dataflow(subj)
+    dataflow =                                          create_dataflow()
+    dataflow.inputs.subject_id =                        subj
     preproc =                                           create_prep()
     preproc.inputs.inputspec.fwhm =                     fwhm
     preproc.inputs.inputspec.highpass =                 hpcutoff/(2*2.5)
