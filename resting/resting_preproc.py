@@ -48,9 +48,14 @@ def create_filter_matrix(motion_params, composite_norm, compcorr_components, art
     
     for i, opt in enumerate(options[:-1][selector[:-1]]): # concatenate all files except art_outliers    
         if i ==0:
+            print opt
             z = try_import(opt)
+            print z.shape
         else:
             a = try_import(opt)
+            if len(a.shape)==1:
+                a = np.array([a]).T
+            print a.shape, z.shape
             z = np.hstack((z,a))
     
     if selector[-1]:
@@ -172,7 +177,7 @@ def create_prep(name='preproc'):
     bandpass_filter.inputs.lowpass_sigma = lowpass_sigma
     addoutliers.inputs.motion_params = None
     addoutliers.inputs.composite_norm = None
-    addoutliers.inputs.selector = [False, False, True, True]
+    addoutliers.inputs.selector = reg_params
     
     
     #motion_correct.inputs.args = '-spline_final'
@@ -203,7 +208,9 @@ def create_prep(name='preproc'):
     preproc.connect(inputnode,      ('highpass', highpass_operand),             highpass,       'op_string')
     preproc.connect(meanscale,      'out_file',                                 highpass,       'in_file')
     preproc.connect(ad,             'outlier_files',                            addoutliers,    'art_outliers')
+    preproc.connect(ad,             'norm_files',                               addoutliers,    'composite_norm')
     preproc.connect(compcor,        ('outputspec.noise_components',pickfirst),  addoutliers,    'compcorr_components')
+    preproc.connect(motion_correct, ('par_file',pickfirst),                     addoutliers,    'motion_params')
     preproc.connect(addoutliers,    'filter_file',                              remove_noise,   'design_file')
     preproc.connect(remove_noise,   'out_file',                                 bandpass_filter,'in_file')
     preproc.connect(compcor,        ('tsnr.detrended_file',pickfirst),          remove_noise,   'in_file')
@@ -224,7 +231,8 @@ def create_prep(name='preproc'):
                 'reg_file',
                 'noise_components',
                 'tsnr_file',
-                'stddev_file']),
+                'stddev_file',
+                'filter_file']),
                         name='outputspec')
 
     # make output connection
@@ -242,6 +250,7 @@ def create_prep(name='preproc'):
     preproc.connect(choosesusan,    'cor_smoothed_files',               outputnode, 'smoothed_files')
     preproc.connect(compcor,        'outputspec.tsnr_file',             outputnode, 'tsnr_file')
     preproc.connect(compcor,        'outputspec.stddev_file',           outputnode, 'stddev_file')
+    preproc.connect(addoutliers,    'filter_file',           outputnode, 'filter_file')
     
     preproc.write_graph(graph2use = 'orig')
     return preproc
@@ -305,6 +314,7 @@ def prep_workflow(subj):
     modelflow.connect(preproc, 'outputspec.smoothed_files',         sinkd,      'preproc.smooth')
     modelflow.connect(preproc, 'outputspec.tsnr_file',              sinkd,      'preproc.tsnr')
     modelflow.connect(preproc, 'outputspec.stddev_file',            sinkd,      'preproc.tsnr.@stddev')
+    modelflow.connect(preproc, 'outputspec.filter_file',            sinkd,      'preproc.regressors')
     
     # tsnr and stdev and regression file
     
@@ -324,7 +334,8 @@ def prep_workflow(subj):
                 'reg_file',
                 'noise_components',
                 'tsnr_file',
-                'stddev_file']),
+                'stddev_file',
+                'regressor_file']),
                         name='outputspec')
     
     #Make more connections    
@@ -343,6 +354,7 @@ def prep_workflow(subj):
     modelflow.connect(preproc, 'outputspec.highpassed_files',       outputnode,      'highpassed_files')
     modelflow.connect(preproc, 'outputspec.tsnr_file',              outputnode,      'tsnr_file')
     modelflow.connect(preproc, 'outputspec.stddev_file',            outputnode,      'stddev_file')
+    modelflow.connect(preproc, 'outputspec.filter_file',            outputnode,      'regressor_file')
     
     modelflow.base_dir = os.path.join(root_dir,'work_dir',subj)
     return modelflow

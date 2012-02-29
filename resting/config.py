@@ -57,6 +57,10 @@ film_threshold = 1000
 # - 'hpcutoff'
 hpcutoff = 128.
 
+# regressors
+# [motion, composite norm, compcorr components, outliers]
+reg_params = [True, True, True, True]
+
 # - Bandpass cutoffs
 highpass_sigma = 100/(2*TR)
 lowpass_sigma = 12.5/(2*TR)
