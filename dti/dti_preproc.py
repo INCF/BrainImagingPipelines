@@ -18,7 +18,7 @@ config.enable_debug_mode()
 
 # Utils ----------------------------------------------------------------------
 
-#tolist = lambda x:[x]
+# tolist has to be made into a function node, otherwise Nipype complains. :(
 
 def tolist(x):
     x = [x]
