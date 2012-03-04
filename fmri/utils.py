@@ -2,6 +2,9 @@
 import nipype.pipeline.engine as pe         # pypeline engine
 import nipype.interfaces.io as nio          # input/output
 import os
+import nipype.pipeline.engine as pe
+import nipype.interfaces.utility as util
+import nipype.interfaces.freesurfer as fs
 
 def getthreshop(thresh):
     return ['-thr %.10f -Tmin -bin'%(0.1*val[1]) for val in thresh]
@@ -38,7 +41,7 @@ def getmeanscale(medianvals):
 def getusans(x):
     return [[tuple([val[0],0.75*val[1]])] for val in x]
 
-def extract_noise_components(realigned_file, noise_mask_file, num_components):
+def extract_noise_components(realigned_file, noise_mask_file, num_components, anat_mask_file, selector):
     """Derive components most reflective of physiological noise
     """
     import os
@@ -46,9 +49,22 @@ def extract_noise_components(realigned_file, noise_mask_file, num_components):
     import numpy as np
     import scipy as sp
     from scipy.signal import detrend
+    
+    options = np.array([noise_mask_file, anat_mask_file])
+    selector = np.array(selector)
     imgseries = load(realigned_file)
-    noise_mask = load(noise_mask_file)
-    voxel_timecourses = imgseries.get_data()[np.nonzero(noise_mask.get_data())]
+    
+    if selector.all(): # both values of selector are true, need to concatenate
+        tcomp = load(noise_mask_file)
+        acomp = load(anat_mask_file)
+        voxel_timecourses = imgseries.get_data()[np.nonzero(tcomp.get_data()+acomp.get_data())]
+        
+    else:
+        noise_mask_file = options[selector][0]
+        noise_mask = load(noise_mask_file)
+        voxel_timecourses = imgseries.get_data()[np.nonzero(noise_mask.get_data())]
+    
+    
     for timecourse in voxel_timecourses:
         timecourse[:] = detrend(timecourse, type='constant')
     
@@ -57,6 +73,30 @@ def extract_noise_components(realigned_file, noise_mask_file, num_components):
     components_file = os.path.join(os.getcwd(), 'noise_components.txt')
     np.savetxt(components_file, v[:,:num_components])
     return components_file
+    
+def extract_anat_mask():
+    
+    anat = pe.Workflow(name='extract_anat')
+    
+    inputspec = pe.Node(interface=util.IdentityInterface(fields=['realigned_file','reg_file','anat_file']),name='inputspec') 
+    
+    bin = pe.Node(interface = fs.Binarize(), name = 'binarize')
+    
+    anat.connect(inputspec, ('anat_file',pickfirst), bin, "in_file")
+    
+    bin.inputs.ventricles = True
+    
+    unvoltransform = pe.Node(interface=fs.ApplyVolTransform(inverse=True),name='unapplyreg')
+    
+    anat.connect(bin, 'binary_file', unvoltransform, 'target_file')
+    anat.connect(inputspec,('reg_file',pickfirst),unvoltransform,'reg_file')
+    anat.connect(inputspec,('realigned_file',pickfirst),unvoltransform,'source_file')
+    outputspec = pe.Node(interface=util.IdentityInterface(fields=['anat_mask']),name='outputspec')
+    
+    anat.connect(unvoltransform,'transformed_file',outputspec,'anat_mask')
+       
+    return anat
+        
 
 def fslcpgeom(in_file,dest_file):
     from nipype.interfaces.base import CommandLine
@@ -122,8 +162,9 @@ def create_compcorr(name='compcorr'):
     from nipype.algorithms.misc import TSNR
     import nipype.interfaces.fsl as fsl         
     compproc = pe.Workflow(name=name)
-    inputspec = pe.Node(interface=util.IdentityInterface(fields=['num_components','realigned_file', 'in_file']),name='inputspec')
-    outputspec = pe.Node(interface=util.IdentityInterface(fields=['noise_components','stddev_file','tsnr_file']),name='outputspec')
+    inputspec = pe.Node(interface=util.IdentityInterface(fields=['num_components','realigned_file', 'in_file','reg_file','anat_file','selector']),name='inputspec')
+    # selector input is bool list [True,True] where first is referring to t compcorr and second refers to a compcorr
+    outputspec = pe.Node(interface=util.IdentityInterface(fields=['noise_components','stddev_file','tsnr_file','anat_mask']),name='outputspec')
     # extract the principal components of the noise
     tsnr = pe.MapNode(TSNR(regress_poly=2),
                       name='tsnr',
@@ -139,15 +180,25 @@ def create_compcorr(name='compcorr'):
                                   name='threshold',
                                   iterfield=['in_file','thresh'])
     
+    acomp = extract_anat_mask()
+    
     # compcor actually extracts the components
     compcor = pe.MapNode(util.Function(input_names=['realigned_file',
                                                     'noise_mask_file',
-                                                    'num_components'],
+                                                    'num_components',
+                                                    'anat_mask_file',
+                                                    'selector'],
                                        output_names=['noise_components'],
                                        function=extract_noise_components),
                                        name='compcor',
                                        iterfield=['realigned_file',
                                                   'noise_mask_file'])
+    
+    compproc.connect(inputspec,'realigned_file',acomp,'inputspec.realigned_file')
+    compproc.connect(inputspec,'reg_file',acomp,'inputspec.reg_file')
+    compproc.connect(inputspec,'anat_file',acomp,'inputspec.anat_file')
+    compproc.connect(inputspec,'selector', compcor, 'selector')
+    compproc.connect(acomp,'outputspec.anat_mask',compcor,'anat_mask_file')
     compproc.connect(inputspec,'in_file',tsnr,'in_file')
     compproc.connect(inputspec,'num_components',compcor,'num_components')
     compproc.connect(inputspec,'realigned_file',compcor,'realigned_file')

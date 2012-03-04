@@ -107,5 +107,8 @@ def prep_workflow(subj):
 
 if __name__ == "__main__":
     preprocess = prep_workflow(subjects[0])
-    preprocess.run()
+    if run_on_grid:
+        preprocess.run(plugin='PBS')
+    else:
+        preprocess.run()
     

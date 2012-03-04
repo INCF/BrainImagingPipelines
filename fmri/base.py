@@ -110,6 +110,8 @@ def create_prep(name='preproc'):
     motion_correct.inputs.tr = TR
     motion_correct.inputs.interleaved = Interleaved
     motion_correct.inputs.slice_order = SliceOrder
+    compcor.inputs.inputspec.selector = compcor_select
+    fssource = getmask.get_node('fssource')
     
     # make connections...
     preproc.connect(inputnode,          'subjid',                           getmask,        'inputspec.subject_id')
@@ -121,6 +123,8 @@ def create_prep(name='preproc'):
     preproc.connect(inputnode,          'num_noise_components',             compcor,        'inputspec.num_components')
     preproc.connect(motion_correct,     'out_file',                         compcor,        'inputspec.realigned_file')
     preproc.connect(motion_correct,     'out_file',                         compcor,        'inputspec.in_file')
+    preproc.connect(fssource,            'aparc_aseg',                      compcor,        'inputspec.anat_file')
+    preproc.connect(getmask,            'outputspec.reg_file',              compcor,        'inputspec.reg_file')
     preproc.connect(motion_correct,     'out_file',                         ad,             'realigned_files')
     preproc.connect(motion_correct,     'par_file',                         ad,             'realignment_parameters')
     preproc.connect(getmask,            ('outputspec.mask_file',pickfirst), ad,             'mask_file')

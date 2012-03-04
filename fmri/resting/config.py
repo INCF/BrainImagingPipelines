@@ -39,6 +39,8 @@ fwhm = [0, 5]
 
 # - 'num_noise_components' number of principle components of the noise to use
 num_noise_components = 5
+# first corresponds to t compcor, second to a compcor
+compcor_select = [True, False]
 
 # - 'TR' 
 TR = 6.0
