@@ -1,134 +1,159 @@
 # Utility Functions ---------------------------------------------------------
-import nipype.pipeline.engine as pe         # pypeline engine
-import nipype.interfaces.io as nio          # input/output
 import os
 import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
+import nipype.interfaces.io as nio          # input/output
 import nipype.interfaces.freesurfer as fs
-
-def getthreshop(thresh):
-    return ['-thr %.10f -Tmin -bin'%(0.1*val[1]) for val in thresh]
+import nipype.interfaces.utility as util
 
 def pickfirst(files):
+    """Return first file from a list of files
+
+    Parameters
+    ----------
+    files : list of filenames
+
+    Returns
+    -------
+    file : returns the filename corresponding to the middle run
+    """
     if isinstance(files, list):
         return files[0]
     else:
         return files
 
+
 def pickmiddlerun(files):
-# selects the middle run, defined as the floor of the number of runs divided by two.
+    """Selects the middle run
+
+    Defined as the floor of the number of runs divided by two.
+
+    Parameters
+    ----------
+    files : list of filenames
+
+    Returns
+    -------
+    file : returns the filename corresponding to the middle run
+    """
     if isinstance(files, list):
-        return files[int(len(files)/2)]
+        return files[int(len(files) / 2)]
     else:
         return files
 
-def returnmiddlevalue(files):
-    if isinstance(files,list):
-        return int(len(files)/2)
-
-def getbtthresh(medianvals):
-    return [0.75*val for val in medianvals]
-
-def chooseindex(fwhm):
-    if fwhm<1:
-        return [0]
-    else:
-        return [1]
-
-def getmeanscale(medianvals):
-    return ['-mul %.10f'%(10000./val) for val in medianvals]
-
-def getusans(x):
-    return [[tuple([val[0],0.75*val[1]])] for val in x]
-
-def extract_noise_components(realigned_file, noise_mask_file, num_components, anat_mask_file, selector):
-    """Derive components most reflective of physiological noise
-    """
-    import os
-    from nibabel import load
-    import numpy as np
-    import scipy as sp
-    from scipy.signal import detrend
-    
-    options = np.array([noise_mask_file, anat_mask_file])
-    selector = np.array(selector)
-    imgseries = load(realigned_file)
-    
-    if selector.all(): # both values of selector are true, need to concatenate
-        tcomp = load(noise_mask_file)
-        acomp = load(anat_mask_file)
-        voxel_timecourses = imgseries.get_data()[np.nonzero(tcomp.get_data()+acomp.get_data())]
-        
-    else:
-        noise_mask_file = options[selector][0]
-        noise_mask = load(noise_mask_file)
-        voxel_timecourses = imgseries.get_data()[np.nonzero(noise_mask.get_data())]
-    
-    
-    for timecourse in voxel_timecourses:
-        timecourse[:] = detrend(timecourse, type='constant')
-    
-    voxel_timecourses = voxel_timecourses.byteswap().newbyteorder() 
-    u,s,v = sp.linalg.svd(voxel_timecourses, full_matrices=False)
-    components_file = os.path.join(os.getcwd(), 'noise_components.txt')
-    np.savetxt(components_file, v[:,:num_components])
-    return components_file
-    
-def extract_anat_mask():
-    
-    anat = pe.Workflow(name='extract_anat')
-    
-    inputspec = pe.Node(interface=util.IdentityInterface(fields=['realigned_file','reg_file','anat_file']),name='inputspec') 
-    
-    bin = pe.Node(interface = fs.Binarize(), name = 'binarize')
-    
-    anat.connect(inputspec, ('anat_file',pickfirst), bin, "in_file")
-    
-    bin.inputs.ventricles = True
-    
-    unvoltransform = pe.Node(interface=fs.ApplyVolTransform(inverse=True),name='unapplyreg')
-    
-    anat.connect(bin, 'binary_file', unvoltransform, 'target_file')
-    anat.connect(inputspec,('reg_file',pickfirst),unvoltransform,'reg_file')
-    anat.connect(inputspec,('realigned_file',pickfirst),unvoltransform,'source_file')
-    outputspec = pe.Node(interface=util.IdentityInterface(fields=['anat_mask']),name='outputspec')
-    
-    anat.connect(unvoltransform,'transformed_file',outputspec,'anat_mask')
-       
-    return anat
-        
-
-def fslcpgeom(in_file,dest_file):
-    from nipype.interfaces.base import CommandLine
-    import os
-    from glob import glob
-    cmd2 = 'cp '+dest_file+' .'
-    cli = CommandLine(command=cmd2)
-    cli.run()
-    dest_file = os.path.join(os.getcwd(),os.path.split(dest_file)[1])
-    cmd1 = '''fslcpgeom '''+in_file+' '+dest_file+' -d'
-    cli = CommandLine(command=cmd1)
-    cli.run()
-    return dest_file
 
 def pickvol(filenames, fileidx, which):
+    """Retrieve index of named volume
+
+    Parameters
+    ----------
+    filenames: list of 4D file names
+    fileidx: which 4D file to look at
+    which: 'first' or 'middle'
+
+    Returns
+    -------
+    idx: index of first or middle volume
+    """
+
     from nibabel import load
     import numpy as np
     if which.lower() == 'first':
         idx = 0
     elif which.lower() == 'middle':
-        idx = int(np.ceil(load(filenames[fileidx]).get_shape()[3]/2))
+        idx = int(np.ceil(load(filenames[fileidx]).get_shape()[3] / 2))
     else:
-        raise Exception('unknown value for volume selection : %s'%which)
+        raise Exception('unknown value for volume selection : %s' % which)
     return idx
 
-def trad_mot(subinfo,files):
+
+def get_threshold_op(thresh):
+    return ['-thr %.10f -Tmin -bin' % (0.1 * val[1]) for val in thresh]
+
+
+def getbtthresh(medianvals):
+    return [0.75 * val for val in medianvals]
+
+
+def chooseindex(fwhm):
+    if fwhm < 1:
+        return [0]
+    else:
+        return [1]
+
+
+def getmeanscale(medianvals):
+    return ['-mul %.10f' % (10000. / val) for val in medianvals]
+
+
+def getusans(x):
+    return [[tuple([val[0], 0.75 * val[1]])] for val in x]
+
+
+def extract_noise_components(realigned_file, noise_mask_file, num_components,
+                             csf_mask_file, selector):
+    """Derive components most reflective of physiological noise
+    """
+
+    import os
+    from nibabel import load
+    import numpy as np
+    import scipy as sp
+    from scipy.signal import detrend
+
+    options = np.array([noise_mask_file, csf_mask_file])
+    selector = np.array(selector)
+    imgseries = load(realigned_file)
+    if selector.all():  # both values of selector are true, need to concatenate
+        tcomp = load(noise_mask_file)
+        acomp = load(csf_mask_file)
+        voxel_timecourses = imgseries.get_data()[np.nonzero(tcomp.get_data() +
+                                                            acomp.get_data())]
+    else:
+        noise_mask_file = options[selector][0]
+        noise_mask = load(noise_mask_file)
+        voxel_timecourses = imgseries.get_data()[np.nonzero(noise_mask.get_data())]
+    for timecourse in voxel_timecourses:
+        timecourse[:] = detrend(timecourse, type='constant')
+    voxel_timecourses = voxel_timecourses.byteswap().newbyteorder()
+    _, _, v = sp.linalg.svd(voxel_timecourses, full_matrices=False)
+    components_file = os.path.join(os.getcwd(), 'noise_components.txt')
+    np.savetxt(components_file, v[:, :num_components])
+    return components_file
+
+
+def extract_csf_mask():
+    """Create a workflow to extract a mask of csf voxels
+    """
+    extract_csf = pe.Workflow(name='extract_csf_mask')
+    inputspec = pe.Node(util.IdentityInterface(fields=['mean_file',
+                                                       'reg_file',
+                                                       'fsaseg_file']),
+                        name='inputspec')
+
+    # add getting the freesurfer volume
+    bin = pe.Node(fs.Binarize(), name='binarize')
+    bin.inputs.ventricles = True
+    extract_csf.connect(inputspec, 'fsaseg_file', bin, "in_file")
+    voltransform = pe.Node(fs.ApplyVolTransform(inverse=True),
+                           name='inverse_transform')
+    extract_csf.connect(bin, 'binary_file', voltransform, 'target_file')
+    extract_csf.connect(inputspec, 'reg_file', voltransform, 'reg_file')
+    extract_csf.connect(inputspec, mean_file, voltransform, 'source_file')
+    outputspec = pe.Node(util.IdentityInterface(fields=['csf_mask']),
+                         name='outputspec')
+    extract_csf.connect(voltransform, 'transformed_file',
+                        outputspec, 'csf_mask')
+    return extract_csf
+
+
+def trad_mot(subinfo, files):
     # modified to work with only one regressor at a time...
     motion_params = []
-    mot_par_names = ['Pitch (rad)','Roll (rad)','Yaw (rad)','Tx (mm)','Ty (mm)','Tz (mm)']
-    for j,i in enumerate(files):
+    mot_par_names = ['Pitch (rad)', 'Roll (rad)', 'Yaw (rad)',
+                     'Tx (mm)', 'Ty (mm)', 'Tz (mm)']
+    for j, i in enumerate(files):
         motion_params.append([[],[],[],[],[],[]])
-        k = map(lambda x: float(x), filter(lambda y: y!='',open(i,'r').read().replace('\n','').split(' ')))
+        k = map(lambda x: float(x), filter(lambda y: y!='', open(i, 'r').read().replace('\n', '').split(' ')))
         for z in range(6):
             motion_params[j][z] = k[z:len(k):6]
     for j,i in enumerate(subinfo):
@@ -139,8 +164,10 @@ def trad_mot(subinfo,files):
             i.regressors.append(i3)
     return subinfo
 
-def noise_mot(subinfo,files,num_noise_components):
-    noi_reg_names = map(lambda x: 'noise_comp_'+str(x+1),range(num_noise_components))
+
+def noise_mot(subinfo, files, num_noise_components):
+    noi_reg_names = map(lambda x: 'noise_comp_'+str(x+1),
+                        range(num_noise_components))
     noise_regressors = []
     for j,i in enumerate(files):
         noise_regressors.append([[],[],[],[],[]])
@@ -155,16 +182,28 @@ def noise_mot(subinfo,files,num_noise_components):
             i.regressors.append(i3)
     return subinfo
 
-def create_compcorr(name='compcorr'):
+def create_compcorr(name='CompCor'):
     import nipype.pipeline.engine as pe
     import nipype.interfaces.utility as util
     import nipype.interfaces.io as nio
     from nipype.algorithms.misc import TSNR
-    import nipype.interfaces.fsl as fsl         
+    import nipype.interfaces.fsl as fsl
+
     compproc = pe.Workflow(name=name)
-    inputspec = pe.Node(interface=util.IdentityInterface(fields=['num_components','realigned_file', 'in_file','reg_file','anat_file','selector']),name='inputspec')
-    # selector input is bool list [True,True] where first is referring to t compcorr and second refers to a compcorr
-    outputspec = pe.Node(interface=util.IdentityInterface(fields=['noise_components','stddev_file','tsnr_file','anat_mask']),name='outputspec')
+    inputspec = pe.Node(util.IdentityInterface(fields=['num_components',
+                                                       'realigned_file',
+                                                       'in_file',
+                                                       'reg_file',
+                                                       'fsaseg_file',
+                                                       'selector']),
+                        name='inputspec')
+    # selector input is bool list [True,True] where first is referring to
+    # tCompcorr and second refers to aCompcorr
+    outputspec = pe.Node(util.IdentityInterface(fields=['noise_components',
+                                                        'stddev_file',
+                                                        'tsnr_file',
+                                                        'csf_mask']),
+                         name='outputspec')
     # extract the principal components of the noise
     tsnr = pe.MapNode(TSNR(regress_poly=2),
                       name='tsnr',
@@ -180,42 +219,41 @@ def create_compcorr(name='compcorr'):
                                   name='threshold',
                                   iterfield=['in_file','thresh'])
     
-    acomp = extract_anat_mask()
+    acomp = extract_csf_mask()
     
     # compcor actually extracts the components
     compcor = pe.MapNode(util.Function(input_names=['realigned_file',
                                                     'noise_mask_file',
                                                     'num_components',
-                                                    'anat_mask_file',
+                                                    'csf_mask_file',
                                                     'selector'],
                                        output_names=['noise_components'],
                                        function=extract_noise_components),
-                                       name='compcor',
+                                       name='compcor_components',
                                        iterfield=['realigned_file',
                                                   'noise_mask_file'])
     
-    compproc.connect(inputspec,'realigned_file',acomp,'inputspec.realigned_file')
-    compproc.connect(inputspec,'reg_file',acomp,'inputspec.reg_file')
-    compproc.connect(inputspec,'anat_file',acomp,'inputspec.anat_file')
-    compproc.connect(inputspec,'selector', compcor, 'selector')
-    compproc.connect(acomp,'outputspec.anat_mask',compcor,'anat_mask_file')
-    compproc.connect(inputspec,'in_file',tsnr,'in_file')
-    compproc.connect(inputspec,'num_components',compcor,'num_components')
-    compproc.connect(inputspec,'realigned_file',compcor,'realigned_file')
-    compproc.connect(getthresh,'out_stat',threshold_stddev,'thresh')
-    compproc.connect(threshold_stddev,'out_file', compcor, 'noise_mask_file')
+    compproc.connect(inputspec, 'realigned_file',
+                     acomp, 'inputspec.realigned_file')
+    compproc.connect(inputspec, 'reg_file', acomp, 'inputspec.reg_file')
+    compproc.connect(inputspec, 'fsaseg_file', acomp, 'inputspec.fsaseg_file')
+    compproc.connect(inputspec, 'selector', compcor, 'selector')
+    compproc.connect(acomp, 'outputspec.csf_mask', compcor, 'csf_mask_file')
+    compproc.connect(inputspec, 'in_file', tsnr, 'in_file')
+    compproc.connect(inputspec, 'num_components', compcor, 'num_components')
+    compproc.connect(inputspec, 'realigned_file', compcor, 'realigned_file')
+    compproc.connect(getthresh, 'out_stat', threshold_stddev, 'thresh')
+    compproc.connect(threshold_stddev, 'out_file', compcor, 'noise_mask_file')
     compproc.connect(tsnr, 'stddev_file', threshold_stddev,'in_file')
     compproc.connect(tsnr, 'stddev_file', getthresh, 'in_file')
     compproc.connect(tsnr, 'stddev_file', outputspec, 'stddev_file')
     compproc.connect(tsnr, 'tsnr_file', outputspec, 'tsnr_file')
     compproc.connect(compcor,'noise_components',outputspec, 'noise_components')
-    
-    
     return compproc
 
-def choose_susan(fwhm,motion_files,smoothed_files):
+def choose_susan(fwhm, motion_files, smoothed_files):
     cor_smoothed_files = []
-    if fwhm == 0:
+    if fwhm < 0.5:
         cor_smoothed_files = motion_files
     else:
         cor_smoothed_files = smoothed_files
@@ -248,7 +286,5 @@ def get_datasink(subj,root_dir,fwhm):
     sinkd.inputs.regexp_substitutions.append(('bbreg/fwhm_([0-9])/','bbreg/'))
     return sinkd
 
-
-    
 tolist = lambda x: [x]
 highpass_operand = lambda x:'-bptf %.10f -1'%x
