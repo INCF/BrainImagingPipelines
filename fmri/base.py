@@ -9,7 +9,7 @@ from nipype.workflows.fmri.fsl import create_susan_smooth
 
 from config import *
 from utils import *
-
+########## Note: add motion derivatives #############
 def create_filter_matrix(motion_params, composite_norm, compcorr_components,
                          art_outliers, selector):
     """Combine nuisance regressor components into a single file
@@ -158,7 +158,7 @@ def create_prep(name='preproc'):
     ad.inputs.zintensity_threshold = z_thresh
     ad.inputs.mask_type = 'file'
     ad.inputs.use_differences = [True, False]
-    getmask.inputs.inputspec.subjects_dir = surf_dir
+    #getmask.inputs.inputspec.subjects_dir = surf_dir
     getmask.inputs.inputspec.contrast_type = 't2'
     motion_correct.inputs.tr = TR
     motion_correct.inputs.interleaved = Interleaved
@@ -168,7 +168,7 @@ def create_prep(name='preproc'):
     
     # make connections...
     preproc.connect(inputnode,          'fssubject_id',                     getmask,        'inputspec.subject_id')
-    preproc.connect(inputnode,          'fssubject_dir',                    getmask,        'inputspec.subject_dir')
+    preproc.connect(inputnode,          'fssubject_dir',                    getmask,        'inputspec.subjects_dir')
     preproc.connect(inputnode,          'func',                             img2float,      'in_file')
     preproc.connect(img2float,          ('out_file',tolist),                motion_correct, 'in_file')
     preproc.connect(motion_correct,     'par_file',                         plot_motion,    'in_file')
@@ -177,12 +177,12 @@ def create_prep(name='preproc'):
     preproc.connect(inputnode,          'num_noise_components',             compcor,        'inputspec.num_components')
     preproc.connect(motion_correct,     'out_file',                         compcor,        'inputspec.realigned_file')
     preproc.connect(motion_correct,     'out_file',                         compcor,        'inputspec.in_file')
-    preproc.connect(fssource,            'aseg',                            compcor,        'inputspec.fs_aseg_file')
+    preproc.connect(fssource,            'aseg',                            compcor,        'inputspec.fsaseg_file')
     preproc.connect(getmask,            'outputspec.reg_file',              compcor,        'inputspec.reg_file')
     preproc.connect(motion_correct,     'out_file',                         ad,             'realigned_files')
     preproc.connect(motion_correct,     'par_file',                         ad,             'realignment_parameters')
-    preproc.connect(getmask,            'outputspec.mask_file',             ad,             'mask_file')
-    preproc.connect(getmask,            'outputspec.mask_file',             medianval,      'mask_file')
+    preproc.connect(getmask,            ('outputspec.mask_file',pickfirst),             ad,             'mask_file')
+    preproc.connect(getmask,            ('outputspec.mask_file',pickfirst),             medianval,      'mask_file')
     preproc.connect(inputnode_fwhm,     'fwhm',                             smooth,         'inputnode.fwhm')
     preproc.connect(motion_correct,     'out_file',                         smooth,         'inputnode.in_files')
     preproc.connect(getmask,            ('outputspec.mask_file',pickfirst), smooth,         'inputnode.mask_file')

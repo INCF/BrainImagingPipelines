@@ -10,8 +10,8 @@ import nipype.interfaces.fsl as fsl         # fsl
 import nipype.interfaces.utility as util    # utility
 import nipype.pipeline.engine as pe         # pypeline engine
 
-from utils import *
-from base import create_prep
+#from utils import *
+from base import *
 
 # Resting state utility functions -------------------------------------------
 
@@ -38,7 +38,7 @@ def create_rest_prep(name='preproc'):
     inputnode = preproc.get_node('inputspec')
     meanscale = preproc.get_node('scale_median')
     ad = preproc.get_node('artifactdetect')
-    compcor = preproc.get_node('compcorr')
+    compcor = preproc.get_node('CompCor')
     motion_correct = preproc.get_node('realign')
     smooth = preproc.get_node('smooth_with_susan')
     highpass = preproc.get_node('highpass')
@@ -86,7 +86,8 @@ def prep_workflow(subj):
     
     preproc.inputs.inputspec.num_noise_components =     num_noise_components
     preproc.crash_dir =                                 crash_dir
-    preproc.inputs.inputspec.subjid =                   subj
+    preproc.inputs.inputspec.fssubject_id =                   subj
+    preproc.inputs.inputspec.fssubject_dir = surf_dir
     preproc.get_node('fwhm_input').iterables =          ('fwhm',fwhm)
 
     # make a data sink

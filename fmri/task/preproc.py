@@ -36,11 +36,13 @@ def prep_workflow(subj):
     dataflow =                                          create_dataflow(subj)
     dataflow.inputs.subject_id = subj
     preproc =                                           create_prep()
+    preproc.inputs.inputspec.fssubject_id = subj
+    preproc.inputs.inputspec.fssubject_dir = surf_dir
     preproc.get_node('fwhm_input').iterables =          ('fwhm',fwhm)
     preproc.inputs.inputspec.highpass =                 hpcutoff/(2*2.5)
     preproc.inputs.inputspec.num_noise_components =     num_noise_components
     preproc.crash_dir =                                 crash_dir
-    preproc.inputs.inputspec.subjid =                   subj
+    #preproc.inputs.inputspec.subjid =                   subj
     
 
     # make a data sink
