@@ -146,42 +146,6 @@ def extract_csf_mask():
     return extract_csf
 
 
-def trad_mot(subinfo, files):
-    # modified to work with only one regressor at a time...
-    motion_params = []
-    mot_par_names = ['Pitch (rad)', 'Roll (rad)', 'Yaw (rad)',
-                     'Tx (mm)', 'Ty (mm)', 'Tz (mm)']
-    for j, i in enumerate(files):
-        motion_params.append([[],[],[],[],[],[]])
-        k = map(lambda x: float(x), filter(lambda y: y!='', open(i, 'r').read().replace('\n', '').split(' ')))
-        for z in range(6):
-            motion_params[j][z] = k[z:len(k):6]
-    for j,i in enumerate(subinfo):
-        if i.regressor_names == None: i.regressor_names = []
-        if i.regressors == None: i.regressors = []
-        for j3, i3 in enumerate(motion_params[j]):
-            i.regressor_names.append(mot_par_names[j3])
-            i.regressors.append(i3)
-    return subinfo
-
-
-def noise_mot(subinfo, files, num_noise_components):
-    noi_reg_names = map(lambda x: 'noise_comp_'+str(x+1),
-                        range(num_noise_components))
-    noise_regressors = []
-    for j,i in enumerate(files):
-        noise_regressors.append([[],[],[],[],[]])
-        k = map(lambda x: float(x), filter(lambda y: y!='',open(i,'r').read().replace('\n',' ').split(' ')))
-        for z in range(num_noise_components):
-            noise_regressors[j][z] = k[z:len(k):num_noise_components]
-    for j,i in enumerate(subinfo):
-        if i.regressor_names == None: i.regressor_names = []
-        if i.regressors == None: i.regressors = []
-        for j3,i3 in enumerate(noise_regressors[j]):
-            i.regressor_names.append(noi_reg_names[j3])
-            i.regressors.append(i3)
-    return subinfo
-
 def create_compcorr(name='CompCor'):
     import nipype.pipeline.engine as pe
     import nipype.interfaces.utility as util
