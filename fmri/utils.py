@@ -4,6 +4,9 @@ import nipype.pipeline.engine as pe
 import nipype.interfaces.io as nio          # input/output
 import nipype.interfaces.freesurfer as fs
 import nipype.interfaces.utility as util
+from nipype.algorithms.misc import TSNR
+import nipype.interfaces.fsl as fsl
+
 
 def pickfirst(files):
     """Return first file from a list of files
@@ -133,12 +136,16 @@ def extract_csf_mask():
     # add getting the freesurfer volume
     bin = pe.Node(fs.Binarize(), name='binarize')
     bin.inputs.ventricles = True
-    extract_csf.connect(inputspec, 'fsaseg_file', bin, "in_file")
+    extract_csf.connect(inputspec, 'fsaseg_file',
+                        bin, "in_file")
     voltransform = pe.Node(fs.ApplyVolTransform(inverse=True),
                            name='inverse_transform')
-    extract_csf.connect(bin, 'binary_file', voltransform, 'target_file')
-    extract_csf.connect(inputspec, ('reg_file',pickfirst), voltransform, 'reg_file')
-    extract_csf.connect(inputspec, ('mean_file',pickfirst), voltransform, 'source_file')
+    extract_csf.connect(bin, 'binary_file',
+                        voltransform, 'target_file')
+    extract_csf.connect(inputspec, ('reg_file', pickfirst),
+                        voltransform, 'reg_file')
+    extract_csf.connect(inputspec, ('mean_file', pickfirst),
+                        voltransform, 'source_file')
     outputspec = pe.Node(util.IdentityInterface(fields=['csf_mask']),
                          name='outputspec')
     extract_csf.connect(voltransform, 'transformed_file',
@@ -147,11 +154,6 @@ def extract_csf_mask():
 
 
 def create_compcorr(name='CompCor'):
-    import nipype.pipeline.engine as pe
-    import nipype.interfaces.utility as util
-    import nipype.interfaces.io as nio
-    from nipype.algorithms.misc import TSNR
-    import nipype.interfaces.fsl as fsl
 
     compproc = pe.Workflow(name=name)
     inputspec = pe.Node(util.IdentityInterface(fields=['num_components',
@@ -172,7 +174,7 @@ def create_compcorr(name='CompCor'):
     tsnr = pe.MapNode(TSNR(regress_poly=2),
                       name='tsnr',
                       iterfield=['in_file'])
-    
+
     # additional information for the noise prin comps
     getthresh = pe.MapNode(interface=fsl.ImageStats(op_string='-p 98'),
                             name='getthreshold',
@@ -181,10 +183,10 @@ def create_compcorr(name='CompCor'):
     # and a bit more...
     threshold_stddev = pe.MapNode(fsl.Threshold(),
                                   name='threshold',
-                                  iterfield=['in_file','thresh'])
-    
+                                  iterfield=['in_file', 'thresh'])
+
     acomp = extract_csf_mask()
-    
+
     # compcor actually extracts the components
     compcor = pe.MapNode(util.Function(input_names=['realigned_file',
                                                     'noise_mask_file',
@@ -196,24 +198,39 @@ def create_compcorr(name='CompCor'):
                                        name='compcor_components',
                                        iterfield=['realigned_file',
                                                   'noise_mask_file'])
-    
+    # Make connections
     compproc.connect(inputspec, 'realigned_file',
                      acomp, 'inputspec.mean_file')
-    compproc.connect(inputspec, 'reg_file', acomp, 'inputspec.reg_file')
-    compproc.connect(inputspec, 'fsaseg_file', acomp, 'inputspec.fsaseg_file')
-    compproc.connect(inputspec, 'selector', compcor, 'selector')
-    compproc.connect(acomp, 'outputspec.csf_mask', compcor, 'csf_mask_file')
-    compproc.connect(inputspec, 'in_file', tsnr, 'in_file')
-    compproc.connect(inputspec, 'num_components', compcor, 'num_components')
-    compproc.connect(inputspec, 'realigned_file', compcor, 'realigned_file')
-    compproc.connect(getthresh, 'out_stat', threshold_stddev, 'thresh')
-    compproc.connect(threshold_stddev, 'out_file', compcor, 'noise_mask_file')
-    compproc.connect(tsnr, 'stddev_file', threshold_stddev,'in_file')
-    compproc.connect(tsnr, 'stddev_file', getthresh, 'in_file')
-    compproc.connect(tsnr, 'stddev_file', outputspec, 'stddev_file')
-    compproc.connect(tsnr, 'tsnr_file', outputspec, 'tsnr_file')
-    compproc.connect(compcor,'noise_components',outputspec, 'noise_components')
+    compproc.connect(inputspec, 'reg_file',
+                     acomp, 'inputspec.reg_file')
+    compproc.connect(inputspec, 'fsaseg_file',
+                     acomp, 'inputspec.fsaseg_file')
+    compproc.connect(inputspec, 'selector',
+                     compcor, 'selector')
+    compproc.connect(acomp, 'outputspec.csf_mask',
+                     compcor, 'csf_mask_file')
+    compproc.connect(inputspec, 'in_file',
+                     tsnr, 'in_file')
+    compproc.connect(inputspec, 'num_components',
+                     compcor, 'num_components')
+    compproc.connect(inputspec, 'realigned_file',
+                     compcor, 'realigned_file')
+    compproc.connect(getthresh, 'out_stat',
+                     threshold_stddev, 'thresh')
+    compproc.connect(threshold_stddev, 'out_file',
+                     compcor, 'noise_mask_file')
+    compproc.connect(tsnr, 'stddev_file',
+                     threshold_stddev, 'in_file')
+    compproc.connect(tsnr, 'stddev_file',
+                     getthresh, 'in_file')
+    compproc.connect(tsnr, 'stddev_file',
+                     outputspec, 'stddev_file')
+    compproc.connect(tsnr, 'tsnr_file',
+                     outputspec, 'tsnr_file')
+    compproc.connect(compcor, 'noise_components',
+                     outputspec, 'noise_components')
     return compproc
+
 
 def choose_susan(fwhm, motion_files, smoothed_files):
     cor_smoothed_files = []
@@ -223,32 +240,38 @@ def choose_susan(fwhm, motion_files, smoothed_files):
         cor_smoothed_files = smoothed_files
     return cor_smoothed_files
 
+
 def getsubs(subject_id):
-    subs = [('_subject_id_%s/'%subject_id,''),
-            ('_plot_type_',''),
-            ('_fwhm','fwhm'),
-            ('_dtype_mcf_mask_mean','_mean'),
-            ('_dtype_mcf_mask_smooth_mask_gms_tempfilt','_smoothed_preprocessed'),
-            ('_dtype_mcf_mask_gms_tempfilt','_unsmoothed_preprocessed'),
-            ('_dtype_mcf','_mcf')]
-    
+    subs = [('_subject_id_%s/' % subject_id, ''),
+            ('_plot_type_', ''),
+            ('_fwhm', 'fwhm'),
+            ('_dtype_mcf_mask_mean', '_mean'),
+            ('_dtype_mcf_mask_smooth_mask_gms_tempfilt',
+             '_smoothed_preprocessed'),
+            ('_dtype_mcf_mask_gms_tempfilt',
+             '_unsmoothed_preprocessed'),
+            ('_dtype_mcf', '_mcf')]
+
     for i in range(4):
-        subs.append(('_plot_motion%d'%i, ''))
-        subs.append(('_highpass%d/'%i, ''))
-        subs.append(('_realign%d/'%i, ''))
-        subs.append(('_meanfunc2%d/'%i, ''))
+        subs.append(('_plot_motion%d' % i, ''))
+        subs.append(('_highpass%d/' % i, ''))
+        subs.append(('_realign%d/' % i, ''))
+        subs.append(('_meanfunc2%d/' % i, ''))
     return subs
 
-def get_datasink(subj,root_dir,fwhm):
+
+def get_datasink(subj, root_dir, fwhm):
     sinkd = pe.Node(nio.DataSink(), name='sinkd')
-    sinkd.inputs.base_directory = os.path.join(root_dir,'analyses','func')
+    sinkd.inputs.base_directory = os.path.join(root_dir, 'analyses', 'func')
     sinkd.inputs.container = subj
     sinkd.inputs.substitutions = getsubs(subj)
-    sinkd.inputs.regexp_substitutions = [('mask/fwhm_%d/_threshold([0-9]*)/.*nii'%x,'mask/fwhm_%d/funcmask.nii'%x) for x in fwhm]
-    sinkd.inputs.regexp_substitutions.append(('realigned/fwhm_([0-9])/_copy_geom([0-9]*)/','realigned/'))
-    sinkd.inputs.regexp_substitutions.append(('motion/fwhm_([0-9])/','motion/'))
-    sinkd.inputs.regexp_substitutions.append(('bbreg/fwhm_([0-9])/','bbreg/'))
+    sinkd.inputs.regexp_substitutions = [('mask/fwhm_%d/_threshold([0-9]*)/.*nii' % x,
+                                          'mask/fwhm_%d/funcmask.nii' % x) for x in fwhm]
+    sinkd.inputs.regexp_substitutions.append(('realigned/fwhm_([0-9])/_copy_geom([0-9]*)/',
+                                              'realigned/'))
+    sinkd.inputs.regexp_substitutions.append(('motion/fwhm_([0-9])/', 'motion/'))
+    sinkd.inputs.regexp_substitutions.append(('bbreg/fwhm_([0-9])/', 'bbreg/'))
     return sinkd
 
 tolist = lambda x: [x]
-highpass_operand = lambda x:'-bptf %.10f -1'%x
+highpass_operand = lambda x: '-bptf %.10f -1' % x
