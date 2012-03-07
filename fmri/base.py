@@ -5,7 +5,6 @@ import nipype.algorithms.rapidart as ra     # rapid artifact detection
 from nipype.interfaces.nipy.preprocess import FmriRealign4d
 from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
 from nipype.workflows.fmri.fsl import create_susan_smooth
-from config import *
 from utils import *
 
 def create_filter_matrix(motion_params, composite_norm,
@@ -76,8 +75,7 @@ def create_filter_matrix(motion_params, composite_norm,
 
 
 def create_prep(name='preproc'):
-    """
-    Description.
+    """ Description.
     """
     preproc = pe.Workflow(name=name)
 
@@ -89,7 +87,16 @@ def create_prep(name='preproc'):
                                                       'fssubject_dir',
                                                       'func',
                                                       'highpass',
-                                                      'num_noise_components']),
+                                                      'num_noise_components',
+                                                      'ad_normthresh',
+                                                      'ad_zthresh',
+                                                      'tr',
+                                                      'interleaved',
+                                                      'sliceorder',
+                                                      'compcor_select',
+                                                      'highpass_sigma',
+                                                      'lowpass_sigma',
+                                                      'reg_params']),
                         name='inputspec')
 
     # Separate input node for FWHM
@@ -164,21 +171,27 @@ def create_prep(name='preproc'):
 
     # declare some node inputs...
     plot_motion.iterables = ('plot_type', ['rotations', 'translations'])
-    ad.inputs.norm_threshold = norm_thresh
     ad.inputs.parameter_source = 'FSL'
-    ad.inputs.zintensity_threshold = z_thresh
     ad.inputs.mask_type = 'file'
     ad.inputs.use_differences = [True, False]
     getmask.inputs.inputspec.contrast_type = 't2'
-    motion_correct.inputs.tr = TR
-    motion_correct.inputs.interleaved = Interleaved
-    motion_correct.inputs.slice_order = SliceOrder
-    compcor.inputs.inputspec.selector = compcor_select
     fssource = getmask.get_node('fssource')
-
+    
     # make connections...
     preproc.connect(inputnode, 'fssubject_id',
                     getmask, 'inputspec.subject_id')
+    preproc.connect(inputnode,'ad_normthresh',
+                    ad,'norm_threshold')
+    preproc.connect(inputnode,'ad_zthresh', 
+                    ad, 'zintensity_threshold')
+    preproc.connect(inputnode,'tr',
+                    motion_correct,'tr')
+    preproc.connect(inputnode,'interleaved',
+                    motion_correct,'interleaved')
+    preproc.connect(inputnode,'sliceorder',
+                    motion_correct,'slice_order') 
+    preproc.connect(inputnode,'compcor_select',
+                    compcor,'inputspec.selector')              
     preproc.connect(inputnode, 'fssubject_dir',
                     getmask, 'inputspec.subjects_dir')
     preproc.connect(inputnode, 'func',
@@ -284,4 +297,81 @@ def create_prep(name='preproc'):
                     outputnode, 'stddev_file')
 
     return preproc
+
+
+def create_rest_prep(name='preproc'):
+    """Description
     
+    """
+    
+    preproc = create_prep()
+
+    #add outliers and noise components
+    addoutliers = pe.Node(util.Function(input_names=['motion_params',
+                                                     'composite_norm',
+                                                     "compcorr_components",
+                                                     "art_outliers","selector"],
+                                        output_names=['filter_file'],
+                                        function=create_filter_matrix),
+                          name='create_nuisance_filter')
+
+    # regress out noise
+    remove_noise = pe.Node(fsl.FilterRegressor(filter_all=True),
+                       name='regress_nuisance')
+
+    # bandpass filter                   
+    bandpass_filter = pe.Node(fsl.TemporalFilter(),
+                              name='bandpass_filter')
+
+    # Get old nodes
+    inputnode = preproc.get_node('inputspec')
+    meanscale = preproc.get_node('scale_median')
+    ad = preproc.get_node('artifactdetect')
+    compcor = preproc.get_node('CompCor')
+    motion_correct = preproc.get_node('realign')
+    smooth = preproc.get_node('smooth_with_susan')
+    highpass = preproc.get_node('highpass')
+    outputnode = preproc.get_node('outputspec')
+    outputnode.interface._fields.append('filter_file')
+
+    #disconnect old nodes
+    preproc.disconnect(motion_correct, 'out_file',
+                       smooth, 'inputnode.in_files')
+    preproc.disconnect(inputnode, ('highpass', highpass_operand),
+                      highpass, 'op_string')
+    preproc.disconnect(meanscale, 'out_file',
+                       highpass, 'in_file')
+
+    # remove nodes
+    preproc.remove_nodes([highpass])
+
+    # connect nodes
+    preproc.connect(ad, 'outlier_files',
+                    addoutliers,    'art_outliers')
+    preproc.connect(ad, 'norm_files',
+                    addoutliers, 'composite_norm')
+    preproc.connect(compcor, ('outputspec.noise_components',pickfirst),
+                    addoutliers, 'compcorr_components')
+    preproc.connect(motion_correct, ('par_file',pickfirst),
+                    addoutliers, 'motion_params')
+    preproc.connect(addoutliers, 'filter_file',
+                    remove_noise, 'design_file')
+    preproc.connect(remove_noise, 'out_file',
+                    bandpass_filter,'in_file')
+    preproc.connect(compcor, ('tsnr.detrended_file',pickfirst),
+                    remove_noise, 'in_file')
+    preproc.connect(bandpass_filter,'out_file',
+                    smooth, 'inputnode.in_files')
+    preproc.connect(meanscale, 'out_file',
+                    outputnode, 'scaled_files')
+    preproc.connect(inputnode,'highpass_sigma',
+                    bandpass_filter,'highpass_sigma')
+    preproc.connect(inputnode,'lowpass_sigma',
+                    bandpass_filter,'lowpass_sigma')
+    preproc.connect(inputnode,'reg_params',
+                    addoutliers,'selector')
+    preproc.connect(addoutliers, 'filter_file',
+                    outputnode, 'filter_file')
+
+    preproc.write_graph(graph2use = 'orig')
+    return preproc    
