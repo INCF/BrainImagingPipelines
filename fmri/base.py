@@ -7,6 +7,7 @@ from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
 from nipype.workflows.fmri.fsl import create_susan_smooth
 from utils import *
 
+
 def create_filter_matrix(motion_params, composite_norm,
                          compcorr_components, art_outliers, selector):
     """Combine nuisance regressor components into a single file
@@ -31,46 +32,47 @@ def create_filter_matrix(motion_params, composite_norm,
     splitter = np.vectorize(lambda x: os.path.split(x)[1])
     filenames = ['%s' % item for item in \
                         splitter(options[selector[:-1]])]
-    filter_file = os.path.abspath("filter+%s+outliers.txt"%"+".join(filenames))
+    filter_file = os.path.abspath("filter+%s+outliers.txt" %\
+                                  "+".join(filenames))
 
     z = None
 
     for i, opt in enumerate(options[:-1][selector[:-2]]):
     # concatenate all files except art_outliers and motion_derivs
-        if i ==0:
+        if i == 0:
             z = try_import(opt)
 
         else:
             a = try_import(opt)
-            if len(a.shape)==1:
+            if len(a.shape) == 1:
                 a = np.array([a]).T
-            z = np.hstack((z,a))
+            z = np.hstack((z, a))
 
     if selector[-2]:
         #import outlier file
         outliers = try_import(art_outliers)
-        if outliers.shape[0] == 0: # empty art file
+        if outliers.shape[0] == 0:  # empty art file
             out = z
-        elif outliers.shape ==(): # 1 outlier
-            art = np.zeros((z.shape[0],1))
-            art[np.int_(outliers)-1,0] = 1
-            out = np.hstack((z,art))
-        else: # >1 outlier
-            art = np.zeros((z.shape[0],outliers.shape[0]))
-            for j,t in enumerate(a):
-                art[np.int_(t)-1,j] = 1
-            out = np.hstack((z,art))
+        elif outliers.shape == ():  # 1 outlier
+            art = np.zeros((z.shape[0], 1))
+            art[np.int_(outliers) - 1, 0] = 1
+            out = np.hstack((z, art))
+        else:  # >1 outlier
+            art = np.zeros((z.shape[0], outliers.shape[0]))
+            for j, t in enumerate(a):
+                art[np.int_(t) - 1, j] = 1
+            out = np.hstack((z, art))
     else:
         out = z
 
-    if selector[-1]: # this is the motion_derivs bool
+    if selector[-1]:  # this is the motion_derivs bool
             a = try_import(motion_params)
             temp = np.zeros(a.shape)
-            temp[1:,:] = np.diff(a,axis = 0)
-            out = np.hstack((out,temp))
+            temp[1:, :] = np.diff(a, axis=0)
+            out = np.hstack((out, temp))
 
     print out.shape
-    np.savetxt(filter_file,out)
+    np.savetxt(filter_file, out)
     return filter_file
 
 
@@ -100,12 +102,12 @@ def create_prep(name='preproc'):
                         name='inputspec')
 
     # Separate input node for FWHM
-    inputnode_fwhm = pe.Node(util.IdentityInterface(fields = ['fwhm']),
-                             name = 'fwhm_input')
+    inputnode_fwhm = pe.Node(util.IdentityInterface(fields=['fwhm']),
+                             name='fwhm_input')
 
     # convert BOLD images to float
     img2float = pe.MapNode(interface=fsl.ImageMaths(out_data_type='float',
-                                                    op_string = '',
+                                                    op_string='',
                                                     suffix='_dtype'),
                            iterfield=['in_file'],
                            name='img2float')
@@ -114,7 +116,6 @@ def create_prep(name='preproc'):
     motion_correct = pe.MapNode(interface=FmriRealign4d(),
                                 name='realign',
                                 iterfield=['in_file'])
-
 
     # construct motion plots
     plot_motion = pe.MapNode(interface=fsl.PlotMotionParams(in_source='fsl'),
@@ -140,18 +141,18 @@ def create_prep(name='preproc'):
 
     # choose susan function
     """
-    The following node selects smooth or unsmoothed data 
+    The following node selects smooth or unsmoothed data
     depending on the fwhm. This is because SUSAN defaults
-    to smoothing the data with about the voxel size of 
-    the input data if the fwhm parameter is less than 1/3 of 
+    to smoothing the data with about the voxel size of
+    the input data if the fwhm parameter is less than 1/3 of
     the voxel size.
     """
-    choosesusan = pe.Node(util.Function(input_names = ['fwhm',
+    choosesusan = pe.Node(util.Function(input_names=['fwhm',
                                                        'motion_files',
                                                        'smoothed_files'],
-                                        output_names = ['cor_smoothed_files'],
-                                        function = choose_susan),
-                          name = 'select_smooth')
+                                        output_names=['cor_smoothed_files'],
+                                        function=choose_susan),
+                          name='select_smooth')
 
     # scale the median value of each run to 10,000
     meanscale = pe.MapNode(interface=fsl.ImageMaths(suffix='_gms'),
@@ -161,7 +162,7 @@ def create_prep(name='preproc'):
 
     # determine the median value of the MASKED functional runs
     medianval = pe.MapNode(interface=fsl.ImageStats(op_string='-k %s -p 50'),
-                           iterfield = ['in_file'],
+                           iterfield=['in_file'],
                            name='compute_median_val')
 
     # temporal highpass filtering
@@ -176,27 +177,27 @@ def create_prep(name='preproc'):
     ad.inputs.use_differences = [True, False]
     getmask.inputs.inputspec.contrast_type = 't2'
     fssource = getmask.get_node('fssource')
-    
+
     # make connections...
     preproc.connect(inputnode, 'fssubject_id',
                     getmask, 'inputspec.subject_id')
-    preproc.connect(inputnode,'ad_normthresh',
-                    ad,'norm_threshold')
-    preproc.connect(inputnode,'ad_zthresh', 
+    preproc.connect(inputnode, 'ad_normthresh',
+                    ad, 'norm_threshold')
+    preproc.connect(inputnode, 'ad_zthresh',
                     ad, 'zintensity_threshold')
-    preproc.connect(inputnode,'tr',
-                    motion_correct,'tr')
-    preproc.connect(inputnode,'interleaved',
-                    motion_correct,'interleaved')
-    preproc.connect(inputnode,'sliceorder',
-                    motion_correct,'slice_order') 
-    preproc.connect(inputnode,'compcor_select',
-                    compcor,'inputspec.selector')              
+    preproc.connect(inputnode, 'tr',
+                    motion_correct, 'tr')
+    preproc.connect(inputnode, 'interleaved',
+                    motion_correct, 'interleaved')
+    preproc.connect(inputnode, 'sliceorder',
+                    motion_correct, 'slice_order')
+    preproc.connect(inputnode, 'compcor_select',
+                    compcor, 'inputspec.selector')
     preproc.connect(inputnode, 'fssubject_dir',
                     getmask, 'inputspec.subjects_dir')
     preproc.connect(inputnode, 'func',
                     img2float, 'in_file')
-    preproc.connect(img2float, ('out_file',tolist),
+    preproc.connect(img2float, ('out_file', tolist),
                     motion_correct, 'in_file')
     preproc.connect(motion_correct, 'par_file',
                     plot_motion, 'in_file')
@@ -218,15 +219,15 @@ def create_prep(name='preproc'):
                     ad, 'realigned_files')
     preproc.connect(motion_correct, 'par_file',
                     ad, 'realignment_parameters')
-    preproc.connect(getmask, ('outputspec.mask_file',pickfirst),
+    preproc.connect(getmask, ('outputspec.mask_file', pickfirst),
                     ad, 'mask_file')
-    preproc.connect(getmask, ('outputspec.mask_file',pickfirst),
+    preproc.connect(getmask, ('outputspec.mask_file', pickfirst),
                     medianval, 'mask_file')
     preproc.connect(inputnode_fwhm, 'fwhm',
                     smooth, 'inputnode.fwhm')
     preproc.connect(motion_correct, 'out_file',
                     smooth, 'inputnode.in_files')
-    preproc.connect(getmask, ('outputspec.mask_file',pickfirst),
+    preproc.connect(getmask, ('outputspec.mask_file', pickfirst),
                     smooth, 'inputnode.mask_file')
     preproc.connect(smooth, 'outputnode.smoothed_files',
                     choosesusan, 'smoothed_files')
@@ -301,16 +302,16 @@ def create_prep(name='preproc'):
 
 def create_rest_prep(name='preproc'):
     """Description
-    
     """
-    
+
     preproc = create_prep()
 
     #add outliers and noise components
     addoutliers = pe.Node(util.Function(input_names=['motion_params',
                                                      'composite_norm',
                                                      "compcorr_components",
-                                                     "art_outliers","selector"],
+                                                     "art_outliers",
+                                                     "selector"],
                                         output_names=['filter_file'],
                                         function=create_filter_matrix),
                           name='create_nuisance_filter')
@@ -319,7 +320,7 @@ def create_rest_prep(name='preproc'):
     remove_noise = pe.Node(fsl.FilterRegressor(filter_all=True),
                        name='regress_nuisance')
 
-    # bandpass filter                   
+    # bandpass filter
     bandpass_filter = pe.Node(fsl.TemporalFilter(),
                               name='bandpass_filter')
 
@@ -332,7 +333,7 @@ def create_rest_prep(name='preproc'):
     smooth = preproc.get_node('smooth_with_susan')
     highpass = preproc.get_node('highpass')
     outputnode = preproc.get_node('outputspec')
-    outputnode.interface._fields.append('filter_file')
+    #outputnode.interface._fields.append('filter_file')
 
     #disconnect old nodes
     preproc.disconnect(motion_correct, 'out_file',
@@ -347,31 +348,31 @@ def create_rest_prep(name='preproc'):
 
     # connect nodes
     preproc.connect(ad, 'outlier_files',
-                    addoutliers,    'art_outliers')
+                    addoutliers, 'art_outliers')
     preproc.connect(ad, 'norm_files',
                     addoutliers, 'composite_norm')
-    preproc.connect(compcor, ('outputspec.noise_components',pickfirst),
+    preproc.connect(compcor, ('outputspec.noise_components', pickfirst),
                     addoutliers, 'compcorr_components')
-    preproc.connect(motion_correct, ('par_file',pickfirst),
+    preproc.connect(motion_correct, ('par_file', pickfirst),
                     addoutliers, 'motion_params')
     preproc.connect(addoutliers, 'filter_file',
                     remove_noise, 'design_file')
     preproc.connect(remove_noise, 'out_file',
-                    bandpass_filter,'in_file')
-    preproc.connect(compcor, ('tsnr.detrended_file',pickfirst),
+                    bandpass_filter, 'in_file')
+    preproc.connect(compcor, ('tsnr.detrended_file', pickfirst),
                     remove_noise, 'in_file')
-    preproc.connect(bandpass_filter,'out_file',
+    preproc.connect(bandpass_filter, 'out_file',
                     smooth, 'inputnode.in_files')
     preproc.connect(meanscale, 'out_file',
                     outputnode, 'scaled_files')
-    preproc.connect(inputnode,'highpass_sigma',
-                    bandpass_filter,'highpass_sigma')
-    preproc.connect(inputnode,'lowpass_sigma',
-                    bandpass_filter,'lowpass_sigma')
-    preproc.connect(inputnode,'reg_params',
-                    addoutliers,'selector')
+    preproc.connect(inputnode, 'highpass_sigma',
+                    bandpass_filter, 'highpass_sigma')
+    preproc.connect(inputnode, 'lowpass_sigma',
+                    bandpass_filter, 'lowpass_sigma')
+    preproc.connect(inputnode, 'reg_params',
+                    addoutliers, 'selector')
     preproc.connect(addoutliers, 'filter_file',
                     outputnode, 'filter_file')
 
-    preproc.write_graph(graph2use = 'orig')
-    return preproc    
+    preproc.write_graph(graph2use='orig')
+    return preproc
