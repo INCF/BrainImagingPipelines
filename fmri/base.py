@@ -359,8 +359,10 @@ def create_rest_prep(name='preproc'):
                     remove_noise, 'design_file')
     preproc.connect(remove_noise, 'out_file',
                     bandpass_filter, 'in_file')
-    preproc.connect(compcor, ('tsnr.detrended_file', pickfirst),
+    preproc.connect(motion_correct, ('par_file', pickfirst),
                     remove_noise, 'in_file')
+    #preproc.connect(compcor, ('tsnr.detrended_file', pickfirst),
+    #                remove_noise, 'in_file')
     preproc.connect(bandpass_filter, 'out_file',
                     smooth, 'inputnode.in_files')
     preproc.connect(meanscale, 'out_file',

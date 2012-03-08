@@ -15,12 +15,12 @@ from nipype.algorithms.modelgen import SpecifyModel
 from nipype.algorithms.misc import TSNR
 from nibabel import load
 from glob import glob
-from nipype.workflows.freesurfer.utils import create_getmask_flow
+from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
 from nipype.interfaces.base import Bunch
 from copy import deepcopy
 from nipype.utils.config import config
 config.enable_debug_mode()
-from preproc_only_AK import * #(preproc = prep_workflow(subject))
+#from preproc_only_AK import * #(preproc = prep_workflow(subject))
 from report_first_level import *
 from textmake import *
 
@@ -40,21 +40,21 @@ def create_first(name='modelfit'):
     
     
     level1design = pe.Node(interface=fsl.Level1Design(), 
-                           name="level1design")
+                           name="create_level1_design")
 
     modelgen = pe.MapNode(interface=fsl.FEATModel(), 
-                          name='modelgen',
+                          name='generate_model',
                           iterfield = ['fsf_file', 
                                        'ev_files'])
     
     modelestimate = pe.MapNode(interface=fsl.FILMGLS(smooth_autocorr=True,
                                                      mask_size=5),
-                               name='modelestimate',
+                               name='estimate_model',
                                iterfield = ['design_file',
                                             'in_file'])
 
     conestimate = pe.MapNode(interface=fsl.ContrastMgr(), 
-                             name='conestimate',
+                             name='estimate_contrast',
                              iterfield = ['tcon_file',
                                           'param_estimates',
                                           'sigmasquareds', 
@@ -63,7 +63,7 @@ def create_first(name='modelfit'):
 
     ztopval = pe.MapNode(interface=fsl.ImageMaths(op_string='-ztop',
                                                   suffix='_pval'),
-                         name='ztop',
+                         name='z2pval',
                          iterfield=['in_file'])
     outputspec = pe.Node(util.IdentityInterface(fields=['copes',
                                                         'varcopes',
