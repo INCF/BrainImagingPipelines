@@ -149,7 +149,7 @@ def combine_wkflw(subj,preproc,name='combineworkflow'):
     sinkd.inputs.regexp_substitutions.append(('bbreg/fwhm_([0-9])/','bbreg/'))
      
     # make connections
-    modelflow.connect(preproc, 'outputspec.motion_parameters',      trad_motn,  'files')
+    modelflow.connect(preproc, ('outputspec.motion_parameters',pickfirst),      trad_motn,  'files')
     modelflow.connect(preproc, 'outputspec.noise_components',       noise_motn, 'files')
     modelflow.connect(preproc, 'outputspec.highpassed_files',       s,          'functional_runs')
     modelflow.connect(preproc, 'outputspec.highpassed_files',       modelfit,   'inputspec.functional_data')
@@ -172,7 +172,7 @@ def combine_wkflw(subj,preproc,name='combineworkflow'):
 if __name__ == "__main__":
      preprocess = prep_workflow(subjects[0])
      first_level = combine_wkflw(subjects[0],preprocess,name=subjects[0])
-     first_level.run()
+     first_level.run(plugin='PBS')
      #modelflow = combine_report(subjects[0],maindir = root_dir, fsdir = surf_dir, thr = 3.6, csize = 50)
      #modelflow.run(plugin='PBS')
      #textmake(subjects[0])

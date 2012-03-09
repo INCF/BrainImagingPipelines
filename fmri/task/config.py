@@ -132,15 +132,15 @@ def subjectinfo(subject_id):
 'SAD_P47','SAD_P50','SAD_P51','SAD_P52','SAD_P55','SAD_P56','SAD_POST05','SAD_POST06','SAD_POST08','SAD_POST10','SAD_POST12','SAD_POST14',
 'SAD_POST16','SAD_POST20','SAD_POST22','SAD_POST27','SAD_POST31','SAD_POST34','SAD_POST38','SAD_POST36','SAD_POST44','SAD_POST45','SAD_POST47',
 'SAD_POST50','SAD_POST51','SAD_POST52']
- 
-    for r in range(1):
-	if subject_id in regular:
-		onsets = [[45,120,240,315,405,465],[60,135,195,285,420,495],[30,105,255,330,375,525],[15,165,210,300,390,510],[75,150,225,345,435,480]]
-	elif subject_id in cb:
-		onsets = [[75,135,225,300,420,495],[45,120,255,345,405,480],[15,165,210,285,435,510],[30,150,240,330,375,525],[60,105,195,315,390,465]]
-	else: 
-		raise Exception('%s unknown' %subject_id)
-	durations = [[15],[15],[15],[15],[15]]
+    # NOTE: LOOP THROUGH ALL RUNS! LENGTH OF OUTPUT = # FUNCTIONAL RUNS
+    for r in range(2):
+        if subject_id in regular:
+	        onsets = [[45,120,240,315,405,465],[60,135,195,285,420,495],[30,105,255,330,375,525],[15,165,210,300,390,510],[75,150,225,345,435,480]]
+        elif subject_id in cb:
+	        onsets = [[75,135,225,300,420,495],[45,120,255,345,405,480],[15,165,210,285,435,510],[30,150,240,330,375,525],[60,105,195,315,390,465]]
+        else: 
+	        raise Exception('%s unknown' %subject_id)
+        durations = [[15],[15],[15],[15],[15]]
         output.insert(r,
                       Bunch(conditions=names,
                             onsets=deepcopy(onsets),
