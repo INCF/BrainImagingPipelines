@@ -164,8 +164,8 @@ def extract_csf_mask():
     bin.inputs.ventricles = True
     extract_csf.connect(inputspec, 'fsaseg_file',
                         bin, "in_file")
-    voltransform = pe.Node(fs.ApplyVolTransform(inverse=True),
-                           name='inverse_transform')
+    voltransform = pe.MapNode(fs.ApplyVolTransform(inverse=True),
+                           name='inverse_transform',iterfield=['source_file'])
     extract_csf.connect(bin, 'binary_file',
                         voltransform, 'target_file')
     extract_csf.connect(inputspec, ('reg_file', pickfirst),
@@ -254,7 +254,8 @@ def create_compcorr(name='CompCor'):
                                        function=extract_noise_components),
                                        name='compcor_components',
                                        iterfield=['realigned_file',
-                                                  'noise_mask_file'])
+                                                  'noise_mask_file',
+                                                  'csf_mask_file'])
     # Make connections
     compproc.connect(inputspec, 'realigned_file',
                      acomp, 'inputspec.mean_file')
@@ -270,7 +271,7 @@ def create_compcorr(name='CompCor'):
                      tsnr, 'in_file')
     compproc.connect(inputspec, 'num_components',
                      compcor, 'num_components')
-    compproc.connect(inputspec, 'realigned_file',
+    compproc.connect(inputspec, ('realigned_file',pickfirst),
                      compcor, 'realigned_file')
     compproc.connect(getthresh, 'out_stat',
                      threshold_stddev, 'thresh')
@@ -390,12 +391,12 @@ def weight_mean(image, art_file):
     return mean_image
 
 
-def art_mean_workflow(name="take_mean-art"):
+def art_mean_workflow(name="take_mean_art"):
     """Calculates mean image after running art w/ norm = 0.5, z=2
     
     Parameters
     ----------
-    name : name of workflow. Default = 'take_mean-art'
+    name : name of workflow. Default = 'take_mean_art'
     
     Inputs
     ------
@@ -426,8 +427,10 @@ def art_mean_workflow(name="take_mean-art"):
                                        name='weighted_mean',
                                        iterfield=['image','art_file'])
     
-    ad = pe.Node(ra.ArtifactDetect(),
-                 name='strict_artifact_detect')
+    ad = pe.MapNode(ra.ArtifactDetect(),
+                 name='strict_artifact_detect', 
+                 iterfield=['realignment_parameters',
+                 'realigned_files'])
 
     outputspec = pe.Node(util.IdentityInterface(fields=['mean_image']),
                          name='outputspec')

@@ -173,7 +173,7 @@ def create_prep(name='preproc'):
                            name='img2float')
 
     # define the motion correction node
-    motion_correct = pe.MapNode(interface=FmriRealign4d(),
+    motion_correct = pe.Node(interface=FmriRealign4d(),
                                 name='realign',
                                 iterfield=['in_file'])
 
@@ -183,8 +183,10 @@ def create_prep(name='preproc'):
                              iterfield=['in_file'])
 
     # rapidArt for artifactual timepoint detection
-    ad = pe.Node(ra.ArtifactDetect(),
-                 name='artifactdetect')
+    ad = pe.MapNode(ra.ArtifactDetect(),
+                 name='artifactdetect',
+                 iterfield=['realigned_files',
+                 'realignment_parameters'])
 
     # extract the mean volume if the first functional run
     #meanfunc = pe.Node(fsl.MeanImage(),
@@ -270,15 +272,15 @@ def create_prep(name='preproc'):
                     img2float, 'in_file')
     preproc.connect(img2float, ('out_file', tolist),
                     motion_correct, 'in_file')
-    preproc.connect(motion_correct, 'par_file',
+    preproc.connect(motion_correct, ('par_file',pickfirst),
                     plot_motion, 'in_file')
     preproc.connect(motion_correct, ('out_file', pickfirst),
                     meanfunc, 'inputspec.realigned_files')
-    preproc.connect(motion_correct, 'out_file',
+    preproc.connect(motion_correct, ('out_file', pickfirst),
                     zscore, 'image')
     preproc.connect(ad, 'outlier_files',
                     zscore, 'outliers')
-    preproc.connect(motion_correct, 'par_file',
+    preproc.connect(motion_correct, ('par_file',pickfirst),
                     meanfunc, 'inputspec.realignment_parameters')
     preproc.connect(meanfunc, 'outputspec.mean_image',
                     getmask, 'inputspec.source_file')
@@ -286,15 +288,15 @@ def create_prep(name='preproc'):
                     compcor, 'inputspec.num_components')
     preproc.connect(motion_correct, 'out_file',
                     compcor, 'inputspec.realigned_file')
-    preproc.connect(motion_correct, 'out_file',
+    preproc.connect(motion_correct, ('out_file',pickfirst),
                     compcor, 'inputspec.in_file')
     preproc.connect(fssource, 'aseg',
                     compcor, 'inputspec.fsaseg_file')
     preproc.connect(getmask, 'outputspec.reg_file',
                     compcor, 'inputspec.reg_file')
-    preproc.connect(motion_correct, 'out_file',
+    preproc.connect(motion_correct, ('out_file',pickfirst),
                     ad, 'realigned_files')
-    preproc.connect(motion_correct, 'par_file',
+    preproc.connect(motion_correct, ('par_file',pickfirst),
                     ad, 'realignment_parameters')
     preproc.connect(getmask, ('outputspec.mask_file', pickfirst),
                     ad, 'mask_file')
@@ -302,13 +304,13 @@ def create_prep(name='preproc'):
                     medianval, 'mask_file')
     preproc.connect(inputnode_fwhm, 'fwhm',
                     smooth, 'inputnode.fwhm')
-    preproc.connect(motion_correct, 'out_file',
+    preproc.connect(motion_correct, ('out_file',pickfirst),
                     smooth, 'inputnode.in_files')
     preproc.connect(getmask, ('outputspec.mask_file', pickfirst),
                     smooth, 'inputnode.mask_file')
     preproc.connect(smooth, 'outputnode.smoothed_files',
                     choosesusan, 'smoothed_files')
-    preproc.connect(motion_correct, 'out_file',
+    preproc.connect(motion_correct, ('out_file',pickfirst),
                     choosesusan, 'motion_files')
     preproc.connect(inputnode_fwhm, 'fwhm',
                     choosesusan, 'fwhm')
@@ -469,7 +471,7 @@ def create_rest_prep(name='preproc'):
     outputnode = preproc.get_node('outputspec')
 
     #disconnect old nodes
-    preproc.disconnect(motion_correct, 'out_file',
+    preproc.disconnect(motion_correct, ('out_file',pickfirst),
                        smooth, 'inputnode.in_files')
     preproc.disconnect(inputnode, ('highpass', highpass_operand),
                       highpass, 'op_string')
@@ -486,13 +488,13 @@ def create_rest_prep(name='preproc'):
                     addoutliers, 'composite_norm')
     preproc.connect(compcor, 'outputspec.noise_components', 
                     addoutliers, 'compcorr_components')
-    preproc.connect(motion_correct, 'par_file',
+    preproc.connect(motion_correct, ('par_file',pickfirst),
                     addoutliers, 'motion_params')
     preproc.connect(addoutliers, 'filter_file',
                     remove_noise, 'design_file')
     preproc.connect(remove_noise, 'out_file',
                     bandpass_filter, 'in_file')
-    preproc.connect(motion_correct, 'par_file',
+    preproc.connect(motion_correct, ('out_file',pickfirst),
                     remove_noise, 'in_file')
     preproc.connect(bandpass_filter, 'out_file',
                     smooth, 'inputnode.in_files')
