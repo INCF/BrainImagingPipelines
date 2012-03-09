@@ -33,7 +33,7 @@ z_thresh = 3
 crash_dir = root_dir
 
 # - 'run_on_grid' [boolean]
-run_on_grid = False
+run_on_grid = True
 
 # - 'fwhm' full width at half max (currently only the second value is used)
 fwhm = [0, 5]
@@ -86,9 +86,9 @@ def create_dataflow(name="datasource"):
                          name = name)
     datasource.inputs.base_directory = base_dir
     datasource.inputs.template ='*'
-    datasource.inputs.field_template = dict(func='%s/f%s.nii',struct='%s/struct.nii')
+    datasource.inputs.field_template = dict(func='%s/f3*.nii')
     #datasource.inputs.subject_id = subj
-    datasource.inputs.template_args = dict(func=[['subject_id',['3']]], struct=[['subject_id']])#,'2','3','4','5','6']]])
+    datasource.inputs.template_args = dict(func=[['subject_id']])
     return datasource
 
 def get_onsets(subject_id):
@@ -103,10 +103,10 @@ def get_run_numbers(subject_id):
     #behav_path = os.path.join(root_dir,subject_id,'boldnii','run_para.txt')
     #paraidx = np.genfromtxt(behav_path,dtype=object)[:,0]
     #runs = [int(para) for para in paraidx]
-    return [3]#,2,3,4,5,6]
+    return [3,4]#,2,3,4,5,6]
 
 def getinfo(subject_id):
-    runs = ['3']#,'2','3','4','5','6']#deepcopy(get_run_numbers(subject_id))
+    runs = ['3','4']#,'2','3','4','5','6']#deepcopy(get_run_numbers(subject_id))
     info = dict(func=[['subject_id', 'fwhm', 'subject_id', runs]],
                 motion=[['subject_id', 'subject_id', runs]],
                 outliers=[['subject_id', 'subject_id', runs]])

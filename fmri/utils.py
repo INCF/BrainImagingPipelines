@@ -6,7 +6,7 @@ import nipype.interfaces.freesurfer as fs
 import nipype.interfaces.utility as util
 from nipype.algorithms.misc import TSNR
 import nipype.interfaces.fsl as fsl
-
+import nipype.algorithms.rapidart as ra     # rapid artifact detection
 
 def pickfirst(files):
     """Return first file from a list of files
@@ -95,6 +95,18 @@ def getusans(x):
 def extract_noise_components(realigned_file, noise_mask_file, num_components,
                              csf_mask_file, selector):
     """Derive components most reflective of physiological noise
+    
+    Parameters
+    ----------
+    realigned_file :
+    noise_mask_file :
+    num_components :
+    csf_mask_file :
+    selector :
+    
+    Returns
+    -------
+    components_file :
     """
 
     import os
@@ -126,6 +138,20 @@ def extract_noise_components(realigned_file, noise_mask_file, num_components,
 
 def extract_csf_mask():
     """Create a workflow to extract a mask of csf voxels
+    
+    Inputs
+    ------
+    inputspec.mean_file :
+    inputspec.reg_file :
+    inputspec.fsaseg_file :
+    
+    Outputs
+    -------
+    outputspec.csf_mask :
+    
+    Returns
+    -------
+    workflow : workflow that extracts mask of csf voxels
     """
     extract_csf = pe.Workflow(name='extract_csf_mask')
     inputspec = pe.Node(util.IdentityInterface(fields=['mean_file',
@@ -154,7 +180,38 @@ def extract_csf_mask():
 
 
 def create_compcorr(name='CompCor'):
+    """Workflow that implements (t and/or a) compcor method from 
+    
+    Behzadi et al[1]_.
+    
+    Parameters
+    ----------
+    name : name of workflow. Default = 'CompCor'
+    
+    Inputs
+    ------
+    inputspec.num_components :
+    inputspec.realigned_file :
+    inputspec.in_file :
+    inputspec.reg_file :
+    inputspec.fsaseg_file :
+    inputspec.selector :
+    
+    Outputs
+    -------
+    outputspec.noise_components :
+    outputspec.stddev_file :
+    outputspec.tsnr_file :
+    outputspec.csf_mask :
+    
+    References
+    ----------
+    .. [1] Behzadi Y, Restom K, Liau J, Liu TT. A component based\
+           noise correction method (CompCor) for BOLD and perfusion\
+           based fMRI. Neuroimage. 2007 Aug 1;37(1):90-101. DOI_.
 
+    .. _DOI: http://dx.doi.org/10.1016/j.neuroimage.2007.04.042
+    """
     compproc = pe.Workflow(name=name)
     inputspec = pe.Node(util.IdentityInterface(fields=['num_components',
                                                        'realigned_file',
@@ -233,6 +290,24 @@ def create_compcorr(name='CompCor'):
 
 
 def choose_susan(fwhm, motion_files, smoothed_files):
+    """The following node selects smooth or unsmoothed data
+    
+    depending on the fwhm. This is because SUSAN defaults
+    to smoothing the data with about the voxel size of
+    the input data if the fwhm parameter is less than 1/3 of
+    the voxel size.
+    
+    Parameters
+    ----------
+    fwhm :
+    motion_file :
+    smoothed_files :
+    
+    Returns
+    -------
+    File : either the smoothed or unsmoothed
+           file depending on fwhm
+    """
     cor_smoothed_files = []
     if fwhm < 0.5:
         cor_smoothed_files = motion_files
@@ -272,6 +347,154 @@ def get_datasink(subj, root_dir, fwhm):
     sinkd.inputs.regexp_substitutions.append(('motion/fwhm_([0-9])/', 'motion/'))
     sinkd.inputs.regexp_substitutions.append(('bbreg/fwhm_([0-9])/', 'bbreg/'))
     return sinkd
+
+
+def weight_mean(image, art_file):
+    """Calculates the weighted mean of a 4d image, where 
+    
+    the weight of outlier timpoints is = 0.
+    
+    Parameters
+    ----------
+    image : File to take mean
+    art_file : text file specifying outlier timepoints
+    
+    Returns
+    -------
+    File : weighted mean image
+    """
+    import nibabel as nib
+    import numpy as np
+    from nipype.utils.filemanip import split_filename
+    import os
+
+    def try_import(fname):
+        try:
+            a = np.genfromtxt(fname)
+            if a.shape == ():
+                return [a]
+            else:
+                return a
+        except:
+            return np.array([])
+
+    mean_image = os.path.abspath(split_filename(image)[1] + '.nii.gz')
+    img, aff = nib.load(image).get_data(), nib.load(image).get_affine()
+    weights = np.ones(img.shape[3])
+    outs = try_import(art_file)
+    weights[np.int_(outs)] = 0 #  art outputs 0 based indices
+    mean_img = np.average(img, axis=3, weights=weights)
+    final_image = nib.Nifti1Image(mean_img, aff) 
+    final_image.to_filename(mean_image) 
+
+    return mean_image
+
+
+def art_mean_workflow(name="take_mean-art"):
+    """Calculates mean image after running art w/ norm = 0.5, z=2
+    
+    Parameters
+    ----------
+    name : name of workflow. Default = 'take_mean-art'
+    
+    Inputs
+    ------
+    inputspec.realigned_files :
+    inputspec.parameter_source :
+    inputspec.realignment_parameters :
+    
+    Outputs
+    -------
+    outputspec.mean_image :
+    
+    Returns
+    -------
+    workflow : mean image workflow
+    """
+    # define workflow
+    wkflw = pe.Workflow(name=name)
+
+    # define nodes
+    inputspec = pe.Node(util.IdentityInterface(fields=['realigned_files',
+                                                       'parameter_source',
+                                                       'realignment_parameters']),
+                            name='inputspec')
+
+    meanimg = pe.MapNode(util.Function(input_names=['image','art_file'],
+                                       output_names=['mean_image'],
+                                       function=weight_mean),
+                                       name='weighted_mean',
+                                       iterfield=['image','art_file'])
+    
+    ad = pe.Node(ra.ArtifactDetect(),
+                 name='strict_artifact_detect')
+
+    outputspec = pe.Node(util.IdentityInterface(fields=['mean_image']),
+                         name='outputspec')
+
+    # inputs
+    ad.inputs.zintensity_threshold = 2
+    ad.inputs.norm_threshold = 0.5
+    ad.inputs.use_differences = [True, False]
+    ad.inputs.mask_type = 'spm_global'
+
+    # connections
+    wkflw.connect(inputspec, 'parameter_source',
+                  ad, 'parameter_source')
+    wkflw.connect(inputspec, 'realigned_files',
+                  ad, 'realigned_files')
+    wkflw.connect(inputspec, 'realignment_parameters',
+                  ad, 'realignment_parameters')
+    wkflw.connect(ad, 'outlier_files',
+                  meanimg, 'art_file')
+    wkflw.connect(inputspec, 'realigned_files',
+                  meanimg, 'image')
+    wkflw.connect(meanimg, 'mean_image',
+                  outputspec, 'mean_image')
+    return wkflw
+
+
+def z_image(image,outliers):
+    """Calculates z-score of timeseries removing timpoints with outliers.
+    
+    Parameters
+    ----------
+    image :
+    outliers :
+    
+    Returns
+    -------
+    File : z-image
+    """
+    import numpy as np
+    import math
+    import nibabel as nib
+    from scipy.stats.mstats import zscore
+    from nipype.utils.filemanip import split_filename
+    import os
+
+    def try_import(fname):
+        try:
+            a = np.genfromtxt(fname)
+            if a.shape == ():
+                return [a]
+            else:
+                return a
+        except:
+            return np.array([])
+
+    z_img = os.path.abspath('z_' + split_filename(image)[1] + '.nii.gz')      
+    arts = try_import(outliers)
+    imgt, aff = nib.load(image).get_data(), nib.load(image).get_affine()
+    weights = np.bool_(np.zeros(imgt.shape))
+    for a in arts:
+        weights[:, :, :, a] = True
+    imgt_mask = np.ma.array(imgt, mask=weights)
+    z = zscore(imgt_mask, axis=3)
+    final_image = nib.Nifti1Image(z, aff)
+    final_image.to_filename(z_img)
+    return z_img
+
 
 tolist = lambda x: [x]
 highpass_operand = lambda x: '-bptf %.10f -1' % x

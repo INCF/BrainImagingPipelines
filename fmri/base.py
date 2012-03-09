@@ -11,6 +11,20 @@ from utils import *
 def create_filter_matrix(motion_params, composite_norm,
                          compcorr_components, art_outliers, selector):
     """Combine nuisance regressor components into a single file
+    
+    Parameters
+    ----------
+    motion_params : parameter file output from realignment
+    composite_norm : composite norm file from artifact detection
+    compcorr_components : components from compcor 
+    art_outliers : outlier timepoints from artifact detection
+    selector : a boolean list corresponding to the files to concatenate together\
+               [motion_params, composite_norm, compcorr_components, art_outliers,\
+                motion derivatives]
+                
+    Returns
+    -------
+    filter_file : a file with selected parameters concatenated
     """
     import numpy as np
     import os
@@ -55,12 +69,12 @@ def create_filter_matrix(motion_params, composite_norm,
             out = z
         elif outliers.shape == ():  # 1 outlier
             art = np.zeros((z.shape[0], 1))
-            art[np.int_(outliers) - 1, 0] = 1
+            art[np.int_(outliers), 0] = 1 #  art outputs 0 based indices
             out = np.hstack((z, art))
         else:  # >1 outlier
             art = np.zeros((z.shape[0], outliers.shape[0]))
             for j, t in enumerate(a):
-                art[np.int_(t) - 1, j] = 1
+                art[np.int_(t), j] = 1 #  art outputs 0 based indices
             out = np.hstack((z, art))
     else:
         out = z
@@ -77,7 +91,53 @@ def create_filter_matrix(motion_params, composite_norm,
 
 
 def create_prep(name='preproc'):
-    """ Description.
+    """ Base preprocessing workflow for task and resting state fMRI
+    
+    Parameters
+    ----------
+    name : name of workflow. Default = 'preproc'
+    
+    Inputs
+    ------
+    inputspec.fssubject_id : 
+    inputspec.fssubject_dir :
+    inputspec.func :
+    inputspec.highpass :
+    inputspec.num_noise_components :
+    inputspec.ad_normthresh :
+    inputspec.ad_zthresh :
+    inputspec.tr :
+    inputspec.interleaved :
+    inputspec.sliceorder :
+    inputspec.compcor_select :
+    inputspec.highpass_sigma :
+    inputspec.lowpass_sigma :
+    inputspec.reg_params :
+    
+    Outputs
+    -------
+    outputspec.reference : 
+    outputspec.motion_parameters : 
+    outputspec.realigned_files :
+    outputspec.mask :
+    outputspec.smoothed_files :
+    outputspec.highpassed_files :
+    outputspec.mean :
+    outputspec.combined_motion :
+    outputspec.outlier_files :
+    outputspec.mask :
+    outputspec.reg_cost :
+    outputspec.reg_file :
+    outputspec.noise_components :
+    outputspec.tsnr_file :
+    outputspec.stddev_file :
+    outputspec.filter_file :
+    outputspec.scaled_files :
+    outputspec.z_img :
+    
+    Returns
+    -------
+    workflow : preprocessing workflow
     """
     preproc = pe.Workflow(name=name)
 
@@ -127,8 +187,10 @@ def create_prep(name='preproc'):
                  name='artifactdetect')
 
     # extract the mean volume if the first functional run
-    meanfunc = pe.Node(fsl.MeanImage(),
-                       name='mean_image')
+    #meanfunc = pe.Node(fsl.MeanImage(),
+    #                   name='mean_image')
+
+    meanfunc = art_mean_workflow()
 
     # generate a freesurfer workflow that will return the mask
     getmask = create_getmask_flow()
@@ -164,7 +226,15 @@ def create_prep(name='preproc'):
     medianval = pe.MapNode(interface=fsl.ImageStats(op_string='-k %s -p 50'),
                            iterfield=['in_file'],
                            name='compute_median_val')
-
+    
+    # Calculate the z-score image of the realigned timeseries
+    
+    zscore = pe.MapNode(interface=util.Function(input_names=['image','outliers'],
+                                             output_names=['z_img'],
+                                             function=z_image),
+                        name='z_score',
+                        iterfield=['image','outliers'])
+    
     # temporal highpass filtering
     highpass = pe.MapNode(interface=fsl.ImageMaths(suffix='_tempfilt'),
                           iterfield=['in_file'],
@@ -173,6 +243,7 @@ def create_prep(name='preproc'):
     # declare some node inputs...
     plot_motion.iterables = ('plot_type', ['rotations', 'translations'])
     ad.inputs.parameter_source = 'FSL'
+    meanfunc.inputs.inputspec.parameter_source = 'FSL'
     ad.inputs.mask_type = 'file'
     ad.inputs.use_differences = [True, False]
     getmask.inputs.inputspec.contrast_type = 't2'
@@ -202,8 +273,14 @@ def create_prep(name='preproc'):
     preproc.connect(motion_correct, 'par_file',
                     plot_motion, 'in_file')
     preproc.connect(motion_correct, ('out_file', pickfirst),
-                    meanfunc, 'in_file')
-    preproc.connect(meanfunc, 'out_file',
+                    meanfunc, 'inputspec.realigned_files')
+    preproc.connect(motion_correct, 'out_file',
+                    zscore, 'image')
+    preproc.connect(ad, 'outlier_files',
+                    zscore, 'outliers')
+    preproc.connect(motion_correct, 'par_file',
+                    meanfunc, 'inputspec.realignment_parameters')
+    preproc.connect(meanfunc, 'outputspec.mean_image',
                     getmask, 'inputspec.source_file')
     preproc.connect(inputnode, 'num_noise_components',
                     compcor, 'inputspec.num_components')
@@ -264,11 +341,12 @@ def create_prep(name='preproc'):
                 'tsnr_file',
                 'stddev_file',
                 'filter_file',
-                'scaled_files']),
+                'scaled_files',
+                'z_img']),
                         name='outputspec')
 
     # make output connection
-    preproc.connect(meanfunc, 'out_file',
+    preproc.connect(meanfunc, 'outputspec.mean_image',
                     outputnode, 'reference')
     preproc.connect(motion_correct, 'par_file',
                     outputnode, 'motion_parameters')
@@ -276,7 +354,7 @@ def create_prep(name='preproc'):
                     outputnode, 'realigned_files')
     preproc.connect(highpass, 'out_file',
                     outputnode, 'highpassed_files')
-    preproc.connect(meanfunc, 'out_file',
+    preproc.connect(meanfunc, 'outputspec.mean_image',
                     outputnode, 'mean')
     preproc.connect(ad, 'norm_files',
                     outputnode, 'combined_motion')
@@ -296,33 +374,89 @@ def create_prep(name='preproc'):
                     outputnode, 'tsnr_file')
     preproc.connect(compcor, 'outputspec.stddev_file',
                     outputnode, 'stddev_file')
+    preproc.connect(zscore,'z_img',
+                    outputnode,'z_img')
 
     return preproc
 
 
 def create_rest_prep(name='preproc'):
-    """Description
+    """Rewiring of base fMRI workflow to add resting state preprocessing 
+    
+    components.
+    
+    Parameters
+    ----------
+    name : name of workflow. Default = 'preproc'
+    
+    Inputs
+    ------
+    inputspec.fssubject_id : 
+    inputspec.fssubject_dir :
+    inputspec.func :
+    inputspec.highpass :
+    inputspec.num_noise_components :
+    inputspec.ad_normthresh :
+    inputspec.ad_zthresh :
+    inputspec.tr :
+    inputspec.interleaved :
+    inputspec.sliceorder :
+    inputspec.compcor_select :
+    inputspec.highpass_sigma :
+    inputspec.lowpass_sigma :
+    inputspec.reg_params :
+    
+    Outputs
+    -------
+    outputspec.reference : 
+    outputspec.motion_parameters : 
+    outputspec.realigned_files :
+    outputspec.mask :
+    outputspec.smoothed_files :
+    outputspec.highpassed_files :
+    outputspec.mean :
+    outputspec.combined_motion :
+    outputspec.outlier_files :
+    outputspec.mask :
+    outputspec.reg_cost :
+    outputspec.reg_file :
+    outputspec.noise_components :
+    outputspec.tsnr_file :
+    outputspec.stddev_file :
+    outputspec.filter_file :
+    outputspec.scaled_files :
+    outputspec.z_img :
+    
+    Returns
+    -------
+    workflow : resting state preprocessing workflow
     """
 
     preproc = create_prep()
 
     #add outliers and noise components
-    addoutliers = pe.Node(util.Function(input_names=['motion_params',
+    addoutliers = pe.MapNode(util.Function(input_names=['motion_params',
                                                      'composite_norm',
                                                      "compcorr_components",
                                                      "art_outliers",
                                                      "selector"],
                                         output_names=['filter_file'],
                                         function=create_filter_matrix),
-                          name='create_nuisance_filter')
+                          name='create_nuisance_filter',
+                          iterfield=['motion_params',
+                                       'composite_norm',
+                                       'compcorr_components',
+                                       'art_outliers'])
 
     # regress out noise
-    remove_noise = pe.Node(fsl.FilterRegressor(filter_all=True),
-                       name='regress_nuisance')
+    remove_noise = pe.MapNode(fsl.FilterRegressor(filter_all=True),
+                       name='regress_nuisance',
+                       iterfield=['design_file','in_file'])
 
     # bandpass filter
-    bandpass_filter = pe.Node(fsl.TemporalFilter(),
-                              name='bandpass_filter')
+    bandpass_filter = pe.MapNode(fsl.TemporalFilter(),
+                              name='bandpass_filter',
+                              iterfield=['in_file'])
 
     # Get old nodes
     inputnode = preproc.get_node('inputspec')
@@ -333,7 +467,6 @@ def create_rest_prep(name='preproc'):
     smooth = preproc.get_node('smooth_with_susan')
     highpass = preproc.get_node('highpass')
     outputnode = preproc.get_node('outputspec')
-    #outputnode.interface._fields.append('filter_file')
 
     #disconnect old nodes
     preproc.disconnect(motion_correct, 'out_file',
@@ -351,18 +484,16 @@ def create_rest_prep(name='preproc'):
                     addoutliers, 'art_outliers')
     preproc.connect(ad, 'norm_files',
                     addoutliers, 'composite_norm')
-    preproc.connect(compcor, ('outputspec.noise_components', pickfirst),
+    preproc.connect(compcor, 'outputspec.noise_components', 
                     addoutliers, 'compcorr_components')
-    preproc.connect(motion_correct, ('par_file', pickfirst),
+    preproc.connect(motion_correct, 'par_file',
                     addoutliers, 'motion_params')
     preproc.connect(addoutliers, 'filter_file',
                     remove_noise, 'design_file')
     preproc.connect(remove_noise, 'out_file',
                     bandpass_filter, 'in_file')
-    preproc.connect(motion_correct, ('par_file', pickfirst),
+    preproc.connect(motion_correct, 'par_file',
                     remove_noise, 'in_file')
-    #preproc.connect(compcor, ('tsnr.detrended_file', pickfirst),
-    #                remove_noise, 'in_file')
     preproc.connect(bandpass_filter, 'out_file',
                     smooth, 'inputnode.in_files')
     preproc.connect(meanscale, 'out_file',
@@ -376,5 +507,128 @@ def create_rest_prep(name='preproc'):
     preproc.connect(addoutliers, 'filter_file',
                     outputnode, 'filter_file')
 
-    preproc.write_graph(graph2use='orig')
+    #preproc.write_graph(graph2use='orig')
     return preproc
+
+
+def create_first(name='modelfit'):
+    """First level task-fMRI modelling workflow
+    
+    Parameters
+    ----------
+    name : name of workflow. Default = 'modelfit'
+    
+    Inputs
+    ------
+    inputspec.session_info :
+    inputspec.interscan_interval :
+    inputspec.contrasts :
+    inputspec.film_threshold :
+    inputspec.functional_data :
+    inputspec.bases :
+    inputspec.model_serial_correlations :
+    
+    Outputs
+    -------
+    outputspec.copes :
+    outputspec.varcopes :
+    outputspec.dof_file :
+    outputspec.pfiles :
+    outputspec.parameter_estimates :
+    outputspec.zstats :
+    outputspec.tstats :
+    outputspec.design_image :
+    outputspec.design_file :
+    outputspec.design_cov :
+    
+    Returns
+    -------
+    workflow : first-level workflow
+    """
+    modelfit = pe.Workflow(name=name)
+
+    inputspec = pe.Node(util.IdentityInterface(fields=['session_info',
+                                                       'interscan_interval',
+                                                       'contrasts',
+                                                       'film_threshold',
+                                                       'functional_data',
+                                                       'bases',
+                                                       'model_serial_correlations']),
+                        name='inputspec')
+    
+    
+    
+    level1design = pe.Node(interface=fsl.Level1Design(), 
+                           name="create_level1_design")
+
+    modelgen = pe.MapNode(interface=fsl.FEATModel(), 
+                          name='generate_model',
+                          iterfield = ['fsf_file', 
+                                       'ev_files'])
+    
+    modelestimate = pe.MapNode(interface=fsl.FILMGLS(smooth_autocorr=True,
+                                                     mask_size=5),
+                               name='estimate_model',
+                               iterfield = ['design_file',
+                                            'in_file'])
+
+    conestimate = pe.MapNode(interface=fsl.ContrastMgr(), 
+                             name='estimate_contrast',
+                             iterfield = ['tcon_file',
+                                          'param_estimates',
+                                          'sigmasquareds', 
+                                          'corrections',
+                                          'dof_file'])
+
+    ztopval = pe.MapNode(interface=fsl.ImageMaths(op_string='-ztop',
+                                                  suffix='_pval'),
+                         name='z2pval',
+                         iterfield=['in_file'])
+    outputspec = pe.Node(util.IdentityInterface(fields=['copes',
+                                                        'varcopes',
+                                                        'dof_file', 
+                                                        'pfiles',
+                                                        'parameter_estimates',
+                                                        'zstats',
+                                                        'tstats',
+                                                        'design_image',
+                                                        'design_file',
+                                                        'design_cov']),
+                         name='outputspec')
+
+    # Utility function
+
+    pop_lambda = lambda x : x[0]
+
+    # Setup the connections
+
+    modelfit.connect([
+        (inputspec, level1design,   [('interscan_interval',     'interscan_interval'),
+                                     ('session_info',           'session_info'),
+                                     ('contrasts',              'contrasts'),
+                                     ('bases',                  'bases'),
+                                     ('model_serial_correlations',
+                                     'model_serial_correlations')]),
+        (inputspec, modelestimate,  [('film_threshold',         'threshold'),
+                                     ('functional_data',        'in_file')]),
+        (level1design,modelgen,     [('fsf_files',              'fsf_file'),
+                                     ('ev_files',               'ev_files')]),
+        (modelgen, modelestimate,   [('design_file',            'design_file')]),
+        (modelgen, conestimate,     [('con_file',               'tcon_file')]),
+        (modelestimate, conestimate,[('param_estimates',        'param_estimates'),
+                                     ('sigmasquareds',          'sigmasquareds'),
+                                     ('corrections',            'corrections'),
+                                     ('dof_file',               'dof_file')]),
+        (conestimate, ztopval,      [(('zstats', pop_lambda),   'in_file')]),
+        (ztopval, outputspec,       [('out_file',               'pfiles')]),
+        (modelestimate, outputspec, [('param_estimates',        'parameter_estimates'),
+                                     ('dof_file',               'dof_file')]),
+        (conestimate, outputspec,   [('copes',                  'copes'),
+                                     ('varcopes',               'varcopes'),
+                                     ('tstats',                 'tstats'),
+                                     ('zstats',                 'zstats')])])
+    modelfit.connect(modelgen, 'design_image',          outputspec, 'design_image')
+    modelfit.connect(modelgen, 'design_file',           outputspec, 'design_file')
+    modelfit.connect(modelgen, 'design_cov',           outputspec, 'design_cov')
+    modelfit.write_graph()
+    return modelfit    

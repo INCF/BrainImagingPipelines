@@ -85,6 +85,8 @@ def prep_workflow(subj):
                       sinkd, 'preproc.tsnr')
     modelflow.connect(preproc, 'outputspec.stddev_file',
                       sinkd, 'preproc.tsnr.@stddev')
+    modelflow.connect(preproc, 'outputspec.z_img', 
+                      sinkd, 'preproc.z_image')
 
     # create output node
     outputnode = pe.Node(interface=util.IdentityInterface(
@@ -140,9 +142,10 @@ def prep_workflow(subj):
     return modelflow
 
 if __name__ == "__main__":
-    preprocess = prep_workflow(subjects[0])
-    if run_on_grid:
-        preprocess.run(plugin='PBS')
-    else:
-        preprocess.run()
+    for sub in subjects:
+        preprocess = prep_workflow(sub)
+        if run_on_grid:
+            preprocess.run(plugin='PBS')
+        else:
+            preprocess.run()
     

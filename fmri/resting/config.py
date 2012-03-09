@@ -32,7 +32,7 @@ z_thresh = 3
 crash_dir = root_dir
 
 # - 'run_on_grid' [boolean]
-run_on_grid = False
+run_on_grid = True
 
 # - 'fwhm' full width at half max (currently only the second value is used)
 fwhm = [0, 5]
@@ -79,12 +79,12 @@ def create_dataflow(name="datasource"):
     import nipype.interfaces.io as nio 
     # create a node to obtain the functional images
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
-                                                   outfields=['func','struct']),
+                                                   outfields=['func']),
                          name = name)
     datasource.inputs.base_directory = base_dir
     datasource.inputs.template ='*'
-    datasource.inputs.field_template = dict(func='%s/resting.nii',struct='%s/struct.nii')
-    datasource.inputs.template_args = dict(func=[['subject_id']], struct=[['subject_id']])#,'2','3','4','5','6']]])
+    datasource.inputs.field_template = dict(func='%s/resting*.nii')
+    datasource.inputs.template_args = dict(func=[['subject_id']])
     return datasource
 
 

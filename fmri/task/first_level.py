@@ -1,6 +1,6 @@
 # Import Stuff
 import sys
-sys.path.insert(0,'/mindhive/gablab/users/keshavan/lib/python/nipype/') # Use Anisha's nipype
+#sys.path.insert(0,'/mindhive/gablab/users/keshavan/lib/python/nipype/') # Use Anisha's nipype
 import nipype.interfaces.fsl as fsl         # fsl
 import nipype.interfaces.utility as util    # utility
 import nipype.pipeline.engine as pe         # pypeline engine
@@ -9,7 +9,6 @@ import numpy as np
 import nipype.algorithms.rapidart as ra     # rapid artifact detection
 import nipype.interfaces.io as nio          # input/output
 import array
-
 from config import *
 from nipype.algorithms.modelgen import SpecifyModel
 from nipype.algorithms.misc import TSNR
@@ -20,98 +19,50 @@ from nipype.interfaces.base import Bunch
 from copy import deepcopy
 from nipype.utils.config import config
 config.enable_debug_mode()
-#from preproc_only_AK import * #(preproc = prep_workflow(subject))
 from report_first_level import *
 from textmake import *
+sys.path.insert(0,'..')
+from base import *
+from preproc import *
+# First level utility functions
+
+def trad_mot(subinfo,files):
+    # modified to work with only one regressor at a time...
+    import numpy as np
+    motion_params = []
+    mot_par_names = ['Pitch (rad)','Roll (rad)','Yaw (rad)','Tx (mm)','Ty (mm)','Tz (mm)']
+    for j,i in enumerate(files):
+        motion_params.append([[],[],[],[],[],[]])
+        #k = map(lambda x: float(x), filter(lambda y: y!='',open(i,'r').read().replace('\n',' ').split(' ')))
+        a = np.genfromtxt(i)
+        for z in range(6):
+            motion_params[j][z] = a[:,z].tolist()#k[z:len(k):6]
+        
+    for j,i in enumerate(subinfo):
+        if i.regressor_names == None: i.regressor_names = []
+        if i.regressors == None: i.regressors = []
+        for j3, i3 in enumerate(motion_params[j]):
+            i.regressor_names.append(mot_par_names[j3])
+            i.regressors.append(i3)
+    return subinfo
+
+def noise_mot(subinfo,files,num_noise_components):
+    noi_reg_names = map(lambda x: 'noise_comp_'+str(x+1),range(num_noise_components))
+    noise_regressors = []
+    for j,i in enumerate(files):
+        noise_regressors.append([[],[],[],[],[]])
+        k = map(lambda x: float(x), filter(lambda y: y!='',open(i,'r').read().replace('\n',' ').split(' ')))
+        for z in range(num_noise_components):
+            noise_regressors[j][z] = k[z:len(k):num_noise_components]
+    for j,i in enumerate(subinfo):
+        if i.regressor_names == None: i.regressor_names = []
+        if i.regressors == None: i.regressors = []
+        for j3,i3 in enumerate(noise_regressors[j]):
+            i.regressor_names.append(noi_reg_names[j3])
+            i.regressors.append(i3)
+    return subinfo
 
 # First level modeling
-def create_first(name='modelfit'):
-    modelfit = pe.Workflow(name=name)
-
-    inputspec = pe.Node(util.IdentityInterface(fields=['session_info',
-                                                       'interscan_interval',
-                                                       'contrasts',
-                                                       'film_threshold',
-                                                       'functional_data',
-                                                       'bases',
-                                                       'model_serial_correlations']),
-                        name='inputspec')
-    
-    
-    
-    level1design = pe.Node(interface=fsl.Level1Design(), 
-                           name="create_level1_design")
-
-    modelgen = pe.MapNode(interface=fsl.FEATModel(), 
-                          name='generate_model',
-                          iterfield = ['fsf_file', 
-                                       'ev_files'])
-    
-    modelestimate = pe.MapNode(interface=fsl.FILMGLS(smooth_autocorr=True,
-                                                     mask_size=5),
-                               name='estimate_model',
-                               iterfield = ['design_file',
-                                            'in_file'])
-
-    conestimate = pe.MapNode(interface=fsl.ContrastMgr(), 
-                             name='estimate_contrast',
-                             iterfield = ['tcon_file',
-                                          'param_estimates',
-                                          'sigmasquareds', 
-                                          'corrections',
-                                          'dof_file'])
-
-    ztopval = pe.MapNode(interface=fsl.ImageMaths(op_string='-ztop',
-                                                  suffix='_pval'),
-                         name='z2pval',
-                         iterfield=['in_file'])
-    outputspec = pe.Node(util.IdentityInterface(fields=['copes',
-                                                        'varcopes',
-                                                        'dof_file', 
-                                                        'pfiles',
-                                                        'parameter_estimates',
-                                                        'zstats',
-                                                        'tstats',
-                                                        'design_image',
-                                                        'design_file',
-                                                        'design_cov']),
-                         name='outputspec')
-
-    # Utility function
-
-    pop_lambda = lambda x : x[0]
-
-    # Setup the connections
-
-    modelfit.connect([
-        (inputspec, level1design,   [('interscan_interval',     'interscan_interval'),
-                                     ('session_info',           'session_info'),
-                                     ('contrasts',              'contrasts'),
-                                     ('bases',                  'bases'),
-                                     ('model_serial_correlations',
-                                     'model_serial_correlations')]),
-        (inputspec, modelestimate,  [('film_threshold',         'threshold'),
-                                     ('functional_data',        'in_file')]),
-        (level1design,modelgen,     [('fsf_files',              'fsf_file'),
-                                     ('ev_files',               'ev_files')]),
-        (modelgen, modelestimate,   [('design_file',            'design_file')]),
-        (modelgen, conestimate,     [('con_file',               'tcon_file')]),
-        (modelestimate, conestimate,[('param_estimates',        'param_estimates'),
-                                     ('sigmasquareds',          'sigmasquareds'),
-                                     ('corrections',            'corrections'),
-                                     ('dof_file',               'dof_file')]),
-        (conestimate, ztopval,      [(('zstats', pop_lambda),   'in_file')]),
-        (ztopval, outputspec,       [('out_file',               'pfiles')]),
-        (modelestimate, outputspec, [('param_estimates',        'parameter_estimates'),
-                                     ('dof_file',               'dof_file')]),
-        (conestimate, outputspec,   [('copes',                  'copes'),
-                                     ('varcopes',               'varcopes'),
-                                     ('tstats',                 'tstats'),
-                                     ('zstats',                 'zstats')])])
-    modelfit.connect(modelgen, 'design_image',          outputspec, 'design_image')
-    modelfit.connect(modelgen, 'design_file',           outputspec, 'design_file')
-    modelfit.connect(modelgen, 'design_cov',           outputspec, 'design_cov')
-    return modelfit
 
 def combine_wkflw(subj,preproc,name='combineworkflow'):
     modelflow = pe.Workflow(name=name)
@@ -222,6 +173,6 @@ if __name__ == "__main__":
      preprocess = prep_workflow(subjects[0])
      first_level = combine_wkflw(subjects[0],preprocess,name=subjects[0])
      first_level.run()
-     modelflow = combine_report(subjects[0],maindir = root_dir, fsdir = surf_dir, thr = 3.6, csize = 50)
-     modelflow.run(plugin='PBS')
-     textmake(subjects[0])
+     #modelflow = combine_report(subjects[0],maindir = root_dir, fsdir = surf_dir, thr = 3.6, csize = 50)
+     #modelflow.run(plugin='PBS')
+     #textmake(subjects[0])
