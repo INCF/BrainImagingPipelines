@@ -1,30 +1,23 @@
 # Import Stuff
-import sys
-#sys.path.insert(0,'/mindhive/gablab/users/keshavan/lib/python/nipype/') # Use Anisha's nipype
 import nipype.interfaces.fsl as fsl         # fsl
 import nipype.interfaces.utility as util    # utility
 import nipype.pipeline.engine as pe         # pypeline engine
-import os
-import numpy as np
 import nipype.algorithms.rapidart as ra     # rapid artifact detection
 import nipype.interfaces.io as nio          # input/output
-import array
 from config import *
 from nipype.algorithms.modelgen import SpecifyModel
 from nipype.algorithms.misc import TSNR
-from nibabel import load
-from glob import glob
 from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
 from nipype.interfaces.base import Bunch
-from copy import deepcopy
 from nipype.utils.config import config
 config.enable_debug_mode()
-from report_first_level import *
 from textmake import *
+import sys
 sys.path.insert(0,'..')
-from base import *
-from preproc import *
-# First level utility functions
+from base import create_first
+from utils import pickfirst
+from preproc import prep_workflow
+
 
 def trad_mot(subinfo,files):
     # modified to work with only one regressor at a time...
@@ -173,6 +166,3 @@ if __name__ == "__main__":
      preprocess = prep_workflow(subjects[0])
      first_level = combine_wkflw(subjects[0],preprocess,name=subjects[0])
      first_level.run(plugin='PBS')
-     #modelflow = combine_report(subjects[0],maindir = root_dir, fsdir = surf_dir, thr = 3.6, csize = 50)
-     #modelflow.run(plugin='PBS')
-     #textmake(subjects[0])

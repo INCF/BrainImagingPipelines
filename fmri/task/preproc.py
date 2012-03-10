@@ -10,8 +10,8 @@ import nipype.algorithms.rapidart as ra     # rapid artifact detection
 import nipype.interfaces.io as nio          # input/output
 import array
 from config import *
-from utils import *
 from base import create_prep
+from utils import get_datasink
 from nipype.algorithms.modelgen import SpecifyModel
 from nipype.algorithms.misc import TSNR
 from nibabel import load

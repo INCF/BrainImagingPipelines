@@ -5,7 +5,13 @@ import nipype.algorithms.rapidart as ra     # rapid artifact detection
 from nipype.interfaces.nipy.preprocess import FmriRealign4d
 from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
 from nipype.workflows.fmri.fsl import create_susan_smooth
-from utils import *
+import nipype.pipeline.engine as pe
+import nipype.interfaces.utility as util
+import nipype.interfaces.io as nio
+from utils import pickfirst, create_compcorr, \
+                  choose_susan, art_mean_workflow, \
+                  z_image, tolist, getmeanscale, \
+                  highpass_operand
 
 
 def create_filter_matrix(motion_params, composite_norm,

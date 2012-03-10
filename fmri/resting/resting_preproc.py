@@ -10,7 +10,8 @@ import nipype.interfaces.fsl as fsl         # fsl
 import nipype.interfaces.utility as util    # utility
 import nipype.pipeline.engine as pe         # pypeline engine
 
-from base import *
+from base import create_rest_prep
+from utils import get_datasink
 
 # Preprocessing
 # -------------------------------------------------------------
