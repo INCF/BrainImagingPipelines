@@ -38,7 +38,7 @@ run_on_grid = False
 fwhm = [0, 5]
 
 # - 'num_noise_components' number of principle components of the noise to use
-num_noise_components = 5
+num_noise_components =  6
 # first corresponds to t compcor, second to a compcor
 compcor_select = [True, False]
 
@@ -54,8 +54,8 @@ SliceOrder = 'ascending'
 hpcutoff = 128.
 
 # regressors
-# [motion, composite norm, compcorr components, outliers]
-reg_params = [True, True, True, True]
+# [motion, composite norm, compcorr components, outliers, motion derivatives]
+reg_params = [True, True, True, True, True]
 
 # - Bandpass cutoffs
 highpass_sigma = 100/(2*TR)
@@ -79,12 +79,12 @@ def create_dataflow(name="datasource"):
     import nipype.interfaces.io as nio 
     # create a node to obtain the functional images
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
-                                                   outfields=['func','struct']),
+                                                   outfields=['func']),
                          name = name)
     datasource.inputs.base_directory = base_dir
     datasource.inputs.template ='*'
-    datasource.inputs.field_template = dict(func='%s/resting.nii',struct='%s/struct.nii')
-    datasource.inputs.template_args = dict(func=[['subject_id']], struct=[['subject_id']])#,'2','3','4','5','6']]])
+    datasource.inputs.field_template = dict(func='%s/resting*.nii')
+    datasource.inputs.template_args = dict(func=[['subject_id']])
     return datasource
 
 
