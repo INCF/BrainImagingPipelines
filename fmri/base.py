@@ -179,7 +179,7 @@ def create_prep(name='preproc'):
                            name='img2float')
 
     # define the motion correction node
-    motion_correct = pe.Node(interface=FmriRealign4d(),
+    motion_correct = pe.MapNode(interface=FmriRealign4d(),
                                 name='realign',
                                 iterfield=['in_file'])
 
