@@ -1,7 +1,7 @@
 import sys
 sys.path.insert(0,'~keshavan/lib/python/nipype')
-#from nipype.utils.config import NipypeConfig as config
-#config.enable_debug_mode()
+from nipype import config
+config.enable_debug_mode()
 import nipype.interfaces.fsl as fsl         # fsl
 import nipype.algorithms.rapidart as ra     # rapid artifact detection
 from nipype.interfaces.nipy.preprocess import FmriRealign4d
