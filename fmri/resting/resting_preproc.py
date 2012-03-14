@@ -49,7 +49,7 @@ def prep_workflow(subjects):
 
     # make a data sink
 
-    sinkd = get_datasink(root_dir, fwhm)
+    sinkd = get_datasink(sink_dir, fwhm)
     modelflow.connect(infosource, 'subject_id', sinkd, 'container')
     modelflow.connect(infosource, ('subject_id', get_substitutions),
                       sinkd, 'substitutions')
@@ -150,7 +150,7 @@ if __name__ == "__main__":
     preprocess = prep_workflow(subjects)
     realign = preprocess.get_node('preproc.realign')
     realign.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
-    
+    # add for regress nuisance
     if run_on_grid:
         preprocess.run(plugin='PBS')
     else:

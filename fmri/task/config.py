@@ -18,7 +18,7 @@ from copy import deepcopy
 #       - func                  : output subdirectory (using kanwisher lab convention)
 root_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/'
 base_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/data/'
-
+sink_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/'
 
 # list of subjects
 subjects = ['SAD_019']
@@ -33,7 +33,7 @@ z_thresh = 3
 crash_dir = root_dir
 
 # - 'run_on_grid' [boolean]
-run_on_grid = False
+run_on_grid = True
 
 # - 'fwhm' full width at half max (currently only the second value is used)
 fwhm = [0, 5]
@@ -46,7 +46,7 @@ TR = 2.5
 
 # Motion correction params
 Interleaved = True
-SliceOrder = 'ascending'
+SliceOrder = [1,3,5,7,9,11,13,15,17,19,21,23,25,27,2,4,6,8,10,12,14,16,18,20,22,24,26]
 
 
 # - 'interscan_interval'

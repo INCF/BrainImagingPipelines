@@ -240,11 +240,10 @@ if __name__ == "__main__":
     a = QA_workflow()
     a.base_dir = './'
     a.write_graph()
-    """datagrab = create_dataflow()
-    datagrab.inputs.subject_id = subjects[0]
-    inputspec = a.get_node('inputspec')
-    tolist = lambda x:[x]
-    a.connect(datagrab,('func',tolist),inputspec,'in_file')
+    a.inputs.inputspec.subject_id = 'SAD_018'
+    a.inputs.inputspec.TR = 2.5
+    a.inputs.inputspec.sd = '/mindhive/xnat/surfaces/sad'
+    a.inputs.inputspec.in_file = ['/mindhive/gablab/sad/PY_STUDY_DIR/Block/data/SAD_018/f3.nii']
     a.inputs.inputspec.art_file = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/analyses/func/SAD_018/preproc/art/fwhm_5/art.corr_f3_dtype.nii_outliers.txt'
     a.inputs.inputspec.motion_plots = glob('/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/analyses/func/SAD_018/preproc/motion/*.png')
     a.inputs.inputspec.reg_file = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/analyses/func/SAD_018/preproc/bbreg/_register0/corr_f3_dtype_mean_bbreg_SAD_018.dat'
@@ -252,6 +251,7 @@ if __name__ == "__main__":
     a.inputs.inputspec.tsnr_mean = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/work_dir/SAD_018/preproc/preproc/compcorr/_fwhm_5/tsnr/mapflow/_tsnr0/corr_f3_dtype_tsnr_mean.nii.gz'
     a.inputs.inputspec.tsnr = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/work_dir/SAD_018/preproc/preproc/compcorr/_fwhm_5/tsnr/mapflow/_tsnr0/corr_f3_dtype_tsnr.nii.gz'
     a.inputs.inputspec.tsnr_stddev = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/work_dir/SAD_018/preproc/preproc/compcorr/_fwhm_5/tsnr/mapflow/_tsnr0/corr_f3_dtype_tsnr_stddev.nii.gz'
-    a.inputs.inputspec.ADnorm = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/analyses/func/SAD_018/preproc/art/fwhm_5/norm.corr_f3_dtype.nii.txt'
-    a.run()"""
+    a.inputs.inputspec.ADnorm = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/analyses/func/SAD_018/preproc/art/norm.corr_f3_dtype.nii.txt'
+    a.inputs.inputspec.config_params = [['Subject','TR'],['SAD_018',2.5]]
+    a.run()
     

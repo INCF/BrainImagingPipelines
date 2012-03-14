@@ -16,9 +16,9 @@ from copy import deepcopy
 #   - work_dir                  : work directory
 #   - analyses                  : output directory
 #       - func                  : output subdirectory (using kanwisher lab convention)
-root_dir = '/mindhive/scratch/satra/sad/resting'
+root_dir = '/mindhive/scratch/keshavan/sad/resting'
 base_dir = '/mindhive/gablab/sad/SAD_STUDY_Resting/data'
-
+sink_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/'
 # list of subjects
 controls = ['SAD_017', 'SAD_018', 'SAD_019', 'SAD_020', 'SAD_021', 'SAD_022',
             'SAD_023', 'SAD_024', 'SAD_025', 'SAD_027', 'SAD_028', 'SAD_029',
@@ -36,7 +36,7 @@ patients = ['SAD_P03', 'SAD_P04', 'SAD_P05', 'SAD_P07', 'SAD_P08', 'SAD_P09',
             'SAD_P46', 'SAD_P47', 'SAD_P48', 'SAD_P49', 'SAD_P50', 'SAD_P51',
             'SAD_P52', 'SAD_P53', 'SAD_P54', 'SAD_P55', 'SAD_P56', 'SAD_P57',
             'SAD_P58']
-subjects = controls + patients
+subjects = ['SAD_P33']#patients[0:1] #controls + patients
 #subjects = subjects[:1]
 
 # - 'norm_thresh' (for rapidart) - 4

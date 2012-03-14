@@ -25,8 +25,8 @@ from copy import deepcopy
 from QA_fmri import QA_workflow
 from time import ctime
 from utils import pickfirst, tolist
-#from nipype.utils.config import NipypeConfig as config
-#config.enable_debug_mode()
+from nipype import config
+config.enable_debug_mode()
 
 # Preprocessing
 # -------------------------------------------------------------
@@ -82,7 +82,7 @@ def prep_workflow(subj):
     
     # make a data sink
 
-    sinkd = get_datasink(root_dir,fwhm)
+    sinkd = get_datasink(sink_dir,fwhm)
     sinkd.inputs.container = subj
     sinkd.inputs.substitutions = get_substitutions(subj)
 

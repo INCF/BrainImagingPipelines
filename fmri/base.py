@@ -1,5 +1,4 @@
 import sys
-sys.path.insert(0,'~keshavan/lib/python/nipype')
 from nipype import config
 config.enable_debug_mode()
 import nipype.interfaces.fsl as fsl         # fsl
