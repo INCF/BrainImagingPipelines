@@ -3,26 +3,29 @@ import sys
 from config import *
 sys.path.append('..')
 
-from nipype.utils.config import config
+from nipype import config
 config.enable_debug_mode()
 
-import nipype.interfaces.fsl as fsl         # fsl
 import nipype.interfaces.utility as util    # utility
 import nipype.pipeline.engine as pe         # pypeline engine
 
 from base import create_rest_prep
-from utils import get_datasink
+from utils import get_datasink, get_substitutions
 
 # Preprocessing
 # -------------------------------------------------------------
 
-def prep_workflow(subj):
+def prep_workflow(subjects):
     
     modelflow = pe.Workflow(name='preproc')
-    
+
+    infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
+                         name='subject_names')
+    infosource.iterables = ('subject_id', subjects)
+
     # generate datagrabber
     dataflow = create_dataflow()
-    dataflow.inputs.subject_id = subj
+    modelflow.connect(infosource, 'subject_id', dataflow, 'subject_id')
     
     # generate preprocessing workflow
     preproc = create_rest_prep()
@@ -31,7 +34,7 @@ def prep_workflow(subj):
     preproc.inputs.fwhm_input.fwhm = fwhm
     preproc.inputs.inputspec.num_noise_components = num_noise_components
     preproc.crash_dir = crash_dir
-    preproc.inputs.inputspec.fssubject_id =  subj
+    modelflow.connect(infosource, 'subject_id', preproc, 'inputspec.fssubject_id')
     preproc.inputs.inputspec.fssubject_dir = surf_dir
     preproc.get_node('fwhm_input').iterables = ('fwhm',fwhm)
     preproc.inputs.inputspec.ad_normthresh = norm_thresh
@@ -46,7 +49,10 @@ def prep_workflow(subj):
 
     # make a data sink
 
-    sinkd = get_datasink(subj,root_dir,fwhm)
+    sinkd = get_datasink(sink_dir, fwhm)
+    modelflow.connect(infosource, 'subject_id', sinkd, 'container')
+    modelflow.connect(infosource, ('subject_id', get_substitutions),
+                      sinkd, 'substitutions')
 
     # make connections
 
@@ -137,14 +143,16 @@ def prep_workflow(subj):
     modelflow.connect(preproc, 'outputspec.filter_file',
                       outputnode, 'regressor_file')
 
-    modelflow.base_dir = os.path.join(root_dir,'work_dir',subj)
+    modelflow.base_dir = os.path.join(root_dir,'work_dir')
     return modelflow
 
 if __name__ == "__main__":
-    for sub in subjects:
-        preprocess = prep_workflow(sub)
-        if run_on_grid:
-            preprocess.run(plugin='PBS')
-        else:
-            preprocess.run()
+    preprocess = prep_workflow(subjects)
+    realign = preprocess.get_node('preproc.realign')
+    realign.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
+    # add for regress nuisance
+    if run_on_grid:
+        preprocess.run(plugin='PBS')
+    else:
+        preprocess.run()
 

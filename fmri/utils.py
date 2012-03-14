@@ -317,7 +317,7 @@ def choose_susan(fwhm, motion_files, smoothed_files):
     return cor_smoothed_files
 
 
-def getsubs(subject_id):
+def get_substitutions(subject_id):
     subs = [('_subject_id_%s/' % subject_id, ''),
             ('_plot_type_', ''),
             ('_fwhm', 'fwhm'),
@@ -336,11 +336,11 @@ def getsubs(subject_id):
     return subs
 
 
-def get_datasink(subj, root_dir, fwhm):
+def get_datasink(root_dir, fwhm):
     sinkd = pe.Node(nio.DataSink(), name='sinkd')
     sinkd.inputs.base_directory = os.path.join(root_dir, 'analyses', 'func')
-    sinkd.inputs.container = subj
-    sinkd.inputs.substitutions = getsubs(subj)
+    #sinkd.inputs.container = subj
+    #sinkd.inputs.substitutions = getsubs(subj)
     sinkd.inputs.regexp_substitutions = [('mask/fwhm_%d/_threshold([0-9]*)/.*nii' % x,
                                           'mask/fwhm_%d/funcmask.nii' % x) for x in fwhm]
     sinkd.inputs.regexp_substitutions.append(('realigned/fwhm_([0-9])/_copy_geom([0-9]*)/',
@@ -491,7 +491,7 @@ def z_image(image,outliers):
     imgt, aff = nib.load(image).get_data(), nib.load(image).get_affine()
     weights = np.bool_(np.zeros(imgt.shape))
     for a in arts:
-        weights[:, :, :, a] = True
+        weights[:, :, :, np.int_(a)] = True
     imgt_mask = np.ma.array(imgt, mask=weights)
     z = zscore(imgt_mask, axis=3)
     final_image = nib.Nifti1Image(z, aff)
