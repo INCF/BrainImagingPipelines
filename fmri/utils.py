@@ -491,7 +491,7 @@ def z_image(image,outliers):
     imgt, aff = nib.load(image).get_data(), nib.load(image).get_affine()
     weights = np.bool_(np.zeros(imgt.shape))
     for a in arts:
-        weights[:, :, :, a] = True
+        weights[:, :, :, np.int_(a)] = True
     imgt_mask = np.ma.array(imgt, mask=weights)
     z = zscore(imgt_mask, axis=3)
     final_image = nib.Nifti1Image(z, aff)

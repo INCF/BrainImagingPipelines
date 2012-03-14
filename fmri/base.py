@@ -1,5 +1,7 @@
-from nipype.utils.config import config
-config.enable_debug_mode()
+import sys
+sys.path.insert(0,'~keshavan/lib/python/nipype')
+#from nipype.utils.config import NipypeConfig as config
+#config.enable_debug_mode()
 import nipype.interfaces.fsl as fsl         # fsl
 import nipype.algorithms.rapidart as ra     # rapid artifact detection
 from nipype.interfaces.nipy.preprocess import FmriRealign4d
@@ -79,7 +81,7 @@ def create_filter_matrix(motion_params, composite_norm,
             out = np.hstack((z, art))
         else:  # >1 outlier
             art = np.zeros((z.shape[0], outliers.shape[0]))
-            for j, t in enumerate(a):
+            for j, t in enumerate(outliers):
                 art[np.int_(t), j] = 1 #  art outputs 0 based indices
             out = np.hstack((z, art))
     else:
@@ -140,6 +142,7 @@ def create_prep(name='preproc'):
     outputspec.filter_file :
     outputspec.scaled_files :
     outputspec.z_img :
+    outputspec.motion_plots :
     
     Returns
     -------
@@ -350,7 +353,8 @@ def create_prep(name='preproc'):
                 'stddev_file',
                 'filter_file',
                 'scaled_files',
-                'z_img']),
+                'z_img',
+                'motion_plots']),
                         name='outputspec')
 
     # make output connection
@@ -384,6 +388,8 @@ def create_prep(name='preproc'):
                     outputnode, 'stddev_file')
     preproc.connect(zscore,'z_img',
                     outputnode,'z_img')
+    preproc.connect(plot_motion,'out_file',
+                    outputnode,'motion_plots')
 
     return preproc
 
