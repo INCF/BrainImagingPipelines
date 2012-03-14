@@ -53,7 +53,7 @@ def prep_workflow(subj):
     preproc.crash_dir = crash_dir
     preproc.inputs.inputspec.ad_normthresh = norm_thresh
     preproc.inputs.inputspec.ad_zthresh = z_thresh
-    preproc.inputs.inputspec.tr=adflt = TR
+    preproc.inputs.inputspec.tr = TR
     preproc.inputs.inputspec.interleaved = Interleaved
     preproc.inputs.inputspec.sliceorder = SliceOrder
     preproc.inputs.inputspec.compcor_select = compcor_select
