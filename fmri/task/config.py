@@ -21,7 +21,7 @@ base_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/data/'
 
 
 # list of subjects
-subjects = ['SAD_018']
+subjects = ['SAD_019']
 
 # - 'norm_thresh' (for rapidart) - 4
 norm_thresh = 4
@@ -33,7 +33,7 @@ z_thresh = 3
 crash_dir = root_dir
 
 # - 'run_on_grid' [boolean]
-run_on_grid = True
+run_on_grid = False
 
 # - 'fwhm' full width at half max (currently only the second value is used)
 fwhm = [0, 5]

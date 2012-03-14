@@ -1,6 +1,7 @@
 #Imports ---------------------------------------------------------------------
 import sys
 sys.path.insert(0,'..')
+sys.path.insert(0,'../qa')
 import nipype.interfaces.fsl as fsl         # fsl
 import nipype.interfaces.utility as util    # utility
 import nipype.pipeline.engine as pe         # pypeline engine
@@ -11,7 +12,7 @@ import nipype.interfaces.io as nio          # input/output
 import array
 from config import *
 from base import create_prep
-from utils import get_datasink
+from utils import get_datasink, get_substitutions
 from nipype.algorithms.modelgen import SpecifyModel
 from nipype.algorithms.misc import TSNR
 from nibabel import load
@@ -20,9 +21,12 @@ from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
 from nipype.interfaces.base import Bunch
 from copy import deepcopy
 #from nipype.interfaces.nipy.preprocess import FmriRealign4d
-from nipype.interfaces.nipy.preprocess import FmriRealign4d
-from nipype.utils.config import config
-config.enable_debug_mode()
+#from nipype.interfaces.nipy.preprocess import FmriRealign4d
+from QA_fmri import QA_workflow
+from time import ctime
+from utils import pickfirst, tolist
+#from nipype.utils.config import NipypeConfig as config
+#config.enable_debug_mode()
 
 # Preprocessing
 # -------------------------------------------------------------
@@ -31,6 +35,11 @@ config.enable_debug_mode()
 def prep_workflow(subj):
     
     modelflow = pe.Workflow(name='preproc')
+    
+    # Get QA workflow
+    
+    QA = QA_workflow()
+    
     
     # generate preprocessing workflow
     dataflow = create_dataflow(subj)
@@ -44,17 +53,54 @@ def prep_workflow(subj):
     preproc.crash_dir = crash_dir
     preproc.inputs.inputspec.ad_normthresh = norm_thresh
     preproc.inputs.inputspec.ad_zthresh = z_thresh
-    preproc.inputs.inputspec.tr = TR
+    preproc.inputs.inputspec.tr=adflt = TR
     preproc.inputs.inputspec.interleaved = Interleaved
     preproc.inputs.inputspec.sliceorder = SliceOrder
     preproc.inputs.inputspec.compcor_select = compcor_select
     
+    # For QA:
+    
+    def config_params(sub):
+        runs = get_run_numbers(sub)
+        cfg = [['Subject',sub],
+               ['Runs',str(len(runs))],
+               ['Run Numbers', str(runs)],
+               ['Date',ctime()],
+               ['Art Thresh Norm',str(norm_thresh)],
+               ['Art Thresh Z',str(z_thresh)],
+               ['FWHM',str(fwhm)],
+               ['Film Threshold',str(film_threshold)],
+               ['TR',str(TR)],
+               ['Highpass Cutoff',str(hpcutoff)],
+               ['Number of noise components',str(num_noise_components)]] 
+        return cfg
+    
+    QA.inputs.inputspec.config_params = config_params(subj)
+    QA.inputs.inputspec.subject_id = subj
+    QA.inputs.inputspec.sd = surf_dir
+    QA.inputs.inputspec.TR = TR
+    
     # make a data sink
 
-    sinkd = get_datasink(subj,root_dir,fwhm)
+    sinkd = get_datasink(root_dir,fwhm)
+    sinkd.inputs.container = subj
+    sinkd.inputs.substitutions = get_substitutions(subj)
 
     # make connections
-
+    
+    modelflow.connect(preproc, 'outputspec.motion_plots', 
+                      QA, 'inputspec.motion_plots')
+    modelflow.connect(dataflow, ('func', tolist),
+                      QA, 'inputspec.in_file')
+    modelflow.connect(preproc, ('outputspec.outlier_files',pickfirst),
+                      QA, 'inputspec.art_file')
+    modelflow.connect(preproc, ('outputspec.combined_motion',pickfirst),
+                      QA, 'inputspec.ADnorm')
+    modelflow.connect(preproc, ('outputspec.reg_file',pickfirst),
+                      QA, 'inputspec.reg_file')
+    modelflow.connect(preproc, ('outputspec.tsnr_file',pickfirst),
+                      QA, 'inputspec.tsnr')
+    
     modelflow.connect(dataflow,'func',
                       preproc, 'inputspec.func')
     modelflow.connect(preproc, 'outputspec.reference',

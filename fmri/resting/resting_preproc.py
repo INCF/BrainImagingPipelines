@@ -3,7 +3,7 @@ import sys
 from config import *
 sys.path.append('..')
 
-from nipype.utils.config import config
+from nipype import config
 config.enable_debug_mode()
 
 import nipype.interfaces.utility as util    # utility
@@ -148,9 +148,11 @@ def prep_workflow(subjects):
 
 if __name__ == "__main__":
     preprocess = prep_workflow(subjects)
+    realign = preprocess.get_node('preproc.realign')
+    realign.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
+    
     if run_on_grid:
-        preprocess.run(plugin='PBS',
-                       plugin_args={'qsub_args': '-q many -l nodes=1:ppn=4'})
+        preprocess.run(plugin='PBS')
     else:
         preprocess.run()
 
