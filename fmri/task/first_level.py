@@ -9,7 +9,7 @@ from nipype.algorithms.modelgen import SpecifyModel
 from nipype.algorithms.misc import TSNR
 from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
 from nipype.interfaces.base import Bunch
-from nipype.utils.config import config
+from nipype import config
 config.enable_debug_mode()
 from textmake import *
 import sys
@@ -24,9 +24,14 @@ def trad_mot(subinfo,files):
     import numpy as np
     motion_params = []
     mot_par_names = ['Pitch (rad)','Roll (rad)','Yaw (rad)','Tx (mm)','Ty (mm)','Tz (mm)']
+    if not isinstance(files,list):
+        files = [files]
+    if not isinstance(subinfo,list):
+        subinfo = [subinfo]
     for j,i in enumerate(files):
         motion_params.append([[],[],[],[],[],[]])
         #k = map(lambda x: float(x), filter(lambda y: y!='',open(i,'r').read().replace('\n',' ').split(' ')))
+        print i
         a = np.genfromtxt(i)
         for z in range(6):
             motion_params[j][z] = a[:,z].tolist()#k[z:len(k):6]
@@ -163,6 +168,15 @@ def combine_wkflw(subj,preproc,name='combineworkflow'):
     return modelflow
     
 if __name__ == "__main__":
-     preprocess = prep_workflow(subjects[0])
-     first_level = combine_wkflw(subjects[0],preprocess,name=subjects[0])
-     first_level.run(plugin='PBS')
+    
+    metaworkflow = pe.Workflow(name='work_dir')
+    metaworkflow.base_dir = root_dir
+    
+    for sub in subjects:
+        preprocess = prep_workflow(sub)
+        realign = preprocess.get_node('preproc.realign')
+        realign.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
+        first_level = combine_wkflw(sub,preprocess,name=sub)
+        metaworkflow.add_nodes([first_level])
+        #first_level.run(plugin='PBS')
+    metaworkflow.run(plugin='PBS')

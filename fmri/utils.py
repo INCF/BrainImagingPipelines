@@ -254,8 +254,7 @@ def create_compcorr(name='CompCor'):
                                        function=extract_noise_components),
                                        name='compcor_components',
                                        iterfield=['realigned_file',
-                                                  'noise_mask_file',
-                                                  'csf_mask_file'])
+                                                  'noise_mask_file'])
     # Make connections
     compproc.connect(inputspec, 'realigned_file',
                      acomp, 'inputspec.mean_file')
@@ -265,13 +264,13 @@ def create_compcorr(name='CompCor'):
                      acomp, 'inputspec.fsaseg_file')
     compproc.connect(inputspec, 'selector',
                      compcor, 'selector')
-    compproc.connect(acomp, 'outputspec.csf_mask',
+    compproc.connect(acomp, ('outputspec.csf_mask',pickfirst),
                      compcor, 'csf_mask_file')
     compproc.connect(inputspec, 'in_file',
                      tsnr, 'in_file')
     compproc.connect(inputspec, 'num_components',
                      compcor, 'num_components')
-    compproc.connect(inputspec, ('realigned_file',pickfirst),
+    compproc.connect(inputspec, 'realigned_file',
                      compcor, 'realigned_file')
     compproc.connect(getthresh, 'out_stat',
                      threshold_stddev, 'thresh')

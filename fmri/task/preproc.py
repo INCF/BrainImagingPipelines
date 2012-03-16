@@ -90,7 +90,7 @@ def prep_workflow(subj):
     
     modelflow.connect(preproc, 'outputspec.motion_plots', 
                       QA, 'inputspec.motion_plots')
-    modelflow.connect(dataflow, ('func', tolist),
+    modelflow.connect(dataflow, 'func',
                       QA, 'inputspec.in_file')
     modelflow.connect(preproc, ('outputspec.outlier_files',pickfirst),
                       QA, 'inputspec.art_file')
@@ -190,6 +190,8 @@ def prep_workflow(subj):
 if __name__ == "__main__":
     for sub in subjects:
         preprocess = prep_workflow(sub)
+        realign = preprocess.get_node('preproc.realign')
+        realign.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
         if run_on_grid:
             preprocess.run(plugin='PBS')
         else:

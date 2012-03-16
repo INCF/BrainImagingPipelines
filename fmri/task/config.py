@@ -16,12 +16,29 @@ from copy import deepcopy
 #   - work_dir                  : work directory
 #   - analyses                  : output directory
 #       - func                  : output subdirectory (using kanwisher lab convention)
-root_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/'
+root_dir = '/mindhive/scratch/keshavan/sad/task'
 base_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/data/'
 sink_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/'
 
+controls = ['SAD_017', 'SAD_018', 'SAD_019', 'SAD_020', 'SAD_021', 'SAD_022',
+            'SAD_023', 'SAD_024', 'SAD_025', 'SAD_027', 'SAD_028', 'SAD_029',
+            'SAD_030', 'SAD_031', 'SAD_032', 'SAD_033', 'SAD_034', 'SAD_035',
+            'SAD_036', 'SAD_037', 'SAD_038', 'SAD_039', 'SAD_040', 'SAD_041',
+            'SAD_043', 'SAD_044', 'SAD_045', 'SAD_046', 'SAD_047', 'SAD_048',
+            'SAD_049', 'SAD_050', 'SAD_051']
+patients = ['SAD_P03', 'SAD_P04', 'SAD_P05', 'SAD_P07', 'SAD_P08', 'SAD_P09',
+            'SAD_P10', 'SAD_P11', 'SAD_P12', 'SAD_P13', 'SAD_P14', 'SAD_P15',
+            'SAD_P16', 'SAD_P17', 'SAD_P18', 'SAD_P19', 'SAD_P20', 'SAD_P21',
+            'SAD_P22', 'SAD_P23', 'SAD_P24', 'SAD_P25', 'SAD_P26', 'SAD_P27',
+            'SAD_P28', 'SAD_P29', 'SAD_P30', 'SAD_P31', 'SAD_P32', 'SAD_P33',
+            'SAD_P34', 'SAD_P35', 'SAD_P36', 'SAD_P37', 'SAD_P38', 'SAD_P39',
+            'SAD_P40', 'SAD_P41', 'SAD_P42', 'SAD_P43', 'SAD_P44', 'SAD_P45',
+            'SAD_P46', 'SAD_P47', 'SAD_P48', 'SAD_P49', 'SAD_P50', 'SAD_P51',
+            'SAD_P52', 'SAD_P53', 'SAD_P54', 'SAD_P55', 'SAD_P56', 'SAD_P57',
+            'SAD_P58']
+
 # list of subjects
-subjects = ['SAD_019']
+subjects = ["SAD_018"]#controls[:2]+patients[:2]
 
 # - 'norm_thresh' (for rapidart) - 4
 norm_thresh = 4
@@ -33,7 +50,7 @@ z_thresh = 3
 crash_dir = root_dir
 
 # - 'run_on_grid' [boolean]
-run_on_grid = True
+run_on_grid = False
 
 # - 'fwhm' full width at half max (currently only the second value is used)
 fwhm = [0, 5]
@@ -46,8 +63,8 @@ TR = 2.5
 
 # Motion correction params
 Interleaved = True
-SliceOrder = [1,3,5,7,9,11,13,15,17,19,21,23,25,27,2,4,6,8,10,12,14,16,18,20,22,24,26]
-
+func0 = np.vectorize(lambda x: x-1) # Slice order is 0 based!
+SliceOrder = func0([1,3,5,7,9,11,13,15,17,19,21,23,25,27,2,4,6,8,10,12,14,16,18,20,22,24,26]).tolist()
 
 # - 'interscan_interval'
 interscan_interval = 2
@@ -103,10 +120,10 @@ def get_run_numbers(subject_id):
     #behav_path = os.path.join(root_dir,subject_id,'boldnii','run_para.txt')
     #paraidx = np.genfromtxt(behav_path,dtype=object)[:,0]
     #runs = [int(para) for para in paraidx]
-    return [3,4]#,2,3,4,5,6]
+    return [3]#,2,3,4,5,6]
 
 def getinfo(subject_id):
-    runs = ['3','4']#,'2','3','4','5','6']#deepcopy(get_run_numbers(subject_id))
+    runs = ['3']#,'2','3','4','5','6']#deepcopy(get_run_numbers(subject_id))
     info = dict(func=[['subject_id', 'fwhm', 'subject_id', runs]],
                 motion=[['subject_id', 'subject_id', runs]],
                 outliers=[['subject_id', 'subject_id', runs]])
@@ -133,7 +150,7 @@ def subjectinfo(subject_id):
 'SAD_POST16','SAD_POST20','SAD_POST22','SAD_POST27','SAD_POST31','SAD_POST34','SAD_POST38','SAD_POST36','SAD_POST44','SAD_POST45','SAD_POST47',
 'SAD_POST50','SAD_POST51','SAD_POST52']
     # NOTE: LOOP THROUGH ALL RUNS! LENGTH OF OUTPUT = # FUNCTIONAL RUNS
-    for r in range(2):
+    for r in range(1):
         if subject_id in regular:
 	        onsets = [[45,120,240,315,405,465],[60,135,195,285,420,495],[30,105,255,330,375,525],[15,165,210,300,390,510],[75,150,225,345,435,480]]
         elif subject_id in cb:

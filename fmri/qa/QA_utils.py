@@ -144,7 +144,10 @@ def tsdiffana(img):
     # Should be a nipype wrapper, but for now a function node.
     from nipy.algorithms.diagnostics import tsdiffplot as tdp
     import os
+    import matplotlib
+    matplotlib.use('Agg')
     import matplotlib.pyplot as plt
+   
 
     axes = tdp.plot_tsdiffs_image(img, axes=None, show=False)
     out_file = []
