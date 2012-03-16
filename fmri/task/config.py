@@ -38,7 +38,7 @@ patients = ['SAD_P03', 'SAD_P04', 'SAD_P05', 'SAD_P07', 'SAD_P08', 'SAD_P09',
             'SAD_P58']
 
 # list of subjects
-subjects = controls+patients
+subjects = ['SAD_P57']#controls+patients
 
 # - 'norm_thresh' (for rapidart) - 4
 norm_thresh = 4

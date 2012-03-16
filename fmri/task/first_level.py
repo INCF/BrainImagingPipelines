@@ -178,4 +178,7 @@ if __name__ == "__main__":
         realign.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
         first_level = combine_wkflw(sub,preprocess,name=sub)
         metaworkflow.add_nodes([first_level])
-    metaworkflow.run(plugin='PBS')
+    if run_on_grid:
+        metaworkflow.run(plugin='PBS')
+    else:
+        metaworkflow.run()

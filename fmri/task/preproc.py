@@ -36,11 +36,6 @@ def prep_workflow(subj):
     
     modelflow = pe.Workflow(name='preproc')
     
-    # Get QA workflow
-    
-    QA = QA_workflow()
-    
-    
     # generate preprocessing workflow
     dataflow = create_dataflow(subj)
     dataflow.inputs.subject_id = subj
@@ -58,28 +53,6 @@ def prep_workflow(subj):
     preproc.inputs.inputspec.sliceorder = SliceOrder
     preproc.inputs.inputspec.compcor_select = compcor_select
     
-    # For QA:
-    
-    def config_params(sub):
-        runs = get_run_numbers(sub)
-        cfg = [['Subject',sub],
-               ['Runs',str(len(runs))],
-               ['Run Numbers', str(runs)],
-               ['Date',ctime()],
-               ['Art Thresh Norm',str(norm_thresh)],
-               ['Art Thresh Z',str(z_thresh)],
-               ['FWHM',str(fwhm)],
-               ['Film Threshold',str(film_threshold)],
-               ['TR',str(TR)],
-               ['Highpass Cutoff',str(hpcutoff)],
-               ['Number of noise components',str(num_noise_components)]] 
-        return cfg
-    
-    QA.inputs.inputspec.config_params = config_params(subj)
-    QA.inputs.inputspec.subject_id = subj
-    QA.inputs.inputspec.sd = surf_dir
-    QA.inputs.inputspec.TR = TR
-    
     # make a data sink
 
     sinkd = get_datasink(sink_dir,fwhm)
@@ -87,19 +60,6 @@ def prep_workflow(subj):
     sinkd.inputs.substitutions = get_substitutions(subj)
 
     # make connections
-    
-    modelflow.connect(preproc, 'outputspec.motion_plots', 
-                      QA, 'inputspec.motion_plots')
-    modelflow.connect(dataflow, 'func',
-                      QA, 'inputspec.in_file')
-    modelflow.connect(preproc, ('outputspec.outlier_files',pickfirst),
-                      QA, 'inputspec.art_file')
-    modelflow.connect(preproc, ('outputspec.combined_motion',pickfirst),
-                      QA, 'inputspec.ADnorm')
-    modelflow.connect(preproc, ('outputspec.reg_file',pickfirst),
-                      QA, 'inputspec.reg_file')
-    modelflow.connect(preproc, ('outputspec.tsnr_file',pickfirst),
-                      QA, 'inputspec.tsnr')
     
     modelflow.connect(dataflow,'func',
                       preproc, 'inputspec.func')
@@ -192,8 +152,11 @@ if __name__ == "__main__":
         preprocess = prep_workflow(sub)
         realign = preprocess.get_node('preproc.realign')
         realign.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
+        
+        cc = preprocess.get_node('preproc.CompCor')
+        cc.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
         if run_on_grid:
-            preprocess.run(plugin='PBS')
+            preprocess.run(plugin='PBS',plugin_args = {'qsub_args': '-l nodes=1:ppn=3'})
         else:
             preprocess.run()
     
