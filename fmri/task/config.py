@@ -38,7 +38,7 @@ patients = ['SAD_P03', 'SAD_P04', 'SAD_P05', 'SAD_P07', 'SAD_P08', 'SAD_P09',
             'SAD_P58']
 
 # list of subjects
-subjects = ["SAD_018"]#controls[:2]+patients[:2]
+subjects = controls+patients
 
 # - 'norm_thresh' (for rapidart) - 4
 norm_thresh = 4
@@ -50,7 +50,7 @@ z_thresh = 3
 crash_dir = root_dir
 
 # - 'run_on_grid' [boolean]
-run_on_grid = False
+run_on_grid = True
 
 # - 'fwhm' full width at half max (currently only the second value is used)
 fwhm = [0, 5]
@@ -103,7 +103,7 @@ def create_dataflow(name="datasource"):
                          name = name)
     datasource.inputs.base_directory = base_dir
     datasource.inputs.template ='*'
-    datasource.inputs.field_template = dict(func='%s/f3*.nii')
+    datasource.inputs.field_template = dict(func='%s/f3.nii')
     #datasource.inputs.subject_id = subj
     datasource.inputs.template_args = dict(func=[['subject_id']])
     return datasource
