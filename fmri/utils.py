@@ -161,7 +161,7 @@ def extract_csf_mask():
 
     # add getting the freesurfer volume
     bin = pe.Node(fs.Binarize(), name='binarize')
-    bin.inputs.ventricles = True
+    bin.inputs.wm_ven_csf = True
     extract_csf.connect(inputspec, 'fsaseg_file',
                         bin, "in_file")
     voltransform = pe.MapNode(fs.ApplyVolTransform(inverse=True),
