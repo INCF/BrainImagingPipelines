@@ -165,12 +165,12 @@ def extract_csf_mask():
     extract_csf.connect(inputspec, 'fsaseg_file',
                         bin, "in_file")
     voltransform = pe.MapNode(fs.ApplyVolTransform(inverse=True),
-                           name='inverse_transform',iterfield=['source_file'])
+                           name='inverse_transform',iterfield=['source_file','reg_file'])
     extract_csf.connect(bin, 'binary_file',
                         voltransform, 'target_file')
-    extract_csf.connect(inputspec, ('reg_file', pickfirst),
+    extract_csf.connect(inputspec, 'reg_file',
                         voltransform, 'reg_file')
-    extract_csf.connect(inputspec, ('mean_file', pickfirst),
+    extract_csf.connect(inputspec, 'mean_file',
                         voltransform, 'source_file')
     outputspec = pe.Node(util.IdentityInterface(fields=['csf_mask']),
                          name='outputspec')
