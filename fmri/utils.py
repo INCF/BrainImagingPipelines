@@ -225,7 +225,8 @@ def create_compcorr(name='CompCor'):
     outputspec = pe.Node(util.IdentityInterface(fields=['noise_components',
                                                         'stddev_file',
                                                         'tsnr_file',
-                                                        'csf_mask']),
+                                                        'csf_mask',
+                                                        'tsnr_detrended']),
                          name='outputspec')
     # extract the principal components of the noise
     tsnr = pe.MapNode(TSNR(regress_poly=2),
@@ -254,7 +255,8 @@ def create_compcorr(name='CompCor'):
                                        function=extract_noise_components),
                                        name='compcor_components',
                                        iterfield=['realigned_file',
-                                                  'noise_mask_file'])
+                                                  'noise_mask_file',
+                                                  'csf_mask_file'])
     # Make connections
     compproc.connect(inputspec, 'realigned_file',
                      acomp, 'inputspec.mean_file')
@@ -264,7 +266,7 @@ def create_compcorr(name='CompCor'):
                      acomp, 'inputspec.fsaseg_file')
     compproc.connect(inputspec, 'selector',
                      compcor, 'selector')
-    compproc.connect(acomp, ('outputspec.csf_mask',pickfirst),
+    compproc.connect(acomp, 'outputspec.csf_mask',
                      compcor, 'csf_mask_file')
     compproc.connect(inputspec, 'in_file',
                      tsnr, 'in_file')
@@ -284,6 +286,8 @@ def create_compcorr(name='CompCor'):
                      outputspec, 'stddev_file')
     compproc.connect(tsnr, 'tsnr_file',
                      outputspec, 'tsnr_file')
+    compproc.connect(tsnr, 'detrended_file',
+                     outputspec, 'tsnr_detrended')
     compproc.connect(compcor, 'noise_components',
                      outputspec, 'noise_components')
     return compproc
