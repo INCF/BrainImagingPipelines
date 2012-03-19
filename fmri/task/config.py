@@ -38,10 +38,10 @@ patients = ['SAD_P03', 'SAD_P04', 'SAD_P05', 'SAD_P07', 'SAD_P08', 'SAD_P09',
             'SAD_P58']
 
 # list of subjects
-subjects = ['SAD_P57']#controls+patients
+subjects = ['SAD_018']#controls+patients
 
 # - 'norm_thresh' (for rapidart) - 4
-norm_thresh = 4
+norm_thresh = 1
 
 # - 'z_thresh' (for rapidart) - 3
 z_thresh = 3
@@ -50,13 +50,13 @@ z_thresh = 3
 crash_dir = root_dir
 
 # - 'run_on_grid' [boolean]
-run_on_grid = True
+run_on_grid = False
 
 # - 'fwhm' full width at half max (currently only the second value is used)
 fwhm = [0, 5]
 
 # - 'num_noise_components' number of principle components of the noise to use
-num_noise_components = 5
+num_noise_components = 6
 compcor_select = [True, True]
 # - 'TR' 
 TR = 2.5
@@ -103,35 +103,28 @@ def create_dataflow(name="datasource"):
                          name = name)
     datasource.inputs.base_directory = base_dir
     datasource.inputs.template ='*'
-    datasource.inputs.field_template = dict(func='%s/f3.nii')
-    #datasource.inputs.subject_id = subj
+    datasource.inputs.field_template = dict(func='%s/f3*.nii')
     datasource.inputs.template_args = dict(func=[['subject_id']])
     return datasource
 
+"""
 def get_onsets(subject_id):
-        
     output = subjectinfo(subject_id)
-    
     info = output[0]
     return info
-    
+"""    
    
 def get_run_numbers(subject_id):
-    #behav_path = os.path.join(root_dir,subject_id,'boldnii','run_para.txt')
-    #paraidx = np.genfromtxt(behav_path,dtype=object)[:,0]
-    #runs = [int(para) for para in paraidx]
-    return [3]#,2,3,4,5,6]
-
-def getinfo(subject_id):
-    runs = ['3']#,'2','3','4','5','6']#deepcopy(get_run_numbers(subject_id))
-    info = dict(func=[['subject_id', 'fwhm', 'subject_id', runs]],
-                motion=[['subject_id', 'subject_id', runs]],
-                outliers=[['subject_id', 'subject_id', runs]])
-    #dict(func=[['subject_id',['00','01']]],struct=[['subject_id']])
-    return info
+    if subject_id == "SAD_018":
+        return [0, 1]
+    else:
+        return [0]
 
 
 def subjectinfo(subject_id):
+    from nipype.interfaces.base import Bunch
+    from copy import deepcopy
+    from config import get_run_numbers
     print "Subject ID: %s\n"%str(subject_id)  
     output = []
     names = ['AngryFaces','NeutralFaces','PotentScenes','EmotionalScenes','NeutralScenes']
@@ -150,7 +143,7 @@ def subjectinfo(subject_id):
 'SAD_POST16','SAD_POST20','SAD_POST22','SAD_POST27','SAD_POST31','SAD_POST34','SAD_POST38','SAD_POST36','SAD_POST44','SAD_POST45','SAD_POST47',
 'SAD_POST50','SAD_POST51','SAD_POST52']
     # NOTE: LOOP THROUGH ALL RUNS! LENGTH OF OUTPUT = # FUNCTIONAL RUNS
-    for r in range(1):
+    for r in range(len(get_run_numbers(subject_id))):
         if subject_id in regular:
 	        onsets = [[45,120,240,315,405,465],[60,135,195,285,420,495],[30,105,255,330,375,525],[15,165,210,300,390,510],[75,150,225,345,435,480]]
         elif subject_id in cb:

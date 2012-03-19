@@ -32,15 +32,20 @@ config.enable_debug_mode()
 # -------------------------------------------------------------
 
 
-def prep_workflow(subj):
+def prep_workflow(subjects):
     
+    infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
+                         name='subject_names')
+    infosource.iterables = ('subject_id', subjects)
+
     modelflow = pe.Workflow(name='preproc')
     
     # generate preprocessing workflow
-    dataflow = create_dataflow(subj)
-    dataflow.inputs.subject_id = subj
+    dataflow = create_dataflow()
+    #dataflow.inputs.subject_id = subj
     preproc = create_prep()
-    preproc.inputs.inputspec.fssubject_id = subj
+    #preproc.inputs.inputspec.fssubject_id = subj
+    
     preproc.inputs.inputspec.fssubject_dir = surf_dir
     preproc.get_node('fwhm_input').iterables = ('fwhm',fwhm)
     preproc.inputs.inputspec.highpass = hpcutoff/(2*2.5)
@@ -56,11 +61,16 @@ def prep_workflow(subj):
     # make a data sink
 
     sinkd = get_datasink(sink_dir,fwhm)
-    sinkd.inputs.container = subj
-    sinkd.inputs.substitutions = get_substitutions(subj)
-
-    # make connections
     
+    # make connections
+    modelflow.connect(infosource, 'subject_id',
+                      sinkd, 'container')
+    modelflow.connect(infosource, ('subject_id', get_substitutions),
+                      sinkd, 'substitutions')
+    modelflow.connect(infosource, 'subject_id',
+                      dataflow, 'subject_id')
+    modelflow.connect(infosource, 'subject_id', 
+                      preproc, 'inputspec.fssubject_id')
     modelflow.connect(dataflow,'func',
                       preproc, 'inputspec.func')
     modelflow.connect(preproc, 'outputspec.reference',
@@ -89,10 +99,14 @@ def prep_workflow(subj):
                       sinkd, 'preproc.smooth')
     modelflow.connect(preproc, 'outputspec.tsnr_file',
                       sinkd, 'preproc.tsnr')
+    modelflow.connect(preproc, 'outputspec.tsnr_detrended',
+                      sinkd, 'preproc.tsnr.@detrended')
     modelflow.connect(preproc, 'outputspec.stddev_file',
                       sinkd, 'preproc.tsnr.@stddev')
     modelflow.connect(preproc, 'outputspec.z_img', 
                       sinkd, 'preproc.z_image')
+    modelflow.connect(preproc, 'outputspec.noise_components',
+                      sinkd, 'preproc.noise_components')
 
     # create output node
     outputnode = pe.Node(interface=util.IdentityInterface(
@@ -110,7 +124,8 @@ def prep_workflow(subj):
                 'reg_file',
                 'noise_components',
                 'tsnr_file',
-                'stddev_file']),
+                'stddev_file',
+                'tsnr_detrended']),
                  name='outputspec')
 
     #Make more connections    
@@ -143,20 +158,22 @@ def prep_workflow(subj):
                       outputnode, 'tsnr_file')
     modelflow.connect(preproc, 'outputspec.stddev_file',
                       outputnode, 'stddev_file')
+    modelflow.connect(preproc, 'outputspec.tsnr_detrended',
+                      outputnode, 'tsnr_detrended')
 
-    modelflow.base_dir = os.path.join(root_dir,'work_dir',subj)
+    modelflow.base_dir = os.path.join(root_dir,'work_dir')
     return modelflow
 
 if __name__ == "__main__":
-    for sub in subjects:
-        preprocess = prep_workflow(sub)
-        realign = preprocess.get_node('preproc.realign')
-        realign.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
-        
-        cc = preprocess.get_node('preproc.CompCor')
-        cc.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
-        if run_on_grid:
-            preprocess.run(plugin='PBS',plugin_args = {'qsub_args': '-l nodes=1:ppn=3'})
-        else:
-            preprocess.run()
+
+    preprocess = prep_workflow(subjects)
+    realign = preprocess.get_node('preproc.realign')
+    realign.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
+    
+    cc = preprocess.get_node('preproc.CompCor')
+    cc.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
+    if run_on_grid:
+        preprocess.run(plugin='PBS',plugin_args = {'qsub_args': '-l nodes=1:ppn=3'})
+    else:
+        preprocess.run()
     

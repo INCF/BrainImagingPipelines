@@ -1,6 +1,4 @@
 import sys
-from nipype import config
-config.enable_debug_mode()
 import nipype.interfaces.fsl as fsl         # fsl
 import nipype.algorithms.rapidart as ra     # rapid artifact detection
 from nipype.interfaces.nipy.preprocess import FmriRealign4d
@@ -354,6 +352,7 @@ def create_prep(name='preproc'):
                 'noise_components',
                 'tsnr_file',
                 'stddev_file',
+                'tsnr_detrended',
                 'filter_file',
                 'scaled_files',
                 'z_img',
@@ -389,6 +388,8 @@ def create_prep(name='preproc'):
                     outputnode, 'tsnr_file')
     preproc.connect(compcor, 'outputspec.stddev_file',
                     outputnode, 'stddev_file')
+    preproc.connect(compcor, 'outputspec.tsnr_detrended',
+                    outputnode, 'tsnr_detrended')
     preproc.connect(zscore,'z_img',
                     outputnode,'z_img')
     preproc.connect(plot_motion,'out_file',
