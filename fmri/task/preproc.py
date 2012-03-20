@@ -25,8 +25,6 @@ from copy import deepcopy
 from QA_fmri import QA_workflow
 from time import ctime
 from utils import pickfirst, tolist
-from nipype import config
-config.enable_debug_mode()
 
 # Preprocessing
 # -------------------------------------------------------------
@@ -48,7 +46,7 @@ def prep_workflow(subjects):
     
     preproc.inputs.inputspec.fssubject_dir = surf_dir
     preproc.get_node('fwhm_input').iterables = ('fwhm',fwhm)
-    preproc.inputs.inputspec.highpass = hpcutoff/(2*2.5)
+    preproc.inputs.inputspec.highpass = hpcutoff/(2*TR)
     preproc.inputs.inputspec.num_noise_components = num_noise_components
     preproc.crash_dir = crash_dir
     preproc.inputs.inputspec.ad_normthresh = norm_thresh

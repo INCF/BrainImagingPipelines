@@ -1,4 +1,3 @@
-import sys
 import nipype.interfaces.fsl as fsl         # fsl
 import nipype.algorithms.rapidart as ra     # rapid artifact detection
 from nipype.interfaces.nipy.preprocess import FmriRealign4d
@@ -6,22 +5,20 @@ from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
 from nipype.workflows.fmri.fsl import create_susan_smooth
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
-import nipype.interfaces.io as nio
-from utils import pickfirst, create_compcorr, \
-                  choose_susan, art_mean_workflow, \
-                  z_image, tolist, getmeanscale, \
-                  highpass_operand
+
+from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
+                   getmeanscale, highpass_operand)
 
 
 def create_filter_matrix(motion_params, composite_norm,
                          compcorr_components, art_outliers, selector):
     """Combine nuisance regressor components into a single file
-    
+
     Parameters
     ----------
     motion_params : parameter file output from realignment
     composite_norm : composite norm file from artifact detection
-    compcorr_components : components from compcor 
+    compcorr_components : components from compcor
     art_outliers : outlier timepoints from artifact detection
     selector : a boolean list corresponding to the files to concatenate together\
                [motion_params, composite_norm, compcorr_components, art_outliers,\
@@ -298,6 +295,8 @@ def create_prep(name='preproc'):
                     compcor, 'inputspec.num_components')
     preproc.connect(motion_correct, 'out_file',
                     compcor, 'inputspec.realigned_file')
+    preproc.connect(meanfunc, 'outputspec.mean_image',
+                    compcor, 'inputspec.mean_file')
     preproc.connect(motion_correct, 'out_file',
                     compcor, 'inputspec.in_file')
     preproc.connect(fssource, 'aseg',
@@ -306,17 +305,17 @@ def create_prep(name='preproc'):
                     compcor, 'inputspec.reg_file')
     preproc.connect(motion_correct, 'out_file',
                     ad, 'realigned_files')
-    preproc.connect(motion_correct, 'par_file',#('par_file',pickfirst),
+    preproc.connect(motion_correct, 'par_file',
                     ad, 'realignment_parameters')
-    preproc.connect(getmask, ('outputspec.mask_file', pickfirst),
+    preproc.connect(getmask, 'outputspec.mask_file',
                     ad, 'mask_file')
-    preproc.connect(getmask, ('outputspec.mask_file', pickfirst),
+    preproc.connect(getmask, 'outputspec.mask_file',
                     medianval, 'mask_file')
     preproc.connect(inputnode_fwhm, 'fwhm',
                     smooth, 'inputnode.fwhm')
     preproc.connect(motion_correct, 'out_file',
                     smooth, 'inputnode.in_files')
-    preproc.connect(getmask, ('outputspec.mask_file', pickfirst),
+    preproc.connect(getmask, 'outputspec.mask_file',
                     smooth, 'inputnode.mask_file')
     preproc.connect(smooth, 'outputnode.smoothed_files',
                     choosesusan, 'smoothed_files')
@@ -510,7 +509,7 @@ def create_rest_prep(name='preproc'):
                     remove_noise, 'design_file')
     preproc.connect(remove_noise, 'out_file',
                     bandpass_filter, 'in_file')
-    preproc.connect(motion_correct, 'out_file',
+    preproc.connect(compcor, 'tsnr.detrended_file',
                     remove_noise, 'in_file')
     preproc.connect(bandpass_filter, 'out_file',
                     smooth, 'inputnode.in_files')
@@ -524,8 +523,6 @@ def create_rest_prep(name='preproc'):
                     addoutliers, 'selector')
     preproc.connect(addoutliers, 'filter_file',
                     outputnode, 'filter_file')
-
-    #preproc.write_graph(graph2use='orig')
     return preproc
 
 
@@ -651,5 +648,4 @@ def create_first(name='modelfit'):
                      outputspec, 'design_file')
     modelfit.connect(modelgen, 'design_cov',
                      outputspec, 'design_cov')
-    modelfit.write_graph()
-    return modelfit    
+    return modelfit
