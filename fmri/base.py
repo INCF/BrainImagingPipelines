@@ -1,6 +1,4 @@
 import sys
-from nipype import config
-config.enable_debug_mode()
 import nipype.interfaces.fsl as fsl         # fsl
 import nipype.algorithms.rapidart as ra     # rapid artifact detection
 from nipype.interfaces.nipy.preprocess import FmriRealign4d
@@ -72,12 +70,14 @@ def create_filter_matrix(motion_params, composite_norm,
     if selector[-2]:
         #import outlier file
         outliers = try_import(art_outliers)
-        if outliers.shape[0] == 0:  # empty art file
-            out = z
-        elif outliers.shape == ():  # 1 outlier
+        if outliers.shape == ():  # 1 outlier
             art = np.zeros((z.shape[0], 1))
             art[np.int_(outliers), 0] = 1 #  art outputs 0 based indices
             out = np.hstack((z, art))
+            
+        elif outliers.shape[0] == 0:  # empty art file
+            out = z
+                
         else:  # >1 outlier
             art = np.zeros((z.shape[0], outliers.shape[0]))
             for j, t in enumerate(outliers):
@@ -181,10 +181,12 @@ def create_prep(name='preproc'):
                            name='img2float')
 
     # define the motion correction node
-    motion_correct = pe.MapNode(interface=FmriRealign4d(),
+    """motion_correct = pe.MapNode(interface=FmriRealign4d(),
                                 name='realign',
-                                iterfield=['in_file'])
-
+                                iterfield=['in_file'])"""
+    motion_correct = pe.Node(interface=FmriRealign4d(),
+                                name='realign')
+    #motion_correct.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
     # construct motion plots
     plot_motion = pe.MapNode(interface=fsl.PlotMotionParams(in_source='fsl'),
                              name='plot_motion',
@@ -278,17 +280,17 @@ def create_prep(name='preproc'):
                     getmask, 'inputspec.subjects_dir')
     preproc.connect(inputnode, 'func',
                     img2float, 'in_file')
-    preproc.connect(img2float, ('out_file', tolist),
+    preproc.connect(img2float, 'out_file',
                     motion_correct, 'in_file')
-    preproc.connect(motion_correct, ('par_file',pickfirst),
+    preproc.connect(motion_correct, 'par_file', 
                     plot_motion, 'in_file')
-    preproc.connect(motion_correct, ('out_file', pickfirst),
+    preproc.connect(motion_correct, 'out_file', 
                     meanfunc, 'inputspec.realigned_files')
-    preproc.connect(motion_correct, ('out_file', pickfirst),
+    preproc.connect(motion_correct, 'out_file', 
                     zscore, 'image')
     preproc.connect(ad, 'outlier_files',
                     zscore, 'outliers')
-    preproc.connect(motion_correct, ('par_file',pickfirst),
+    preproc.connect(motion_correct, 'par_file',
                     meanfunc, 'inputspec.realignment_parameters')
     preproc.connect(meanfunc, 'outputspec.mean_image',
                     getmask, 'inputspec.source_file')
@@ -296,15 +298,15 @@ def create_prep(name='preproc'):
                     compcor, 'inputspec.num_components')
     preproc.connect(motion_correct, 'out_file',
                     compcor, 'inputspec.realigned_file')
-    preproc.connect(motion_correct, ('out_file',pickfirst),
+    preproc.connect(motion_correct, 'out_file',
                     compcor, 'inputspec.in_file')
     preproc.connect(fssource, 'aseg',
                     compcor, 'inputspec.fsaseg_file')
     preproc.connect(getmask, 'outputspec.reg_file',
                     compcor, 'inputspec.reg_file')
-    preproc.connect(motion_correct, ('out_file',pickfirst),
+    preproc.connect(motion_correct, 'out_file',
                     ad, 'realigned_files')
-    preproc.connect(motion_correct, ('par_file',pickfirst),
+    preproc.connect(motion_correct, 'par_file',#('par_file',pickfirst),
                     ad, 'realignment_parameters')
     preproc.connect(getmask, ('outputspec.mask_file', pickfirst),
                     ad, 'mask_file')
@@ -312,13 +314,13 @@ def create_prep(name='preproc'):
                     medianval, 'mask_file')
     preproc.connect(inputnode_fwhm, 'fwhm',
                     smooth, 'inputnode.fwhm')
-    preproc.connect(motion_correct, ('out_file',pickfirst),
+    preproc.connect(motion_correct, 'out_file',
                     smooth, 'inputnode.in_files')
     preproc.connect(getmask, ('outputspec.mask_file', pickfirst),
                     smooth, 'inputnode.mask_file')
     preproc.connect(smooth, 'outputnode.smoothed_files',
                     choosesusan, 'smoothed_files')
-    preproc.connect(motion_correct, ('out_file',pickfirst),
+    preproc.connect(motion_correct, 'out_file',
                     choosesusan, 'motion_files')
     preproc.connect(inputnode_fwhm, 'fwhm',
                     choosesusan, 'fwhm')
@@ -350,6 +352,7 @@ def create_prep(name='preproc'):
                 'noise_components',
                 'tsnr_file',
                 'stddev_file',
+                'tsnr_detrended',
                 'filter_file',
                 'scaled_files',
                 'z_img',
@@ -385,6 +388,8 @@ def create_prep(name='preproc'):
                     outputnode, 'tsnr_file')
     preproc.connect(compcor, 'outputspec.stddev_file',
                     outputnode, 'stddev_file')
+    preproc.connect(compcor, 'outputspec.tsnr_detrended',
+                    outputnode, 'tsnr_detrended')
     preproc.connect(zscore,'z_img',
                     outputnode,'z_img')
     preproc.connect(plot_motion,'out_file',
@@ -482,7 +487,7 @@ def create_rest_prep(name='preproc'):
     outputnode = preproc.get_node('outputspec')
 
     #disconnect old nodes
-    preproc.disconnect(motion_correct, ('out_file',pickfirst),
+    preproc.disconnect(motion_correct, 'out_file',
                        smooth, 'inputnode.in_files')
     preproc.disconnect(inputnode, ('highpass', highpass_operand),
                       highpass, 'op_string')
@@ -499,13 +504,13 @@ def create_rest_prep(name='preproc'):
                     addoutliers, 'composite_norm')
     preproc.connect(compcor, 'outputspec.noise_components', 
                     addoutliers, 'compcorr_components')
-    preproc.connect(motion_correct, ('par_file',pickfirst),
+    preproc.connect(motion_correct, 'par_file',  
                     addoutliers, 'motion_params')
     preproc.connect(addoutliers, 'filter_file',
                     remove_noise, 'design_file')
     preproc.connect(remove_noise, 'out_file',
                     bandpass_filter, 'in_file')
-    preproc.connect(motion_correct, ('out_file',pickfirst),
+    preproc.connect(motion_correct, 'out_file',
                     remove_noise, 'in_file')
     preproc.connect(bandpass_filter, 'out_file',
                     smooth, 'inputnode.in_files')
@@ -640,8 +645,11 @@ def create_first(name='modelfit'):
                                      ('varcopes',               'varcopes'),
                                      ('tstats',                 'tstats'),
                                      ('zstats',                 'zstats')])])
-    modelfit.connect(modelgen, 'design_image',          outputspec, 'design_image')
-    modelfit.connect(modelgen, 'design_file',           outputspec, 'design_file')
-    modelfit.connect(modelgen, 'design_cov',           outputspec, 'design_cov')
+    modelfit.connect(modelgen, 'design_image',
+                     outputspec, 'design_image')
+    modelfit.connect(modelgen, 'design_file',
+                     outputspec, 'design_file')
+    modelfit.connect(modelgen, 'design_cov',
+                     outputspec, 'design_cov')
     modelfit.write_graph()
     return modelfit    

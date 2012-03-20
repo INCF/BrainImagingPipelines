@@ -169,22 +169,22 @@ def QA_workflow(name='QA'):
     
     #roisnrplot = tsnr_roi(plot=False,name='SNR_roi',roi=['all'])
     
-    adnormplot = pe.Node(util.Function(input_names = ['ADnorm','TR'], 
+    adnormplot = pe.MapNode(util.Function(input_names = ['ADnorm','TR'], 
                                        output_names = ['plot'], 
                                        function=plot_ADnorm), 
-                         name='ADnormplot')
+                         name='ADnormplot', iterfield=['ADnorm'])
     
     fssource = pe.Node(interface = FreeSurferSource(),name='fssource')
     
     convert = pe.Node(interface=fs.MRIConvert(),name='converter')
     
-    voltransform = pe.Node(interface=ApplyVolTransform(),name='register')
+    voltransform = pe.MapNode(interface=ApplyVolTransform(),name='register',iterfield=['source_file'])
     
-    overlay = pe.Node(interface = fsl.Overlay(),name ='overlay')
+    overlay = pe.MapNode(interface = fsl.Overlay(),name ='overlay',iterfield=['stat_image'])
     
-    convert2 = pe.Node(interface=fsl.SwapDimensions(),name='converter2')
+    convert2 = pe.MapNode(interface=fsl.SwapDimensions(),name='converter2',iterfield=["in_file"])
     
-    slicer = pe.Node(interface=fsl.Slicer(),name='slicer')
+    slicer = pe.MapNode(interface=fsl.Slicer(),name='slicer',iterfield=['in_file'])
     
     write_rep = pe.Node(interface=ReportSink(),name='report_sink')
     write_rep.inputs.Introduction = "Quality Assurance Report for fMRI preprocessing."

@@ -9,8 +9,6 @@ from nipype.algorithms.modelgen import SpecifyModel
 from nipype.algorithms.misc import TSNR
 from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
 from nipype.interfaces.base import Bunch
-from nipype.utils.config import config
-config.enable_debug_mode()
 from textmake import *
 import sys
 sys.path.insert(0,'..')
@@ -18,15 +16,39 @@ from base import create_first
 from utils import pickfirst
 from preproc import prep_workflow
 
+def preproc_datagrabber(name='preproc_datagrabber'):
+    # create a node to obtain the preproc files
+    datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id','fwhm'],
+                                                   outfields=['noise_components',
+                                                              'motion_parameters',
+                                                               'highpassed_files',
+                                                               'outlier_files']),
+                         name = name)
+    datasource.inputs.base_directory = os.path.join(sink_dir,'analyses','func')
+    datasource.inputs.template ='*'
+    datasource.inputs.field_template = dict(noise_components='%s/preproc/noise_components/*/noise_components.txt',
+                                            motion_parameters='%s/preproc/motion/*.par',
+                                            highpassed_files='%s/preproc/highpass/fwhm_%d/*.nii.gz',
+                                            outlier_files='%s/preproc/art/*/*_outliers.txt')
+    datasource.inputs.template_args = dict(noise_components=[['subject_id']],
+                                           motion_parameters=[['subject_id']],
+                                           highpassed_files=[['subject_id','fwhm']],
+                                           outlier_files=[['subject_id']])
+    return datasource
 
 def trad_mot(subinfo,files):
     # modified to work with only one regressor at a time...
     import numpy as np
     motion_params = []
     mot_par_names = ['Pitch (rad)','Roll (rad)','Yaw (rad)','Tx (mm)','Ty (mm)','Tz (mm)']
+    if not isinstance(files,list):
+        files = [files]
+    if not isinstance(subinfo,list):
+        subinfo = [subinfo]
     for j,i in enumerate(files):
         motion_params.append([[],[],[],[],[],[]])
         #k = map(lambda x: float(x), filter(lambda y: y!='',open(i,'r').read().replace('\n',' ').split(' ')))
+        print i
         a = np.genfromtxt(i)
         for z in range(6):
             motion_params[j][z] = a[:,z].tolist()#k[z:len(k):6]
@@ -43,7 +65,7 @@ def noise_mot(subinfo,files,num_noise_components):
     noi_reg_names = map(lambda x: 'noise_comp_'+str(x+1),range(num_noise_components))
     noise_regressors = []
     for j,i in enumerate(files):
-        noise_regressors.append([[],[],[],[],[]])
+        noise_regressors.append([[]]*num_noise_components)
         k = map(lambda x: float(x), filter(lambda y: y!='',open(i,'r').read().replace('\n',' ').split(' ')))
         for z in range(num_noise_components):
             noise_regressors[j][z] = k[z:len(k):num_noise_components]
@@ -57,11 +79,22 @@ def noise_mot(subinfo,files,num_noise_components):
 
 # First level modeling
 
-def combine_wkflw(subj,preproc,name='combineworkflow'):
+def combine_wkflw(subjects, name='work_dir'):
+    
     modelflow = pe.Workflow(name=name)
-    modelflow.base_dir = os.path.join(root_dir,'work_dir')
-       
+    modelflow.base_dir = os.path.join(root_dir)
+    
+    preproc = preproc_datagrabber()
+    
+    infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
+                         name='subject_names')
+    infosource.iterables = ('subject_id', subjects)
+    
+    modelflow.connect(infosource,'subject_id',preproc,'subject_id')
+    preproc.iterables = ('fwhm', fwhm)
+    
     def getsubs(subject_id):
+        from config import getcontrasts, get_run_numbers, subjectinfo, fwhm
         subs = [('_subject_id_%s/'%subject_id,''),
                 ('_plot_type_',''),
                 ('_fwhm','fwhm'),
@@ -101,7 +134,8 @@ def combine_wkflw(subj,preproc,name='combineworkflow'):
     s.inputs.input_units =                              'secs'
     s.inputs.time_repetition =                          TR
     s.inputs.high_pass_filter_cutoff =                  hpcutoff
-    subjinfo =                                          subjectinfo(subj)
+    #subjinfo =                                          subjectinfo(subj)
+    
     
     # create a node to add the traditional (MCFLIRT-derived) motion regressors to 
     # the subject info
@@ -111,8 +145,13 @@ def combine_wkflw(subj,preproc,name='combineworkflow'):
                                       function=trad_mot),
                         name='trad_motn')
 
-    trad_motn.inputs.subinfo = subjinfo
-
+    
+    subjinfo = pe.Node(interface=util.Function(input_names=['subject_id'], output_names=['output'], function = subjectinfo), name='subjectinfo')
+    
+    modelflow.connect(infosource,'subject_id', 
+                      subjinfo,'subject_id' )
+    modelflow.connect(subjinfo, 'output',
+                      trad_motn, 'subinfo')
     # create a node to add the principle components of the noise regressors to 
     # the subject info
     noise_motn = pe.Node(util.Function(input_names=['subinfo',
@@ -126,7 +165,14 @@ def combine_wkflw(subj,preproc,name='combineworkflow'):
     modelfit =                                          create_first()
     modelfit.inputs.inputspec.interscan_interval =      interscan_interval
     modelfit.inputs.inputspec.film_threshold =          film_threshold
-    modelfit.inputs.inputspec.contrasts =               getcontrasts(subj)
+    
+    
+    contrasts = pe.Node(util.Function(input_names=['subject_id'], output_names=['contrasts'], function=getcontrasts), name='getcontrasts')
+    
+    modelflow.connect(infosource,'subject_id', 
+                     contrasts, 'subject_id')
+    modelflow.connect(contrasts,'contrasts', modelfit, 'inputspec.contrasts')
+    
     modelfit.inputs.inputspec.bases =                   {'dgamma':{'derivs': False}}
     modelfit.inputs.inputspec.model_serial_correlations = True
     noise_motn.inputs.num_noise_components =            num_noise_components
@@ -134,23 +180,24 @@ def combine_wkflw(subj,preproc,name='combineworkflow'):
     # make a data sink
     sinkd = pe.Node(nio.DataSink(), name='sinkd')
     sinkd.inputs.base_directory = os.path.join(root_dir,'analyses','func')
-    sinkd.inputs.container = subj
-    sinkd.inputs.substitutions = getsubs(subj)
+        
+    modelflow.connect(preproc, 'subject_names.subject_id', sinkd, 'container')
+    modelflow.connect(preproc, ('subject_names.subject_id',getsubs), sinkd, 'substitutions')
+    
     sinkd.inputs.regexp_substitutions = [('mask/fwhm_%d/_threshold([0-9]*)/.*nii'%x,'mask/fwhm_%d/funcmask.nii'%x) for x in fwhm]
     sinkd.inputs.regexp_substitutions.append(('realigned/fwhm_([0-9])/_copy_geom([0-9]*)/','realigned/'))
     sinkd.inputs.regexp_substitutions.append(('motion/fwhm_([0-9])/','motion/'))
     sinkd.inputs.regexp_substitutions.append(('bbreg/fwhm_([0-9])/','bbreg/'))
      
     # make connections
-    modelflow.connect(preproc, ('outputspec.motion_parameters',pickfirst),      trad_motn,  'files')
-    modelflow.connect(preproc, 'outputspec.noise_components',       noise_motn, 'files')
-    modelflow.connect(preproc, 'outputspec.highpassed_files',       s,          'functional_runs')
-    modelflow.connect(preproc, 'outputspec.highpassed_files',       modelfit,   'inputspec.functional_data')
-    modelflow.connect(preproc, 'outputspec.outlier_files',          s,          'outlier_files')
+    modelflow.connect(preproc, 'motion_parameters',      trad_motn,  'files')
+    modelflow.connect(preproc, 'noise_components',       noise_motn, 'files')
+    modelflow.connect(preproc, 'highpassed_files',       s,          'functional_runs')
+    modelflow.connect(preproc, 'highpassed_files',       modelfit,   'inputspec.functional_data')
+    modelflow.connect(preproc, 'outlier_files',          s,          'outlier_files')
     modelflow.connect(trad_motn,'subinfo',                          noise_motn, 'subinfo')
     modelflow.connect(noise_motn,'subinfo',                         s,          'subject_info')
     modelflow.connect(s,'session_info',                             modelfit,   'inputspec.session_info')
-    modelflow.connect(preproc, 'outputspec.reference',              sinkd,      'preproc.motion.reference')
     modelflow.connect(modelfit, 'outputspec.parameter_estimates',   sinkd,      'modelfit.estimates')
     modelflow.connect(modelfit, 'outputspec.dof_file',              sinkd,      'modelfit.dofs')
     modelflow.connect(modelfit, 'outputspec.copes',                 sinkd,      'modelfit.contrasts.@copes')
@@ -163,6 +210,10 @@ def combine_wkflw(subj,preproc,name='combineworkflow'):
     return modelflow
     
 if __name__ == "__main__":
-     preprocess = prep_workflow(subjects[0])
-     first_level = combine_wkflw(subjects[0],preprocess,name=subjects[0])
-     first_level.run(plugin='PBS')
+    
+    first_level = combine_wkflw(subjects)
+    
+    if run_on_grid:
+        first_level.run(plugin='PBS')
+    else:
+        first_level.run()

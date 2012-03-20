@@ -6,16 +6,8 @@ import numpy as np
 from nipype.interfaces.base import Bunch
 from copy import deepcopy
 
-# this is the configuration file for the preprocessing+first-level and fixed FX analyses scripts
+# this is the configuration file for the resting state preprocessing script
 
-# root directory
-# the root directory should contain:
-#   - <subject_ID>              : subject directories
-#   - surfaces                  : containing freesurfer subject directories
-#       - <subject_ID>
-#   - work_dir                  : work directory
-#   - analyses                  : output directory
-#       - func                  : output subdirectory (using kanwisher lab convention)
 root_dir = '/mindhive/scratch/keshavan/sad/resting'
 base_dir = '/mindhive/gablab/sad/SAD_STUDY_Resting/data'
 sink_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/'
@@ -36,7 +28,7 @@ patients = ['SAD_P03', 'SAD_P04', 'SAD_P05', 'SAD_P07', 'SAD_P08', 'SAD_P09',
             'SAD_P46', 'SAD_P47', 'SAD_P48', 'SAD_P49', 'SAD_P50', 'SAD_P51',
             'SAD_P52', 'SAD_P53', 'SAD_P54', 'SAD_P55', 'SAD_P56', 'SAD_P57',
             'SAD_P58']
-subjects = ['SAD_P33']#patients[0:1] #controls + patients
+subjects = ['SAD_018']#patients[0:1] #controls + patients
 #subjects = subjects[:1]
 
 # - 'norm_thresh' (for rapidart) - 4
@@ -49,7 +41,7 @@ z_thresh = 3
 crash_dir = root_dir
 
 # - 'run_on_grid' [boolean]
-run_on_grid = True
+run_on_grid = False
 
 # - 'fwhm' full width at half max (currently only the second value is used)
 fwhm = [0, 5]
@@ -96,6 +88,6 @@ def create_dataflow(name="datasource"):
                          name = name)
     datasource.inputs.base_directory = base_dir
     datasource.inputs.template ='*'
-    datasource.inputs.field_template = dict(func='%s/resting.nii')
+    datasource.inputs.field_template = dict(func='%s/resting*.nii')
     datasource.inputs.template_args = dict(func=[['subject_id']])
     return datasource

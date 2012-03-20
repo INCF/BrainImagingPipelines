@@ -161,16 +161,16 @@ def extract_csf_mask():
 
     # add getting the freesurfer volume
     bin = pe.Node(fs.Binarize(), name='binarize')
-    bin.inputs.ventricles = True
+    bin.inputs.wm_ven_csf = True
     extract_csf.connect(inputspec, 'fsaseg_file',
                         bin, "in_file")
     voltransform = pe.MapNode(fs.ApplyVolTransform(inverse=True),
-                           name='inverse_transform',iterfield=['source_file'])
+                           name='inverse_transform',iterfield=['source_file','reg_file'])
     extract_csf.connect(bin, 'binary_file',
                         voltransform, 'target_file')
-    extract_csf.connect(inputspec, ('reg_file', pickfirst),
+    extract_csf.connect(inputspec, 'reg_file',
                         voltransform, 'reg_file')
-    extract_csf.connect(inputspec, ('mean_file', pickfirst),
+    extract_csf.connect(inputspec, 'mean_file',
                         voltransform, 'source_file')
     outputspec = pe.Node(util.IdentityInterface(fields=['csf_mask']),
                          name='outputspec')
@@ -225,7 +225,8 @@ def create_compcorr(name='CompCor'):
     outputspec = pe.Node(util.IdentityInterface(fields=['noise_components',
                                                         'stddev_file',
                                                         'tsnr_file',
-                                                        'csf_mask']),
+                                                        'csf_mask',
+                                                        'tsnr_detrended']),
                          name='outputspec')
     # extract the principal components of the noise
     tsnr = pe.MapNode(TSNR(regress_poly=2),
@@ -271,7 +272,7 @@ def create_compcorr(name='CompCor'):
                      tsnr, 'in_file')
     compproc.connect(inputspec, 'num_components',
                      compcor, 'num_components')
-    compproc.connect(inputspec, ('realigned_file',pickfirst),
+    compproc.connect(inputspec, 'realigned_file',
                      compcor, 'realigned_file')
     compproc.connect(getthresh, 'out_stat',
                      threshold_stddev, 'thresh')
@@ -285,6 +286,8 @@ def create_compcorr(name='CompCor'):
                      outputspec, 'stddev_file')
     compproc.connect(tsnr, 'tsnr_file',
                      outputspec, 'tsnr_file')
+    compproc.connect(tsnr, 'detrended_file',
+                     outputspec, 'tsnr_detrended')
     compproc.connect(compcor, 'noise_components',
                      outputspec, 'noise_components')
     return compproc
