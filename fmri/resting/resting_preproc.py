@@ -149,6 +149,8 @@ def prep_workflow(subjects):
 if __name__ == "__main__":
     preprocess = prep_workflow(subjects)
     realign = preprocess.get_node('preproc.realign')
+    realign.inputs.loops = 2
+    realign.inputs.speedup = 15
     realign.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
     # add for regress nuisance
     if run_on_grid:

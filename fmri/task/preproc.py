@@ -167,7 +167,8 @@ if __name__ == "__main__":
     preprocess = prep_workflow(subjects)
     realign = preprocess.get_node('preproc.realign')
     realign.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
-    
+    realign.inputs.loops = 2
+    realign.inputs.speedup = 15
     cc = preprocess.get_node('preproc.CompCor')
     cc.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
     if run_on_grid:

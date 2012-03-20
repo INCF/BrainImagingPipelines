@@ -7,7 +7,7 @@ import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 
 from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
-                   getmeanscale, highpass_operand)
+                   getmeanscale, highpass_operand, pickfirst)
 
 
 def create_filter_matrix(motion_params, composite_norm,
@@ -190,10 +190,8 @@ def create_prep(name='preproc'):
                              iterfield=['in_file'])
 
     # rapidArt for artifactual timepoint detection
-    ad = pe.MapNode(ra.ArtifactDetect(),
-                 name='artifactdetect',
-                 iterfield=['realigned_files',
-                 'realignment_parameters'])
+    ad = pe.Node(ra.ArtifactDetect(),
+                 name='artifactdetect')
 
     # extract the mean volume if the first functional run
     #meanfunc = pe.Node(fsl.MeanImage(),
@@ -297,25 +295,23 @@ def create_prep(name='preproc'):
                     compcor, 'inputspec.realigned_file')
     preproc.connect(meanfunc, 'outputspec.mean_image',
                     compcor, 'inputspec.mean_file')
-    preproc.connect(motion_correct, 'out_file',
-                    compcor, 'inputspec.in_file')
     preproc.connect(fssource, 'aseg',
                     compcor, 'inputspec.fsaseg_file')
-    preproc.connect(getmask, 'outputspec.reg_file',
+    preproc.connect(getmask, ('outputspec.reg_file', pickfirst),
                     compcor, 'inputspec.reg_file')
     preproc.connect(motion_correct, 'out_file',
                     ad, 'realigned_files')
     preproc.connect(motion_correct, 'par_file',
                     ad, 'realignment_parameters')
-    preproc.connect(getmask, 'outputspec.mask_file',
+    preproc.connect(getmask, ('outputspec.mask_file', pickfirst),
                     ad, 'mask_file')
-    preproc.connect(getmask, 'outputspec.mask_file',
+    preproc.connect(getmask, ('outputspec.mask_file', pickfirst),
                     medianval, 'mask_file')
     preproc.connect(inputnode_fwhm, 'fwhm',
                     smooth, 'inputnode.fwhm')
     preproc.connect(motion_correct, 'out_file',
                     smooth, 'inputnode.in_files')
-    preproc.connect(getmask, 'outputspec.mask_file',
+    preproc.connect(getmask, ('outputspec.mask_file',pickfirst),
                     smooth, 'inputnode.mask_file')
     preproc.connect(smooth, 'outputnode.smoothed_files',
                     choosesusan, 'smoothed_files')

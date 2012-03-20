@@ -216,7 +216,6 @@ def create_compcorr(name='CompCor'):
     inputspec = pe.Node(util.IdentityInterface(fields=['num_components',
                                                        'realigned_file',
                                                        'mean_file',
-                                                       'in_file',
                                                        'reg_file',
                                                        'fsaseg_file',
                                                        'selector']),
@@ -256,8 +255,7 @@ def create_compcorr(name='CompCor'):
                                        function=extract_noise_components),
                                        name='compcor_components',
                                        iterfield=['realigned_file',
-                                                  'noise_mask_file',
-                                                  'csf_mask_file'])
+                                                  'noise_mask_file'])
     # Make connections
     compproc.connect(inputspec, 'mean_file',
                      acomp, 'inputspec.mean_file')
@@ -267,9 +265,9 @@ def create_compcorr(name='CompCor'):
                      acomp, 'inputspec.fsaseg_file')
     compproc.connect(inputspec, 'selector',
                      compcor, 'selector')
-    compproc.connect(acomp, 'outputspec.csf_mask',
+    compproc.connect(acomp, ('outputspec.csf_mask',pickfirst),
                      compcor, 'csf_mask_file')
-    compproc.connect(inputspec, 'in_file',
+    compproc.connect(inputspec, 'realigned_file',
                      tsnr, 'in_file')
     compproc.connect(inputspec, 'num_components',
                      compcor, 'num_components')
@@ -372,6 +370,7 @@ def weight_mean(image, art_file):
     import numpy as np
     from nipype.utils.filemanip import split_filename
     import os
+    import nipype.interfaces.freesurfer as fs
 
     def try_import(fname):
         try:
@@ -382,17 +381,28 @@ def weight_mean(image, art_file):
                 return a
         except:
             return np.array([])
-
-    mean_image = os.path.abspath(split_filename(image)[1] + '.nii.gz')
-    img, aff = nib.load(image).get_data(), nib.load(image).get_affine()
-    weights = np.ones(img.shape[3])
-    outs = try_import(art_file)
-    weights[np.int_(outs)] = 0 #  art outputs 0 based indices
-    mean_img = np.average(img, axis=3, weights=weights)
+    
+    mean_image = os.path.abspath(split_filename(image[0])[1])
+    weights = None
+    aff = None
+    concat_image = fs.Concatenate(in_files=image).run().outputs.concatenated_file
+    for i, im in enumerate(image):
+        outs = try_import(art_file[i])
+        if not i:
+            img, aff = nib.load(im).get_data(), nib.load(im).get_affine()
+            weights = np.ones(img.shape[3])
+            weights[np.int_(outs)] = 0 #  art outputs 0 based indices
+        else:
+            weights_add = np.ones(weights.shape)
+            weights_add[np.int_(outs)] = 0 #  art outputs 0 based indices
+            weights = np.concatenate((weights,weights_add))
+            mean_image += '_'+split_filename(im)[1]
+    
+    mean_img = np.average(nib.load(concat_image).get_data(), axis=3, weights=weights)
     final_image = nib.Nifti1Image(mean_img, aff) 
-    final_image.to_filename(mean_image) 
+    final_image.to_filename(mean_image+'.nii.gz') 
 
-    return mean_image
+    return mean_image+'.nii.gz'
 
 
 def art_mean_workflow(name="take_mean_art"):
@@ -425,16 +435,13 @@ def art_mean_workflow(name="take_mean_art"):
                                                        'realignment_parameters']),
                             name='inputspec')
 
-    meanimg = pe.MapNode(util.Function(input_names=['image','art_file'],
+    meanimg = pe.Node(util.Function(input_names=['image','art_file'],
                                        output_names=['mean_image'],
                                        function=weight_mean),
-                                       name='weighted_mean',
-                                       iterfield=['image','art_file'])
+                                       name='weighted_mean')
     
-    ad = pe.MapNode(ra.ArtifactDetect(),
-                 name='strict_artifact_detect', 
-                 iterfield=['realignment_parameters',
-                 'realigned_files'])
+    ad = pe.Node(ra.ArtifactDetect(),
+                 name='strict_artifact_detect')
 
     outputspec = pe.Node(util.IdentityInterface(fields=['mean_image']),
                          name='outputspec')
