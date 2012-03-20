@@ -389,7 +389,7 @@ def weight_mean(image, art_file):
     for i, im in enumerate(image):
         outs = try_import(art_file[i])
         if not i:
-            imageload = nib.load()
+            imageload = nib.load(im)
             img, aff, hdr = imageload.get_data(), imageload.get_affine(), imageload.get_header()
             weights = np.ones(img.shape[3])
             weights[np.int_(outs)] = 0 #  art outputs 0 based indices
