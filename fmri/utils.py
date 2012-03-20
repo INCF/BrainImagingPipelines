@@ -164,8 +164,8 @@ def extract_csf_mask():
     bin.inputs.wm_ven_csf = True
     extract_csf.connect(inputspec, 'fsaseg_file',
                         bin, "in_file")
-    voltransform = pe.MapNode(fs.ApplyVolTransform(inverse=True),
-                           name='inverse_transform',iterfield=['source_file','reg_file'])
+    voltransform = pe.Node(fs.ApplyVolTransform(inverse=True),
+                           name='inverse_transform')
     extract_csf.connect(bin, 'binary_file',
                         voltransform, 'target_file')
     extract_csf.connect(inputspec, 'reg_file',
@@ -215,6 +215,7 @@ def create_compcorr(name='CompCor'):
     compproc = pe.Workflow(name=name)
     inputspec = pe.Node(util.IdentityInterface(fields=['num_components',
                                                        'realigned_file',
+                                                       'mean_file',
                                                        'in_file',
                                                        'reg_file',
                                                        'fsaseg_file',
@@ -258,7 +259,7 @@ def create_compcorr(name='CompCor'):
                                                   'noise_mask_file',
                                                   'csf_mask_file'])
     # Make connections
-    compproc.connect(inputspec, 'realigned_file',
+    compproc.connect(inputspec, 'mean_file',
                      acomp, 'inputspec.mean_file')
     compproc.connect(inputspec, 'reg_file',
                      acomp, 'inputspec.reg_file')
