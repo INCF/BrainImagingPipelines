@@ -384,12 +384,13 @@ def weight_mean(image, art_file):
     
     mean_image = os.path.abspath(split_filename(image[0])[1])
     weights = None
-    aff = None
+        
     concat_image = fs.Concatenate(in_files=image).run().outputs.concatenated_file
     for i, im in enumerate(image):
         outs = try_import(art_file[i])
         if not i:
-            img, aff = nib.load(im).get_data(), nib.load(im).get_affine()
+            imageload = nib.load()
+            img, aff, hdr = imageload.get_data(), imageload.get_affine(), imageload.get_header()
             weights = np.ones(img.shape[3])
             weights[np.int_(outs)] = 0 #  art outputs 0 based indices
         else:
@@ -399,7 +400,7 @@ def weight_mean(image, art_file):
             mean_image += '_'+split_filename(im)[1]
     
     mean_img = np.average(nib.load(concat_image).get_data(), axis=3, weights=weights)
-    final_image = nib.Nifti1Image(mean_img, aff) 
+    final_image = nib.Nifti1Image(mean_img, aff, hdr) 
     final_image.to_filename(mean_image+'.nii.gz') 
 
     return mean_image+'.nii.gz'
