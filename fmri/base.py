@@ -13,7 +13,7 @@ from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
 
 #from fEpiDeWarp import EpiDeWarp
 
-from nipype.interfaces.freesurfer.utils import EpiDeWarp
+from nipype.interfaces.fsl.utils import EPIDeWarp
 
 def create_filter_matrix(motion_params, composite_norm,
                          compcorr_components, art_outliers, selector):
@@ -94,7 +94,6 @@ def create_filter_matrix(motion_params, composite_norm,
             temp[1:, :] = np.diff(a, axis=0)
             out = np.hstack((out, temp))
 
-    print out.shape
     np.savetxt(filter_file, out)
     return filter_file
 
@@ -191,12 +190,9 @@ def create_prep(name='preproc'):
                            name='img2float')
 
     # define the motion correction node
-    """motion_correct = pe.MapNode(interface=FmriRealign4d(),
-                                name='realign',
-                                iterfield=['in_file'])"""
     motion_correct = pe.Node(interface=FmriRealign4d(),
                                 name='realign')
-    #motion_correct.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
+
     # construct motion plots
     plot_motion = pe.MapNode(interface=fsl.PlotMotionParams(in_source='fsl'),
                              name='plot_motion',
@@ -207,9 +203,6 @@ def create_prep(name='preproc'):
                  name='artifactdetect')
 
     # extract the mean volume if the first functional run
-    #meanfunc = pe.Node(fsl.MeanImage(),
-    #                   name='mean_image')
-
     meanfunc = art_mean_workflow()
 
     # generate a freesurfer workflow that will return the mask
@@ -422,7 +415,7 @@ def create_prep_fieldmap(name='preproc'):
     # Fieldmap correction workflow: takes mean image and realigns to fieldmaps, then unwarps
     # mean and epi. (Coregistration occurs in the EpiDeWarp.fsl script
     
-    fieldmap = pe.Node(interface=EpiDeWarp(), name='fieldmap_unwarp')
+    fieldmap = pe.Node(interface=EPIDeWarp(), name='fieldmap_unwarp')
     dewarper = pe.MapNode(interface=fsl.FUGUE(),iterfield=['in_file'],name='dewarper')
     # Get old nodes
     inputspec = preproc.get_node('inputspec')
@@ -488,8 +481,6 @@ def create_prep_fieldmap(name='preproc'):
                     outputspec, 'FM_unwarped_mean')
     preproc.connect(dewarper, 'unwarped_file',
                     outputspec, 'FM_unwarped_epi')
-    
-    preproc.write_graph()
     return preproc
     
                     
@@ -588,10 +579,6 @@ def create_rest_prep(name='preproc',fieldmap=False):
     #disconnect old nodes
     preproc.disconnect(motion_correct, 'out_file',
                        smooth, 'inputnode.in_files')
-    preproc.disconnect(inputnode, ('highpass', highpass_operand),
-                      highpass, 'op_string')
-    preproc.disconnect(meanscale, 'out_file',
-                       highpass, 'in_file')
     preproc.disconnect(motion_correct, 'out_file',
                        choosesusan, 'motion_files')
     if fieldmap:
@@ -730,12 +717,12 @@ def create_first(name='modelfit'):
     # Setup the connections
 
     modelfit.connect([
-        (inputspec, level1design,   [('interscan_interval',     'interscan_interval'),
-                                     ('session_info',           'session_info'),
-                                     ('contrasts',              'contrasts'),
-                                     ('bases',                  'bases'),
-                                     ('model_serial_correlations',
-                                     'model_serial_correlations')]),
+        (inputspec, level1design, [('interscan_interval', 'interscan_interval'),
+                                   ('session_info', 'session_info'),
+                                   ('contrasts', 'contrasts'),
+                                   ('bases', 'bases'),
+                                   ('model_serial_correlations',
+                                    'model_serial_correlations')]),
         (inputspec, modelestimate,  [('film_threshold',         'threshold'),
                                      ('functional_data',        'in_file')]),
         (level1design,modelgen,     [('fsf_files',              'fsf_file'),

@@ -43,7 +43,7 @@ surf_dir : Freesurfer subjects directory
 crash_dir : Location to store crash files
 """
 
-root_dir = '/mindhive/scratch/keshavan/sad/task'
+working_dir = '/mindhive/scratch/keshavan/sad/task'
 
 base_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/data/'
 
@@ -53,7 +53,7 @@ field_dir = '/mindhive/gablab/sad/Data_reorganized'
 
 surf_dir = '/mindhive/xnat/surfaces/sad/'
 
-crash_dir = root_dir
+crash_dir = working_dir
 
 """
 Workflow Inputs:
@@ -66,7 +66,10 @@ subjects : List of Strings
            
 run_on_grid : Boolean
               True to run pipeline with PBS plugin, False to run serially
-              
+
+plugin_args : Dict
+              Plugin arguments. 
+
 fieldmap : Boolean
            True to include fieldmap distortion correction. Note: field_dir \
            must be specified
@@ -97,6 +100,8 @@ patients = ['SAD_P03', 'SAD_P04', 'SAD_P05', 'SAD_P07', 'SAD_P08', 'SAD_P09',
 subjects = ['SAD_018']#controls+patients
 
 run_on_grid = True
+
+plugin_args = {'qsub_args': '-q many'}
 
 fieldmap = True
 
