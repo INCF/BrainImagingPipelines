@@ -96,7 +96,7 @@ patients = ['SAD_P03', 'SAD_P04', 'SAD_P05', 'SAD_P07', 'SAD_P08', 'SAD_P09',
 
 subjects = ['SAD_018']#controls+patients
 
-run_on_grid = False
+run_on_grid = True
 
 fieldmap = True
 
@@ -112,10 +112,13 @@ Motion / Slice Timing Correction
 Interleaved : Boolean
               True for Interleaved
               
-SliceOrder : Order of slice aquisition, alternatively can be set to \
+SliceOrder : List or 'ascending' or 'descending'
+             Order of slice aquisition, alternatively can be set to \
              'ascending' or 'descending'. Note: Slice order is \
              0-based.  
-TR : TR of scan
+
+TR : Float 
+     TR of scan
 
 """
 
@@ -128,7 +131,28 @@ SliceOrder = func0([1,3,5,7,9,11,13,15,17,19,21,23,25,27,2,4,6,8,10,12,14,16,18,
 TR = 2.5
 
 """
-Artefact Detection
+Fieldmap Correction
+^^^^^^^^^^^^^^^^^^^
+
+echospacing : Float 
+              EPI echo spacing
+
+TE_diff : Float
+          difference in B0 field map TEs
+
+sigma : Int
+        2D spatial gaussing smoothing stdev (default = 2mm)
+
+"""
+
+echospacing = 0.58
+
+TE_diff = 2.46
+
+sigma = 2
+
+"""
+Artifact Detection
 ^^^^^^^^^^^^^^^^^^
 
 norm_thresh : 

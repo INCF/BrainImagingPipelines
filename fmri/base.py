@@ -8,10 +8,12 @@ import nipype.interfaces.utility as util
 
 from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
                    getmeanscale, highpass_operand, pickfirst)
-import sys
-sys.path.append('../utils')
+#import sys
+#sys.path.append('../utils')
 
-from fEpiDeWarp import EpiDeWarp
+#from fEpiDeWarp import EpiDeWarp
+
+from nipype.interfaces.freesurfer.utils import EpiDeWarp
 
 def create_filter_matrix(motion_params, composite_norm,
                          compcorr_components, art_outliers, selector):
@@ -120,6 +122,9 @@ def create_prep(name='preproc'):
     inputspec.highpass_sigma :
     inputspec.lowpass_sigma :
     inputspec.reg_params :
+    inputspec.FM_TEdiff :
+    inputspec.FM_Echo_spacing :
+    inputspec.FM_sigma :
     
     Outputs
     -------
@@ -142,6 +147,8 @@ def create_prep(name='preproc'):
     outputspec.scaled_files :
     outputspec.z_img :
     outputspec.motion_plots :
+    outputspec.FM_unwarped_mean :
+    outputspec.FM_unwarped_epi :
     
     Returns
     -------
@@ -166,7 +173,10 @@ def create_prep(name='preproc'):
                                                       'compcor_select',
                                                       'highpass_sigma',
                                                       'lowpass_sigma',
-                                                      'reg_params']),
+                                                      'reg_params',
+                                                      'FM_TEdiff',
+                                                      'FM_Echo_spacing',
+                                                      'FM_sigma']),
                         name='inputspec')
 
     # Separate input node for FWHM
@@ -354,7 +364,9 @@ def create_prep(name='preproc'):
                 'filter_file',
                 'scaled_files',
                 'z_img',
-                'motion_plots']),
+                'motion_plots',
+                'FM_unwarped_epi',
+                'FM_unwarped_mean']),
                         name='outputspec')
 
     # make output connection
@@ -392,6 +404,7 @@ def create_prep(name='preproc'):
                     outputnode,'z_img')
     preproc.connect(plot_motion,'out_file',
                     outputnode,'motion_plots')
+                    
 
     return preproc
 
@@ -412,7 +425,8 @@ def create_prep_fieldmap(name='preproc'):
     fieldmap = pe.Node(interface=EpiDeWarp(), name='fieldmap_unwarp')
     dewarper = pe.MapNode(interface=fsl.FUGUE(),iterfield=['in_file'],name='dewarper')
     # Get old nodes
-    #inputnode = preproc.get_node('inputspec')
+    inputspec = preproc.get_node('inputspec')
+    outputspec = preproc.get_node('outputspec')
     ad = preproc.get_node('artifactdetect')
     compcor = preproc.get_node('CompCor')
     motion_correct = preproc.get_node('realign')
@@ -438,6 +452,12 @@ def create_prep_fieldmap(name='preproc'):
                     compcor, 'inputspec.mean_file')
                     
     # Connect nodes
+    preproc.connect(inputspec,'FM_TEdiff',
+                    fieldmap, 'tediff')
+    preproc.connect(inputspec,'FM_Echo_spacing',
+                    fieldmap,'esp')
+    preproc.connect(inputspec,'FM_sigma',
+                    fieldmap, 'sigma')
     preproc.connect(motion_correct, 'out_file',
                     dewarper, 'in_file')
     preproc.connect(fieldmap, 'exf_mask',
@@ -464,6 +484,10 @@ def create_prep_fieldmap(name='preproc'):
                     choosesusan, 'motion_files')
     preproc.connect(fieldmap, 'exfdw',
                     compcor, 'inputspec.mean_file')
+    preproc.connect(fieldmap, 'exfdw',
+                    outputspec, 'FM_unwarped_mean')
+    preproc.connect(dewarper, 'unwarped_file',
+                    outputspec, 'FM_unwarped_epi')
     
     preproc.write_graph()
     return preproc

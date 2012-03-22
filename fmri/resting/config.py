@@ -1,17 +1,84 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 
-import os
-import numpy as np
-from nipype.interfaces.base import Bunch
-from copy import deepcopy
+""" 
+==========================
+BIP: Task-fMRI config file
+==========================
 
-# this is the configuration file for the resting state preprocessing script
+Instructions:
+-------------
+
+Input your project related values into the variables and functions \
+listed in this file.
+
+Running the BIP:
+----------------
+In a Terminal,
+
+cd /path/to/BrainImagingPipelines/fmri/task
+
+Then type:
+
+python preprocess.py
+
+After running preprocessing, you can run the first level pipeline:
+
+python first_level.py
+
+
+Directories:
+------------
+
+root_dir : Location of the Nipype working directory
+
+base_dir : Base directory of data. (Should be subject-independent)
+
+sink_dir : Location where the BIP will store the results
+
+field_dir : (Optional) Base directory of field-map data (Should be subject-independent)
+            Set this value to None if you don't want fieldmap distortion correction
+            
+surf_dir : Freesurfer subjects directory
+
+crash_dir : Location to store crash files
+"""
+
 
 root_dir = '/mindhive/scratch/keshavan/sad/resting'
+
 base_dir = '/mindhive/gablab/sad/SAD_STUDY_Resting/data'
+
 sink_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/'
+
 field_dir = '/mindhive/gablab/sad/Data_reorganized'
+
+crash_dir = root_dir
+
+surf_dir = '/mindhive/xnat/surfaces/sad/'
+
+"""
+Workflow Inputs:
+----------------
+
+subjects : List of Strings
+           Subject id's. Note: These MUST match the subject id's in the \
+           Freesurfer directory. For simplicity, the subject id's should \
+           also match with the location of individual functional files.
+           
+run_on_grid : Boolean
+              True to run pipeline with PBS plugin, False to run serially
+              
+fieldmap : Boolean
+           True to include fieldmap distortion correction. Note: field_dir \
+           must be specified
+           
+test_mode : Boolean
+            Affects whether where and if the workflow keeps its \
+            intermediary files. True to keep intermediary files.  
+           
+"""
+
 # list of subjects
 controls = ['SAD_017', 'SAD_018', 'SAD_019', 'SAD_020', 'SAD_021', 'SAD_022',
             'SAD_023', 'SAD_024', 'SAD_025', 'SAD_027', 'SAD_028', 'SAD_029',
@@ -29,56 +96,147 @@ patients = ['SAD_P03', 'SAD_P04', 'SAD_P05', 'SAD_P07', 'SAD_P08', 'SAD_P09',
             'SAD_P46', 'SAD_P47', 'SAD_P48', 'SAD_P49', 'SAD_P50', 'SAD_P51',
             'SAD_P52', 'SAD_P53', 'SAD_P54', 'SAD_P55', 'SAD_P56', 'SAD_P57',
             'SAD_P58']
-subjects = ['SAD_018']#patients[0:1] #controls + patients
-#subjects = subjects[:1]
-fieldmap = True
-# - 'norm_thresh' (for rapidart) - 4
-norm_thresh = 2
+subjects = ['SAD_018']
 
-# - 'z_thresh' (for rapidart) - 3
-z_thresh = 3
-
-# crash directory - still not working
-crash_dir = root_dir
-
-# - 'run_on_grid' [boolean]
 run_on_grid = True
 
-# - 'fwhm' full width at half max (currently only the second value is used)
-fwhm = [0, 5]
+fieldmap = True
 
-# - 'num_noise_components' number of principle components of the noise to use
-num_noise_components =  6
-# first corresponds to t compcor, second to a compcor
-compcor_select = [True, True]
-
-# - 'TR' 
-TR = 6.0
-
-# Motion correction params
-Interleaved = True
-SliceOrder = 'ascending'
-
-# regressors
-# [motion, composite norm, compcorr components, outliers, motion derivatives]
-reg_params = [True, True, True, True, True]
-
-# - Bandpass cutoffs
-highpass_sigma = 100/(2*TR)
-lowpass_sigma = 12.5/(2*TR)
-
-# - 'test_mode' [boolean] - affects whether where and if the workflow keeps its intermediary files.  
 test_mode = True
 
-# surf_dir - directory where the individual subject's freesurfer directories are
-surf_dir = '/mindhive/xnat/surfaces/sad/'
+"""
+Node Inputs
+-----------
 
+Motion / Slice Timing Correction
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-#____________________________________________________________________________________________________________
-#
-#                       FUNCTIONS
-#____________________________________________________________________________________________________________
-#
+Interleaved : Boolean
+              True for Interleaved
+              
+SliceOrder : List or 'ascending' or 'descending'
+             Order of slice aquisition, alternatively can be set to \
+             'ascending' or 'descending'. Note: Slice order is \
+             0-based.  
+
+TR : Float 
+     TR of scan
+
+"""
+
+Interleaved = True
+
+SliceOrder = 'ascending'
+
+TR = 6.0
+
+"""
+Fieldmap Correction
+^^^^^^^^^^^^^^^^^^^
+
+echospacing : Float 
+              EPI echo spacing
+
+TE_diff : Float
+          difference in B0 field map TEs
+
+sigma : Int
+        2D spatial gaussing smoothing stdev (default = 2mm)
+
+"""
+
+echospacing = 0.58
+
+TE_diff = 2.46
+
+sigma = 2
+
+"""
+Artifact Detection
+^^^^^^^^^^^^^^^^^^
+
+norm_thresh : 
+
+z_thresh :
+
+"""
+
+norm_thresh = 2
+
+z_thresh = 3
+
+"""
+Smoothing
+^^^^^^^^^
+fwhm : Full width at half max. The data will be smoothed at all values \
+       specified in this list.
+
+"""
+
+fwhm = [0, 5]
+
+"""          
+CompCor
+^^^^^^^
+
+compcor_select : The first value in the list corresponds to applying \
+                 t-compcor, and the second value to a-compcor. Note: \
+                 both can be true
+
+num_noise_components : number of principle components of the noise to use               
+"""
+
+compcor_select = [True, True]
+
+num_noise_components =  6
+
+"""
+Filter Regressor
+^^^^^^^^^^^^^^^^
+
+reg_params : List of Bools
+             True/False to regress out: 
+             [motion, composite norm, compcorr components, outliers, motion derivatives]            
+
+"""
+
+reg_params = [True, True, True, True, True]
+
+"""
+Bandpass Filter
+^^^^^^^^^^^^^^^
+
+highpass_sigma : Float
+                 Highpass  cut off in Hz?
+lowpass _sigma : Float
+                 Lowpass cut off in Hz?
+
+"""
+
+highpass_sigma = 100/(2*TR)
+
+lowpass_sigma = 12.5/(2*TR)
+
+"""
+Functions
+---------
+
+Preprocessing
+^^^^^^^^^^^^^
+create_dataflow : Function that finds the functional runs for each subject.
+                  Must return a DataGrabber Node. See the DataGrabber_ \
+                  documentation for more information. Node should have output \
+                  "func" which has the functional runs
+
+create_fieldmap_dataflow : Function that finds the functional runs for \
+                           each subject. Must return a DataGrabber Node. \
+                           See the DataGrabber_ documentation for more \
+                           information. Node should have outsputs "mag" for \
+                           the magnitude image and "phase" for the phase image.
+
+.. _Datagrabber: http://www.mit.edu/~satra/nipype-nightly/users/grabbing_and_sinking.html 
+
+"""
 
 def create_dataflow(name="datasource"):
     import nipype.pipeline.engine as pe

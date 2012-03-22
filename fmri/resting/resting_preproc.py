@@ -2,10 +2,10 @@
 import sys
 from config import *
 sys.path.append('..')
-sys.path.append('../../utils')
 
 import nipype.interfaces.utility as util    # utility
 import nipype.pipeline.engine as pe         # pypeline engine
+import os
 
 from base import create_rest_prep
 from utils import get_datasink, get_substitutions
@@ -23,19 +23,30 @@ def prep_workflow(subjects, fieldmap):
 
     # generate datagrabber
     dataflow = create_dataflow()
-    modelflow.connect(infosource, 'subject_id', dataflow, 'subject_id')
+    modelflow.connect(infosource, 'subject_id',
+                      dataflow, 'subject_id')
     
     # generate preprocessing workflow
     preproc = create_rest_prep(fieldmap=fieldmap)
     
+    # make a data sink
+    sinkd = get_datasink(sink_dir, fwhm)
+    
     if fieldmap:
         datasource_fieldmap = create_fieldmap_dataflow()
+        preproc.inputs.inputspec.FM_Echo_spacing = echospacing
+        preproc.inputs.inputspec.FM_TEdiff = TE_diff
+        preproc.inputs.inputspec.FM_sigma = sigma
         modelflow.connect(infosource, 'subject_id',
                           datasource_fieldmap, 'subject_id')
         modelflow.connect(datasource_fieldmap,'mag',
                           preproc,'fieldmap_input.magnitude_file')
         modelflow.connect(datasource_fieldmap,'phase',
                           preproc,'fieldmap_input.phase_file')
+        modelflow.connect(preproc, 'outputspec.FM_unwarped_mean',
+                          sinkd, 'preproc.fieldmap.@unwarped_mean')
+        modelflow.connect(preproc, 'outputspec.FM_unwarped_epi',
+                          sinkd, 'preproc.fieldmap.@unwarped_epi')
     
     # inputs
     preproc.inputs.fwhm_input.fwhm = fwhm
@@ -54,9 +65,7 @@ def prep_workflow(subjects, fieldmap):
     preproc.inputs.inputspec.lowpass_sigma = lowpass_sigma
     preproc.inputs.inputspec.reg_params = reg_params
 
-    # make a data sink
-
-    sinkd = get_datasink(sink_dir, fwhm)
+    
     modelflow.connect(infosource, 'subject_id', sinkd, 'container')
     modelflow.connect(infosource, ('subject_id', get_substitutions),
                       sinkd, 'substitutions')
@@ -97,59 +106,7 @@ def prep_workflow(subjects, fieldmap):
                       sinkd, 'preproc.regressors')
     modelflow.connect(preproc, 'outputspec.z_img', 
                       sinkd, 'preproc.z_image')
-    # create output node
-    outputnode = pe.Node(interface=util.IdentityInterface(
-        fields=['reference',
-                'motion_parameters',
-                'realigned_files',
-                'mask',
-                'smoothed_files',
-                'highpassed_files',
-                'mean',
-                'combined_motion',
-                'outlier_files',
-                'mask',
-                'reg_cost',
-                'reg_file',
-                'noise_components',
-                'tsnr_file',
-                'stddev_file',
-                'regressor_file']),
-                        name='outputspec')
-
-    #Make more connections    
-
-    modelflow.connect(preproc, 'outputspec.reference',
-                      outputnode, 'reference')
-    modelflow.connect(preproc, 'outputspec.motion_parameters',
-                      outputnode, 'motion_parameters')
-    modelflow.connect(preproc, 'outputspec.realigned_files',
-                      outputnode, 'realigned_files')
-    modelflow.connect(preproc, 'outputspec.smoothed_files',
-                      outputnode, 'smoothed_files')
-    modelflow.connect(preproc, 'outputspec.noise_components',
-                      outputnode, 'noise_components')
-    modelflow.connect(preproc, 'outputspec.mean',
-                      outputnode, 'mean')
-    modelflow.connect(preproc, 'outputspec.mask',
-                      outputnode, 'mask')
-    modelflow.connect(preproc, 'outputspec.outlier_files',
-                      outputnode, 'outlier_files')
-    modelflow.connect(preproc, 'outputspec.combined_motion',
-                      outputnode, 'combined_motion')
-    modelflow.connect(preproc, 'outputspec.reg_file',
-                      outputnode, 'reg_file')
-    modelflow.connect(preproc, 'outputspec.reg_cost',
-                      outputnode, 'reg_cost')
-    modelflow.connect(preproc, 'outputspec.highpassed_files',
-                      outputnode, 'highpassed_files')
-    modelflow.connect(preproc, 'outputspec.tsnr_file',
-                      outputnode, 'tsnr_file')
-    modelflow.connect(preproc, 'outputspec.stddev_file',
-                      outputnode, 'stddev_file')
-    modelflow.connect(preproc, 'outputspec.filter_file',
-                      outputnode, 'regressor_file')
-
+    
     modelflow.base_dir = os.path.join(root_dir,'work_dir')
     return modelflow
 
