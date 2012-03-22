@@ -11,6 +11,7 @@ from copy import deepcopy
 root_dir = '/mindhive/scratch/keshavan/sad/resting'
 base_dir = '/mindhive/gablab/sad/SAD_STUDY_Resting/data'
 sink_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/'
+field_dir = '/mindhive/gablab/sad/Data_reorganized'
 # list of subjects
 controls = ['SAD_017', 'SAD_018', 'SAD_019', 'SAD_020', 'SAD_021', 'SAD_022',
             'SAD_023', 'SAD_024', 'SAD_025', 'SAD_027', 'SAD_028', 'SAD_029',
@@ -30,7 +31,7 @@ patients = ['SAD_P03', 'SAD_P04', 'SAD_P05', 'SAD_P07', 'SAD_P08', 'SAD_P09',
             'SAD_P58']
 subjects = ['SAD_018']#patients[0:1] #controls + patients
 #subjects = subjects[:1]
-
+fieldmap = True
 # - 'norm_thresh' (for rapidart) - 4
 norm_thresh = 2
 
@@ -41,7 +42,7 @@ z_thresh = 3
 crash_dir = root_dir
 
 # - 'run_on_grid' [boolean]
-run_on_grid = False
+run_on_grid = True
 
 # - 'fwhm' full width at half max (currently only the second value is used)
 fwhm = [0, 5]
@@ -90,4 +91,19 @@ def create_dataflow(name="datasource"):
     datasource.inputs.template ='*'
     datasource.inputs.field_template = dict(func='%s/resting*.nii')
     datasource.inputs.template_args = dict(func=[['subject_id']])
+    return datasource
+    
+def create_fieldmap_dataflow(name="datasource_fieldmap"):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio 
+    # create a node to obtain the functional images
+    datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
+                                                   outfields=['mag','phase']),
+                         name = name)
+    datasource.inputs.base_directory = field_dir
+    datasource.inputs.template ='*'
+    datasource.inputs.field_template = dict(mag='%s/fieldmap_resting/*run00*.nii.gz',
+                                            phase='%s/fieldmap_resting/*run01*.nii.gz')
+    datasource.inputs.template_args = dict(mag=[['subject_id']],
+                                           phase=[['subject_id']])
     return datasource

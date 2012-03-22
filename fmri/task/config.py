@@ -1,31 +1,88 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
+""" 
+==========================
+BIP: Task-fMRI config file
+==========================
 
-import os
-import numpy as np
-from nipype.interfaces.base import Bunch
-from copy import deepcopy
+Instructions:
+-------------
 
-# this is the configuration file for the preprocessing+first-level and fixed FX analyses scripts
+Input your project related values into the variables and functions \
+listed in this file.
 
-# root directory
-# the root directory should contain:
-#   - <subject_ID>              : subject directories
-#   - surfaces                  : containing freesurfer subject directories
-#       - <subject_ID>
-#   - work_dir                  : work directory
-#   - analyses                  : output directory
-#       - func                  : output subdirectory (using kanwisher lab convention)
+Running the BIP:
+----------------
+In a Terminal,
+
+cd /path/to/BrainImagingPipelines/fmri/task
+
+Then type:
+
+python preprocess.py
+
+After running preprocessing, you can run the first level pipeline:
+
+python first_level.py
+
+
+Directories:
+------------
+
+root_dir : Location of the Nipype working directory
+
+base_dir : Base directory of data. (Should be subject-independent)
+
+sink_dir : Location where the BIP will store the results
+
+field_dir : (Optional) Base directory of field-map data (Should be subject-independent)
+            Set this value to None if you don't want fieldmap distortion correction
+            
+surf_dir : Freesurfer subjects directory
+
+crash_dir : Location to store crash files
+"""
+
 root_dir = '/mindhive/scratch/keshavan/sad/task'
+
 base_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/data/'
+
 sink_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/'
 
+field_dir = '/mindhive/gablab/sad/Data_reorganized'
+
+surf_dir = '/mindhive/xnat/surfaces/sad/'
+
+crash_dir = root_dir
+
+"""
+Workflow Inputs:
+----------------
+
+subjects : List of Strings
+           Subject id's. Note: These MUST match the subject id's in the \
+           Freesurfer directory. For simplicity, the subject id's should \
+           also match with the location of individual functional files.
+           
+run_on_grid : Boolean
+              True to run pipeline with PBS plugin, False to run serially
+              
+fieldmap : Boolean
+           True to include fieldmap distortion correction. Note: field_dir \
+           must be specified
+           
+test_mode : Boolean
+            Affects whether where and if the workflow keeps its \
+            intermediary files. True to keep intermediary files.  
+           
+"""
 controls = ['SAD_017', 'SAD_018', 'SAD_019', 'SAD_020', 'SAD_021', 'SAD_022',
             'SAD_023', 'SAD_024', 'SAD_025', 'SAD_027', 'SAD_028', 'SAD_029',
             'SAD_030', 'SAD_031', 'SAD_032', 'SAD_033', 'SAD_034', 'SAD_035',
             'SAD_036', 'SAD_037', 'SAD_038', 'SAD_039', 'SAD_040', 'SAD_041',
             'SAD_043', 'SAD_044', 'SAD_045', 'SAD_046', 'SAD_047', 'SAD_048',
             'SAD_049', 'SAD_050', 'SAD_051']
+
 patients = ['SAD_P03', 'SAD_P04', 'SAD_P05', 'SAD_P07', 'SAD_P08', 'SAD_P09',
             'SAD_P10', 'SAD_P11', 'SAD_P12', 'SAD_P13', 'SAD_P14', 'SAD_P15',
             'SAD_P16', 'SAD_P17', 'SAD_P18', 'SAD_P19', 'SAD_P20', 'SAD_P21',
@@ -37,69 +94,138 @@ patients = ['SAD_P03', 'SAD_P04', 'SAD_P05', 'SAD_P07', 'SAD_P08', 'SAD_P09',
             'SAD_P52', 'SAD_P53', 'SAD_P54', 'SAD_P55', 'SAD_P56', 'SAD_P57',
             'SAD_P58']
 
-# list of subjects
 subjects = ['SAD_018']#controls+patients
 
-# - 'norm_thresh' (for rapidart) - 4
-norm_thresh = 1
+run_on_grid = False
 
-# - 'z_thresh' (for rapidart) - 3
-z_thresh = 3
+fieldmap = True
 
-# crash directory - still not working
-crash_dir = root_dir
-
-# - 'run_on_grid' [boolean]
-run_on_grid = True
-
-# - 'fwhm' full width at half max (currently only the second value is used)
-fwhm = [0, 5]
-
-# - 'num_noise_components' number of principle components of the noise to use
-num_noise_components = 6
-compcor_select = [True, True]
-# - 'TR' 
-TR = 2.5
-
-# Motion correction params
-Interleaved = True
-func0 = np.vectorize(lambda x: x-1) # Slice order is 0 based!
-SliceOrder = func0([1,3,5,7,9,11,13,15,17,19,21,23,25,27,2,4,6,8,10,12,14,16,18,20,22,24,26]).tolist()
-
-# - 'interscan_interval'
-interscan_interval = 2
-
-# - 'film_threshold'
-film_threshold = 1000
-
-# - 'hpcutoff'
-hpcutoff = 128.
-
-# - 'test_mode' [boolean] - affects whether where and if the workflow keeps its intermediary files.  
 test_mode = True
 
-# - 'auto_fixedfx' [boolean] - will automatically run fixedfx analyses at the end of first level modelfitting
-auto_fixedfx = True
+"""
+Node Inputs
+-----------
 
-# surf_dir - directory where the individual subject's freesurfer directories are
-surf_dir = '/mindhive/xnat/surfaces/sad/'
+Motion / Slice Timing Correction
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-# overlaythresh is the min and max z-scores to threshold the image at. a tuple of floats. in the sliced and
-# overlayed images, voxels will show up if for their value x the following is true:
-# overlaythresh[0] < x < overlaythresh[1] or -1*overlaythresh[0] > x > -1*overlaythresh[0]
+Interleaved : Boolean
+              True for Interleaved
+              
+SliceOrder : Order of slice aquisition, alternatively can be set to \
+             'ascending' or 'descending'. Note: Slice order is \
+             0-based.  
+TR : TR of scan
+
+"""
+
+Interleaved = True
+
+import numpy as np
+func0 = np.vectorize(lambda x: x-1) # slice order is 0-based!
+SliceOrder = func0([1,3,5,7,9,11,13,15,17,19,21,23,25,27,2,4,6,8,10,12,14,16,18,20,22,24,26]).tolist()
+
+TR = 2.5
+
+"""
+Artefact Detection
+^^^^^^^^^^^^^^^^^^
+
+norm_thresh : 
+
+z_thresh :
+
+"""
+
+norm_thresh = 1
+
+z_thresh = 3
+
+"""
+Smoothing
+^^^^^^^^^
+fwhm : Full width at half max. The data will be smoothed at all values \
+       specified in this list.
+
+"""
+
+fwhm = [0, 5]
+
+"""          
+CompCor
+^^^^^^^
+
+compcor_select : The first value in the list corresponds to applying \
+                 t-compcor, and the second value to a-compcor. Note: \
+                 both can be true
+
+num_noise_components : number of principle components of the noise to use               
+"""
+
+compcor_select = [True, True]
+
+num_noise_components = 6
+
+"""
+Highpass Filter
+^^^^^^^^^^^^^^^
+
+hpcutoff : Float
+           Highpass filter cut off in Hz?
+"""
+
+hpcutoff = 128.
+
+"""
+First-Level 
+-----------
+
+Node Inputs
+^^^^^^^^^^^
+
+interscan_interval : 
+
+film_threshold : 
+
+overlaythresh : 2-Tuple of Floats
+                the min and max z-scores to threshold the image at. \
+                In the sliced and overlayed images, voxels will show \
+                up if for their value x the following is true: \
+                overlaythresh[0] < x < overlaythresh[1] or \
+                -1*overlaythresh[0] > x > -1*overlaythresh[0]
+"""
+
+interscan_interval = 2
+
+film_threshold = 1000
+
 overlaythresh = (3.09, 10.00)
 
-#____________________________________________________________________________________________________________
-#
-#                       FUNCTIONS
-#____________________________________________________________________________________________________________
-#
+"""
+Functions
+---------
+
+Preprocessing
+^^^^^^^^^^^^^
+create_dataflow : Function that finds the functional runs for each subject.
+                  Must return a DataGrabber Node. See the DataGrabber_ \
+                  documentation for more information.
+
+create_fieldmap_dataflow : Function that finds the functional runs for \
+                           each subject. Must return a DataGrabber Node. \
+                           See the DataGrabber_ documentation for more \
+                           information.
+
+.. _Datagrabber: http://www.mit.edu/~satra/nipype-nightly/users/grabbing_and_sinking.html 
+
+"""
+
 def create_dataflow(name="datasource"):
     import nipype.pipeline.engine as pe
     import nipype.interfaces.io as nio 
     # create a node to obtain the functional images
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
-                                                   outfields=['func','struct']),
+                                                   outfields=['func']),
                          name = name)
     datasource.inputs.base_directory = base_dir
     datasource.inputs.template ='*'
@@ -107,12 +233,51 @@ def create_dataflow(name="datasource"):
     datasource.inputs.template_args = dict(func=[['subject_id']])
     return datasource
 
+
+def create_fieldmap_dataflow(name="datasource_fieldmap"):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio 
+    # create a node to obtain the functional images
+    datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
+                                                   outfields=['mag','phase']),
+                         name = name)
+    datasource.inputs.base_directory = field_dir
+    datasource.inputs.template ='*'
+    datasource.inputs.field_template = dict(mag='%s/fieldmap128/*run00*.nii.gz',
+                                            phase='%s/fieldmap128/*run01*.nii.gz')
+    datasource.inputs.template_args = dict(mag=[['subject_id']],
+                                           phase=[['subject_id']])
+    return datasource
+
 """
-def get_onsets(subject_id):
-    output = subjectinfo(subject_id)
-    info = output[0]
-    return info
-"""    
+First-level
+^^^^^^^^^^^
+
+get_run_numbers : Function with one parameter, subject_id.
+                  Returns a list of ints with length \
+                  equal to the number of functional runs \
+                  for that subject_id
+
+subjectinfo : Function with one parameter, subject_id. \
+              Returns a list of Bunches, where each Bunch \
+              in the list corresponds to each functional run.
+              The Bunch contains values for conditions, onsets, durations, \
+              amplitudes, pmod, tmod, regressor_names, and regressors. For \
+              more information see the documentation in nipype for modelgen_. 
+
+getcontrasts : Function with one parameter, subject_id. \
+               Returns a list of contrasts. For more information \
+               on defining contrasts_, see the nipype documentation.
+
+
+.. _modelgen: http://www.mit.edu/~satra/nipype-nightly/interfaces/generated/nipype.algorithms.modelgen.html
+
+.. _contrasts: http://www.mit.edu/~satra/nipype-nightly/interfaces/generated/nipype.interfaces.fsl.model.html#level1design
+
+"""
+
+
+   
    
 def get_run_numbers(subject_id):
     if subject_id == "SAD_018":
@@ -142,7 +307,7 @@ def subjectinfo(subject_id):
 'SAD_P47','SAD_P50','SAD_P51','SAD_P52','SAD_P55','SAD_P56','SAD_POST05','SAD_POST06','SAD_POST08','SAD_POST10','SAD_POST12','SAD_POST14',
 'SAD_POST16','SAD_POST20','SAD_POST22','SAD_POST27','SAD_POST31','SAD_POST34','SAD_POST38','SAD_POST36','SAD_POST44','SAD_POST45','SAD_POST47',
 'SAD_POST50','SAD_POST51','SAD_POST52']
-    # NOTE: LOOP THROUGH ALL RUNS! LENGTH OF OUTPUT = # FUNCTIONAL RUNS
+    
     for r in range(len(get_run_numbers(subject_id))):
         if subject_id in regular:
 	        onsets = [[45,120,240,315,405,465],[60,135,195,285,420,495],[30,105,255,330,375,525],[15,165,210,300,390,510],[75,150,225,345,435,480]]

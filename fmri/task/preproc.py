@@ -1,7 +1,7 @@
 #Imports ---------------------------------------------------------------------
 import sys
 sys.path.insert(0,'..')
-sys.path.insert(0,'../qa')
+sys.path.append('../../utils')
 import nipype.interfaces.fsl as fsl         # fsl
 import nipype.interfaces.utility as util    # utility
 import nipype.pipeline.engine as pe         # pypeline engine
@@ -11,7 +11,7 @@ import nipype.algorithms.rapidart as ra     # rapid artifact detection
 import nipype.interfaces.io as nio          # input/output
 import array
 from config import *
-from base import create_prep
+from base import create_prep, create_prep_fieldmap
 from utils import get_datasink, get_substitutions
 from nipype.algorithms.modelgen import SpecifyModel
 from nipype.algorithms.misc import TSNR
@@ -20,9 +20,6 @@ from glob import glob
 from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
 from nipype.interfaces.base import Bunch
 from copy import deepcopy
-#from nipype.interfaces.nipy.preprocess import FmriRealign4d
-#from nipype.interfaces.nipy.preprocess import FmriRealign4d
-from QA_fmri import QA_workflow
 from time import ctime
 from utils import pickfirst, tolist
 
@@ -30,7 +27,7 @@ from utils import pickfirst, tolist
 # -------------------------------------------------------------
 
 
-def prep_workflow(subjects):
+def prep_workflow(subjects,fieldmap):
     
     infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
                          name='subject_names')
@@ -41,7 +38,17 @@ def prep_workflow(subjects):
     # generate preprocessing workflow
     dataflow = create_dataflow()
     #dataflow.inputs.subject_id = subj
-    preproc = create_prep()
+    if fieldmap:
+        preproc = create_prep_fieldmap()
+        datasource_fieldmap = create_fieldmap_dataflow()
+        modelflow.connect(infosource, 'subject_id',
+                          datasource_fieldmap, 'subject_id')
+        modelflow.connect(datasource_fieldmap,'mag',
+                          preproc,'fieldmap_input.magnitude_file')
+        modelflow.connect(datasource_fieldmap,'phase',
+                          preproc,'fieldmap_input.phase_file')
+    else:
+        preproc = create_prep()
     #preproc.inputs.inputspec.fssubject_id = subj
     
     preproc.inputs.inputspec.fssubject_dir = surf_dir
@@ -164,7 +171,7 @@ def prep_workflow(subjects):
 
 if __name__ == "__main__":
 
-    preprocess = prep_workflow(subjects)
+    preprocess = prep_workflow(subjects, fieldmap)
     realign = preprocess.get_node('preproc.realign')
     realign.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
     realign.inputs.loops = 2

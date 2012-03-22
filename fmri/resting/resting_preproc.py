@@ -2,9 +2,7 @@
 import sys
 from config import *
 sys.path.append('..')
-
-from nipype import config
-config.enable_debug_mode()
+sys.path.append('../../utils')
 
 import nipype.interfaces.utility as util    # utility
 import nipype.pipeline.engine as pe         # pypeline engine
@@ -15,7 +13,7 @@ from utils import get_datasink, get_substitutions
 # Preprocessing
 # -------------------------------------------------------------
 
-def prep_workflow(subjects):
+def prep_workflow(subjects, fieldmap):
     
     modelflow = pe.Workflow(name='preproc')
 
@@ -28,7 +26,16 @@ def prep_workflow(subjects):
     modelflow.connect(infosource, 'subject_id', dataflow, 'subject_id')
     
     # generate preprocessing workflow
-    preproc = create_rest_prep()
+    preproc = create_rest_prep(fieldmap=fieldmap)
+    
+    if fieldmap:
+        datasource_fieldmap = create_fieldmap_dataflow()
+        modelflow.connect(infosource, 'subject_id',
+                          datasource_fieldmap, 'subject_id')
+        modelflow.connect(datasource_fieldmap,'mag',
+                          preproc,'fieldmap_input.magnitude_file')
+        modelflow.connect(datasource_fieldmap,'phase',
+                          preproc,'fieldmap_input.phase_file')
     
     # inputs
     preproc.inputs.fwhm_input.fwhm = fwhm
@@ -147,14 +154,14 @@ def prep_workflow(subjects):
     return modelflow
 
 if __name__ == "__main__":
-    preprocess = prep_workflow(subjects)
+    preprocess = prep_workflow(subjects, fieldmap)
     realign = preprocess.get_node('preproc.realign')
     realign.inputs.loops = 2
     realign.inputs.speedup = 15
     realign.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
     # add for regress nuisance
     if run_on_grid:
-        preprocess.run(plugin='PBS')
+        preprocess.run(plugin='PBS', plugin_args = {'qsub_args': '-q many'})
     else:
         preprocess.run()
 

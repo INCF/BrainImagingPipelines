@@ -341,8 +341,6 @@ def get_substitutions(subject_id):
 def get_datasink(root_dir, fwhm):
     sinkd = pe.Node(nio.DataSink(), name='sinkd')
     sinkd.inputs.base_directory = os.path.join(root_dir, 'analyses', 'func')
-    #sinkd.inputs.container = subj
-    #sinkd.inputs.substitutions = getsubs(subj)
     sinkd.inputs.regexp_substitutions = [('mask/fwhm_%d/_threshold([0-9]*)/.*nii' % x,
                                           'mask/fwhm_%d/funcmask.nii' % x) for x in fwhm]
     sinkd.inputs.regexp_substitutions.append(('realigned/fwhm_([0-9])/_copy_geom([0-9]*)/',

@@ -8,7 +8,10 @@ import nipype.interfaces.utility as util
 
 from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
                    getmeanscale, highpass_operand, pickfirst)
+import sys
+sys.path.append('../utils')
 
+from fEpiDeWarp import EpiDeWarp
 
 def create_filter_matrix(motion_params, composite_norm,
                          compcorr_components, art_outliers, selector):
@@ -393,7 +396,81 @@ def create_prep(name='preproc'):
     return preproc
 
 
-def create_rest_prep(name='preproc'):
+def create_prep_fieldmap(name='preproc'):
+    """Rewiring of base fMRI workflow, adding fieldmap distortion correction
+    """
+    preproc = create_prep()
+    
+    inputnode = pe.Node(util.IdentityInterface(fields=['phase_file',
+                                                       'magnitude_file']),
+                           name="fieldmap_input")
+    
+    # Need to send output of mean image and realign to fieldmap correction workflow
+    # Fieldmap correction workflow: takes mean image and realigns to fieldmaps, then unwarps
+    # mean and epi. (Coregistration occurs in the EpiDeWarp.fsl script
+    
+    fieldmap = pe.Node(interface=EpiDeWarp(), name='fieldmap_unwarp')
+    dewarper = pe.MapNode(interface=fsl.FUGUE(),iterfield=['in_file'],name='dewarper')
+    # Get old nodes
+    #inputnode = preproc.get_node('inputspec')
+    ad = preproc.get_node('artifactdetect')
+    compcor = preproc.get_node('CompCor')
+    motion_correct = preproc.get_node('realign')
+    smooth = preproc.get_node('smooth_with_susan')
+    choosesusan = preproc.get_node('select_smooth')
+    meanfunc = preproc.get_node('take_mean_art')
+    getmask = preproc.get_node('getmask')
+    zscore = preproc.get_node('z_score')
+    # Disconnect old nodes
+    preproc.disconnect(motion_correct, 'out_file', 
+                    zscore, 'image')
+    preproc.disconnect(motion_correct, 'out_file',
+                    compcor, 'inputspec.realigned_file')
+    preproc.disconnect(motion_correct, 'out_file',
+                    ad, 'realigned_files')
+    preproc.disconnect(motion_correct, 'out_file',
+                    smooth, 'inputnode.in_files') 
+    preproc.disconnect(motion_correct, 'out_file',
+                    choosesusan, 'motion_files')
+    preproc.disconnect(meanfunc, 'outputspec.mean_image',
+                    getmask, 'inputspec.source_file')
+    preproc.disconnect(meanfunc, 'outputspec.mean_image',
+                    compcor, 'inputspec.mean_file')
+                    
+    # Connect nodes
+    preproc.connect(motion_correct, 'out_file',
+                    dewarper, 'in_file')
+    preproc.connect(fieldmap, 'exf_mask',
+                    dewarper, 'mask_file')
+    preproc.connect(fieldmap, 'vsm_file',
+                    dewarper, 'shift_in_file')
+    preproc.connect(meanfunc, 'outputspec.mean_image',
+                    fieldmap, 'exf_file')
+    preproc.connect(inputnode, 'phase_file',
+                    fieldmap, 'dph_file')
+    preproc.connect(inputnode, 'magnitude_file',
+                    fieldmap, 'mag_file')
+    preproc.connect(fieldmap, 'exfdw',
+                    getmask, 'inputspec.source_file')
+    preproc.connect(dewarper, 'unwarped_file',
+                    zscore, 'image')
+    preproc.connect(dewarper, 'unwarped_file',
+                    compcor, 'inputspec.realigned_file')
+    preproc.connect(dewarper, 'unwarped_file',
+                    ad, 'realigned_files')
+    preproc.connect(dewarper, 'unwarped_file',
+                    smooth, 'inputnode.in_files')
+    preproc.connect(dewarper, 'unwarped_file',
+                    choosesusan, 'motion_files')
+    preproc.connect(fieldmap, 'exfdw',
+                    compcor, 'inputspec.mean_file')
+    
+    preproc.write_graph()
+    return preproc
+    
+                    
+                    
+def create_rest_prep(name='preproc',fieldmap=False):
     """Rewiring of base fMRI workflow to add resting state preprocessing 
     
     components.
@@ -444,8 +521,10 @@ def create_rest_prep(name='preproc'):
     -------
     workflow : resting state preprocessing workflow
     """
-
-    preproc = create_prep()
+    if fieldmap:
+        preproc = create_prep_fieldmap()
+    else:
+        preproc = create_prep()
 
     #add outliers and noise components
     addoutliers = pe.MapNode(util.Function(input_names=['motion_params',
@@ -480,7 +559,8 @@ def create_rest_prep(name='preproc'):
     smooth = preproc.get_node('smooth_with_susan')
     highpass = preproc.get_node('highpass')
     outputnode = preproc.get_node('outputspec')
-
+    choosesusan = preproc.get_node('select_smooth')
+    
     #disconnect old nodes
     preproc.disconnect(motion_correct, 'out_file',
                        smooth, 'inputnode.in_files')
@@ -488,7 +568,14 @@ def create_rest_prep(name='preproc'):
                       highpass, 'op_string')
     preproc.disconnect(meanscale, 'out_file',
                        highpass, 'in_file')
-
+    preproc.disconnect(motion_correct, 'out_file',
+                       choosesusan, 'motion_files')
+    if fieldmap:
+        fieldmap = preproc.get_node('dewarper')
+        preproc.disconnect(fieldmap, 'unwarped_file', 
+                           smooth, 'inputnode.in_files')
+        preproc.disconnect(fieldmap, 'unwarped_file',
+                           choosesusan, 'motion_files')
     # remove nodes
     preproc.remove_nodes([highpass])
 
@@ -509,6 +596,8 @@ def create_rest_prep(name='preproc'):
                     remove_noise, 'in_file')
     preproc.connect(bandpass_filter, 'out_file',
                     smooth, 'inputnode.in_files')
+    preproc.connect(bandpass_filter, 'out_file',
+                    choosesusan, 'motion_files')
     preproc.connect(meanscale, 'out_file',
                     outputnode, 'scaled_files')
     preproc.connect(inputnode, 'highpass_sigma',
@@ -519,6 +608,9 @@ def create_rest_prep(name='preproc'):
                     addoutliers, 'selector')
     preproc.connect(addoutliers, 'filter_file',
                     outputnode, 'filter_file')
+    
+    
+    
     return preproc
 
 
