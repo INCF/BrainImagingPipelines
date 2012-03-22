@@ -2,9 +2,9 @@
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 
 """ 
-==========================
-BIP: Task-fMRI config file
-==========================
+===================================
+BIP: Resting-state fMRI config file
+===================================
 
 Instructions:
 -------------
