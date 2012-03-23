@@ -14,23 +14,19 @@ listed in this file.
 
 Running the BIP:
 ----------------
-In a Terminal,
+In a Terminal type::
 
-cd /path/to/BrainImagingPipelines/fmri/task
+  cd /path/to/BrainImagingPipelines/fmri/task
 
-Then type:
+Then type::
 
-python preprocess.py
-
-After running preprocessing, you can run the first level pipeline:
-
-python first_level.py
+  python preprocess.py -c your_config_file.py
 
 
 Directories:
 ------------
 
-root_dir : Location of the Nipype working directory
+working_dir : Location of the Nipype working directory
 
 base_dir : Base directory of data. (Should be subject-independent)
 
@@ -45,15 +41,15 @@ crash_dir : Location to store crash files
 """
 
 
-root_dir = '/mindhive/scratch/keshavan/sad/resting'
+working_dir = '/mindhive/scratch/keshavan/sad/resting'
 
 base_dir = '/mindhive/gablab/sad/SAD_STUDY_Resting/data'
 
-sink_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/'
+sink_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/resting'
 
 field_dir = '/mindhive/gablab/sad/Data_reorganized'
 
-crash_dir = root_dir
+crash_dir = working_dir
 
 surf_dir = '/mindhive/xnat/surfaces/sad/'
 
@@ -68,6 +64,9 @@ subjects : List of Strings
            
 run_on_grid : Boolean
               True to run pipeline with PBS plugin, False to run serially
+
+plugin_args : Dict
+              Plugin arguments.
               
 fieldmap : Boolean
            True to include fieldmap distortion correction. Note: field_dir \
@@ -96,10 +95,13 @@ patients = ['SAD_P03', 'SAD_P04', 'SAD_P05', 'SAD_P07', 'SAD_P08', 'SAD_P09',
             'SAD_P46', 'SAD_P47', 'SAD_P48', 'SAD_P49', 'SAD_P50', 'SAD_P51',
             'SAD_P52', 'SAD_P53', 'SAD_P54', 'SAD_P55', 'SAD_P56', 'SAD_P57',
             'SAD_P58']
-subjects = ['SAD_018']
+subjects = ['SAD_024']
 
 run_on_grid = True
 
+plugin_args = {'qsub_args': '-q many'}
+
+# SG : use_fieldmap
 fieldmap = True
 
 test_mode = True
@@ -207,9 +209,9 @@ Bandpass Filter
 ^^^^^^^^^^^^^^^
 
 highpass_sigma : Float
-                 Highpass  cut off in Hz?
+                 Highpass  cut off in mm
 lowpass _sigma : Float
-                 Lowpass cut off in Hz?
+                 Lowpass cut off in mm
 
 """
 
@@ -223,6 +225,7 @@ Functions
 
 Preprocessing
 ^^^^^^^^^^^^^
+
 create_dataflow : Function that finds the functional runs for each subject.
                   Must return a DataGrabber Node. See the DataGrabber_ \
                   documentation for more information. Node should have output \

@@ -159,9 +159,11 @@ def extract_csf_mask():
                                                        'fsaseg_file']),
                         name='inputspec')
 
-    # add getting the freesurfer volume
     bin = pe.Node(fs.Binarize(), name='binarize')
     bin.inputs.wm_ven_csf = True
+    bin.inputs.match = [4, 5, 14, 15, 24, 31, 43, 44, 63]
+    bin.inputs.erode = 1
+    
     extract_csf.connect(inputspec, 'fsaseg_file',
                         bin, "in_file")
     voltransform = pe.Node(fs.ApplyVolTransform(inverse=True),
@@ -229,7 +231,7 @@ def create_compcorr(name='CompCor'):
                                                         'tsnr_detrended']),
                          name='outputspec')
     # extract the principal components of the noise
-    tsnr = pe.MapNode(TSNR(regress_poly=2),
+    tsnr = pe.MapNode(TSNR(regress_poly=2),  #SG: advanced parameter
                       name='tsnr',
                       iterfield=['in_file'])
 
@@ -311,7 +313,8 @@ def choose_susan(fwhm, motion_files, smoothed_files):
     File : either the smoothed or unsmoothed
            file depending on fwhm
     """
-    cor_smoothed_files = []
+    #SG: determine the value under which susan smooths with 2x
+    #    voxel value #dbg
     if fwhm < 0.5:
         cor_smoothed_files = motion_files
     else:
@@ -330,7 +333,7 @@ def get_substitutions(subject_id):
              '_unsmoothed_preprocessed'),
             ('_dtype_mcf', '_mcf')]
 
-    for i in range(4):
+    for i in range(4):  #SG: assumes max 4 runs
         subs.append(('_plot_motion%d' % i, ''))
         subs.append(('_highpass%d/' % i, ''))
         subs.append(('_realign%d/' % i, ''))
@@ -341,8 +344,6 @@ def get_substitutions(subject_id):
 def get_datasink(root_dir, fwhm):
     sinkd = pe.Node(nio.DataSink(), name='sinkd')
     sinkd.inputs.base_directory = os.path.join(root_dir, 'analyses', 'func')
-    #sinkd.inputs.container = subj
-    #sinkd.inputs.substitutions = getsubs(subj)
     sinkd.inputs.regexp_substitutions = [('mask/fwhm_%d/_threshold([0-9]*)/.*nii' % x,
                                           'mask/fwhm_%d/funcmask.nii' % x) for x in fwhm]
     sinkd.inputs.regexp_substitutions.append(('realigned/fwhm_([0-9])/_copy_geom([0-9]*)/',
@@ -375,35 +376,26 @@ def weight_mean(image, art_file):
     def try_import(fname):
         try:
             a = np.genfromtxt(fname)
-            if a.shape == ():
-                return [a]
-            else:
-                return a
+            return np.atleast_1d(a).astype(int)
         except:
-            return np.array([])
+            return np.array([]).astype(int)
     
-    mean_image = os.path.abspath(split_filename(image[0])[1])
-    weights = None
-        
-    concat_image = fs.Concatenate(in_files=image).run().outputs.concatenated_file
+    mean_image_fname = os.path.abspath(split_filename(image[0])[1])
+    
+    total_weights = []
+    meanimage = []
     for i, im in enumerate(image):
-        outs = try_import(art_file[i])
-        if not i:
-            imageload = nib.load(im)
-            img, aff, hdr = imageload.get_data(), imageload.get_affine(), imageload.get_header()
-            weights = np.ones(img.shape[3])
-            weights[np.int_(outs)] = 0 #  art outputs 0 based indices
-        else:
-            weights_add = np.ones(weights.shape)
-            weights_add[np.int_(outs)] = 0 #  art outputs 0 based indices
-            weights = np.concatenate((weights,weights_add))
-            mean_image += '_'+split_filename(im)[1]
-    
-    mean_img = np.average(nib.load(concat_image).get_data(), axis=3, weights=weights)
-    final_image = nib.Nifti1Image(mean_img, aff, hdr) 
-    final_image.to_filename(mean_image+'.nii.gz') 
+        img = nib.load(im)
+        weights=np.ones(img.shape[3])
+        weights[try_import(art_file[i])] = 1
+        meanimage.append(img.shape[3]*np.average(img.get_data(), axis=3, weights=weights))
+        total_weights.append(img.shape[3])
+    mean_all = np.average(meanimage, weights=total_weights, axis=0)
 
-    return mean_image+'.nii.gz'
+    final_image = nib.Nifti1Image(mean_all, img.get_affine(), img.get_header()) 
+    final_image.to_filename(mean_image_fname+'.nii.gz') 
+
+    return mean_image_fname+'.nii.gz'
 
 
 def art_mean_workflow(name="take_mean_art"):
@@ -471,12 +463,12 @@ def art_mean_workflow(name="take_mean_art"):
 
 def z_image(image,outliers):
     """Calculates z-score of timeseries removing timpoints with outliers.
-    
+
     Parameters
     ----------
     image :
     outliers :
-    
+
     Returns
     -------
     File : z-image
@@ -491,23 +483,28 @@ def z_image(image,outliers):
     def try_import(fname):
         try:
             a = np.genfromtxt(fname)
-            if a.shape == ():
-                return [a]
-            else:
-                return a
+            return np.atleast_1d(a).astype(int)
         except:
-            return np.array([])
+            return np.array([]).astype(int)
 
-    z_img = os.path.abspath('z_' + split_filename(image)[1] + '.nii.gz')      
+    z_img = os.path.abspath('z_no_outliers_' + split_filename(image)[1] + '.nii.gz')
     arts = try_import(outliers)
-    imgt, aff = nib.load(image).get_data(), nib.load(image).get_affine()
-    weights = np.bool_(np.zeros(imgt.shape))
+    img = nib.load(image)
+    data, aff = img.get_data(), img.get_affine()
+    weights = np.bool_(np.zeros(data.shape))
     for a in arts:
         weights[:, :, :, np.int_(a)] = True
-    imgt_mask = np.ma.array(imgt, mask=weights)
-    z = zscore(imgt_mask, axis=3)
+    data_mask = np.ma.array(data, mask=weights)
+    z = zscore(data_mask, axis=3)
     final_image = nib.Nifti1Image(z, aff)
     final_image.to_filename(z_img)
+
+    z_img2 = os.path.abspath('z_' + split_filename(image)[1] + '.nii.gz')
+    z2 = zscore(data, axis=3)
+    final_image = nib.Nifti1Image(z2, aff)
+    final_image.to_filename(z_img2)
+
+    z_img = [z_img, z_img2]
     return z_img
 
 

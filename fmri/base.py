@@ -8,7 +8,12 @@ import nipype.interfaces.utility as util
 
 from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
                    getmeanscale, highpass_operand, pickfirst)
+#import sys
+#sys.path.append('../utils')
 
+#from fEpiDeWarp import EpiDeWarp
+
+from nipype.interfaces.fsl.utils import EPIDeWarp
 
 def create_filter_matrix(motion_params, composite_norm,
                          compcorr_components, art_outliers, selector):
@@ -89,7 +94,6 @@ def create_filter_matrix(motion_params, composite_norm,
             temp[1:, :] = np.diff(a, axis=0)
             out = np.hstack((out, temp))
 
-    print out.shape
     np.savetxt(filter_file, out)
     return filter_file
 
@@ -117,6 +121,9 @@ def create_prep(name='preproc'):
     inputspec.highpass_sigma :
     inputspec.lowpass_sigma :
     inputspec.reg_params :
+    inputspec.FM_TEdiff :
+    inputspec.FM_Echo_spacing :
+    inputspec.FM_sigma :
     
     Outputs
     -------
@@ -139,6 +146,8 @@ def create_prep(name='preproc'):
     outputspec.scaled_files :
     outputspec.z_img :
     outputspec.motion_plots :
+    outputspec.FM_unwarped_mean :
+    outputspec.FM_unwarped_epi :
     
     Returns
     -------
@@ -163,7 +172,10 @@ def create_prep(name='preproc'):
                                                       'compcor_select',
                                                       'highpass_sigma',
                                                       'lowpass_sigma',
-                                                      'reg_params']),
+                                                      'reg_params',
+                                                      'FM_TEdiff',
+                                                      'FM_Echo_spacing',
+                                                      'FM_sigma']),
                         name='inputspec')
 
     # Separate input node for FWHM
@@ -178,12 +190,9 @@ def create_prep(name='preproc'):
                            name='img2float')
 
     # define the motion correction node
-    """motion_correct = pe.MapNode(interface=FmriRealign4d(),
-                                name='realign',
-                                iterfield=['in_file'])"""
     motion_correct = pe.Node(interface=FmriRealign4d(),
                                 name='realign')
-    #motion_correct.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
+
     # construct motion plots
     plot_motion = pe.MapNode(interface=fsl.PlotMotionParams(in_source='fsl'),
                              name='plot_motion',
@@ -194,9 +203,6 @@ def create_prep(name='preproc'):
                  name='artifactdetect')
 
     # extract the mean volume if the first functional run
-    #meanfunc = pe.Node(fsl.MeanImage(),
-    #                   name='mean_image')
-
     meanfunc = art_mean_workflow()
 
     # generate a freesurfer workflow that will return the mask
@@ -351,7 +357,9 @@ def create_prep(name='preproc'):
                 'filter_file',
                 'scaled_files',
                 'z_img',
-                'motion_plots']),
+                'motion_plots',
+                'FM_unwarped_epi',
+                'FM_unwarped_mean']),
                         name='outputspec')
 
     # make output connection
@@ -389,11 +397,95 @@ def create_prep(name='preproc'):
                     outputnode,'z_img')
     preproc.connect(plot_motion,'out_file',
                     outputnode,'motion_plots')
+                    
 
     return preproc
 
 
-def create_rest_prep(name='preproc'):
+def create_prep_fieldmap(name='preproc'):
+    """Rewiring of base fMRI workflow, adding fieldmap distortion correction
+    """
+    preproc = create_prep()
+    
+    inputnode = pe.Node(util.IdentityInterface(fields=['phase_file',
+                                                       'magnitude_file']),
+                           name="fieldmap_input")
+    
+    # Need to send output of mean image and realign to fieldmap correction workflow
+    # Fieldmap correction workflow: takes mean image and realigns to fieldmaps, then unwarps
+    # mean and epi. (Coregistration occurs in the EpiDeWarp.fsl script
+    
+    fieldmap = pe.Node(interface=EPIDeWarp(), name='fieldmap_unwarp')
+    dewarper = pe.MapNode(interface=fsl.FUGUE(),iterfield=['in_file'],name='dewarper')
+    # Get old nodes
+    inputspec = preproc.get_node('inputspec')
+    outputspec = preproc.get_node('outputspec')
+    ad = preproc.get_node('artifactdetect')
+    compcor = preproc.get_node('CompCor')
+    motion_correct = preproc.get_node('realign')
+    smooth = preproc.get_node('smooth_with_susan')
+    choosesusan = preproc.get_node('select_smooth')
+    meanfunc = preproc.get_node('take_mean_art')
+    getmask = preproc.get_node('getmask')
+    zscore = preproc.get_node('z_score')
+    # Disconnect old nodes
+    preproc.disconnect(motion_correct, 'out_file', 
+                    zscore, 'image')
+    preproc.disconnect(motion_correct, 'out_file',
+                    compcor, 'inputspec.realigned_file')
+    preproc.disconnect(motion_correct, 'out_file',
+                    ad, 'realigned_files')
+    preproc.disconnect(motion_correct, 'out_file',
+                    smooth, 'inputnode.in_files') 
+    preproc.disconnect(motion_correct, 'out_file',
+                    choosesusan, 'motion_files')
+    preproc.disconnect(meanfunc, 'outputspec.mean_image',
+                    getmask, 'inputspec.source_file')
+    preproc.disconnect(meanfunc, 'outputspec.mean_image',
+                    compcor, 'inputspec.mean_file')
+                    
+    # Connect nodes
+    preproc.connect(inputspec,'FM_TEdiff',
+                    fieldmap, 'tediff')
+    preproc.connect(inputspec,'FM_Echo_spacing',
+                    fieldmap,'esp')
+    preproc.connect(inputspec,'FM_sigma',
+                    fieldmap, 'sigma')
+    preproc.connect(motion_correct, 'out_file',
+                    dewarper, 'in_file')
+    preproc.connect(fieldmap, 'exf_mask',
+                    dewarper, 'mask_file')
+    preproc.connect(fieldmap, 'vsm_file',
+                    dewarper, 'shift_in_file')
+    preproc.connect(meanfunc, 'outputspec.mean_image',
+                    fieldmap, 'exf_file')
+    preproc.connect(inputnode, 'phase_file',
+                    fieldmap, 'dph_file')
+    preproc.connect(inputnode, 'magnitude_file',
+                    fieldmap, 'mag_file')
+    preproc.connect(fieldmap, 'exfdw',
+                    getmask, 'inputspec.source_file')
+    preproc.connect(dewarper, 'unwarped_file',
+                    zscore, 'image')
+    preproc.connect(dewarper, 'unwarped_file',
+                    compcor, 'inputspec.realigned_file')
+    preproc.connect(dewarper, 'unwarped_file',
+                    ad, 'realigned_files')
+    preproc.connect(dewarper, 'unwarped_file',
+                    smooth, 'inputnode.in_files')
+    preproc.connect(dewarper, 'unwarped_file',
+                    choosesusan, 'motion_files')
+    preproc.connect(fieldmap, 'exfdw',
+                    compcor, 'inputspec.mean_file')
+    preproc.connect(fieldmap, 'exfdw',
+                    outputspec, 'FM_unwarped_mean')
+    preproc.connect(dewarper, 'unwarped_file',
+                    outputspec, 'FM_unwarped_epi')
+    return preproc
+    
+                    
+                    
+def create_rest_prep(name='preproc',fieldmap=False):
     """Rewiring of base fMRI workflow to add resting state preprocessing 
     
     components.
@@ -444,8 +536,10 @@ def create_rest_prep(name='preproc'):
     -------
     workflow : resting state preprocessing workflow
     """
-
-    preproc = create_prep()
+    if fieldmap:
+        preproc = create_prep_fieldmap()
+    else:
+        preproc = create_prep()
 
     #add outliers and noise components
     addoutliers = pe.MapNode(util.Function(input_names=['motion_params',
@@ -480,15 +574,19 @@ def create_rest_prep(name='preproc'):
     smooth = preproc.get_node('smooth_with_susan')
     highpass = preproc.get_node('highpass')
     outputnode = preproc.get_node('outputspec')
-
+    choosesusan = preproc.get_node('select_smooth')
+    
     #disconnect old nodes
     preproc.disconnect(motion_correct, 'out_file',
                        smooth, 'inputnode.in_files')
-    preproc.disconnect(inputnode, ('highpass', highpass_operand),
-                      highpass, 'op_string')
-    preproc.disconnect(meanscale, 'out_file',
-                       highpass, 'in_file')
-
+    preproc.disconnect(motion_correct, 'out_file',
+                       choosesusan, 'motion_files')
+    if fieldmap:
+        fieldmap = preproc.get_node('dewarper')
+        preproc.disconnect(fieldmap, 'unwarped_file', 
+                           smooth, 'inputnode.in_files')
+        preproc.disconnect(fieldmap, 'unwarped_file',
+                           choosesusan, 'motion_files')
     # remove nodes
     preproc.remove_nodes([highpass])
 
@@ -509,6 +607,8 @@ def create_rest_prep(name='preproc'):
                     remove_noise, 'in_file')
     preproc.connect(bandpass_filter, 'out_file',
                     smooth, 'inputnode.in_files')
+    preproc.connect(bandpass_filter, 'out_file',
+                    choosesusan, 'motion_files')
     preproc.connect(meanscale, 'out_file',
                     outputnode, 'scaled_files')
     preproc.connect(inputnode, 'highpass_sigma',
@@ -519,6 +619,9 @@ def create_rest_prep(name='preproc'):
                     addoutliers, 'selector')
     preproc.connect(addoutliers, 'filter_file',
                     outputnode, 'filter_file')
+    
+    
+    
     return preproc
 
 
@@ -614,12 +717,12 @@ def create_first(name='modelfit'):
     # Setup the connections
 
     modelfit.connect([
-        (inputspec, level1design,   [('interscan_interval',     'interscan_interval'),
-                                     ('session_info',           'session_info'),
-                                     ('contrasts',              'contrasts'),
-                                     ('bases',                  'bases'),
-                                     ('model_serial_correlations',
-                                     'model_serial_correlations')]),
+        (inputspec, level1design, [('interscan_interval', 'interscan_interval'),
+                                   ('session_info', 'session_info'),
+                                   ('contrasts', 'contrasts'),
+                                   ('bases', 'bases'),
+                                   ('model_serial_correlations',
+                                    'model_serial_correlations')]),
         (inputspec, modelestimate,  [('film_threshold',         'threshold'),
                                      ('functional_data',        'in_file')]),
         (level1design,modelgen,     [('fsf_files',              'fsf_file'),
