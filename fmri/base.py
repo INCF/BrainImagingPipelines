@@ -350,6 +350,7 @@ def create_prep(name='preproc'):
                 'mask',
                 'reg_cost',
                 'reg_file',
+                'reg_fsl_file',
                 'noise_components',
                 'tsnr_file',
                 'stddev_file',
@@ -359,7 +360,8 @@ def create_prep(name='preproc'):
                 'z_img',
                 'motion_plots',
                 'FM_unwarped_epi',
-                'FM_unwarped_mean']),
+                'FM_unwarped_mean',
+                'bandpassed_file']),
                         name='outputspec')
 
     # make output connection
@@ -381,6 +383,8 @@ def create_prep(name='preproc'):
                     outputnode, 'noise_components')
     preproc.connect(getmask, 'outputspec.mask_file',
                     outputnode, 'mask')
+    preproc.connect(getmask, 'register.out_fsl_file',
+                    outputnode, 'reg_fsl_file')                
     preproc.connect(getmask, 'outputspec.reg_file',
                     outputnode, 'reg_file')
     preproc.connect(getmask, 'outputspec.reg_cost',
@@ -568,6 +572,7 @@ def create_rest_prep(name='preproc',fieldmap=False):
     # Get old nodes
     inputnode = preproc.get_node('inputspec')
     meanscale = preproc.get_node('scale_median')
+    medianval = preproc.get_node('compute_median_val')
     ad = preproc.get_node('artifactdetect')
     compcor = preproc.get_node('CompCor')
     motion_correct = preproc.get_node('realign')
@@ -581,6 +586,8 @@ def create_rest_prep(name='preproc',fieldmap=False):
                        smooth, 'inputnode.in_files')
     preproc.disconnect(motion_correct, 'out_file',
                        choosesusan, 'motion_files')
+    preproc.disconnect(choosesusan, 'cor_smoothed_files',
+                       medianval, 'in_file')
     if fieldmap:
         fieldmap = preproc.get_node('dewarper')
         preproc.disconnect(fieldmap, 'unwarped_file', 
@@ -602,13 +609,17 @@ def create_rest_prep(name='preproc',fieldmap=False):
     preproc.connect(addoutliers, 'filter_file',
                     remove_noise, 'design_file')
     preproc.connect(remove_noise, 'out_file',
-                    bandpass_filter, 'in_file')
+                    smooth, 'inputnode.in_files')
+    preproc.connect(remove_noise, 'out_file',
+                    choosesusan, 'motion_files')
     preproc.connect(compcor, 'tsnr.detrended_file',
                     remove_noise, 'in_file')
+    preproc.connect(meanscale, 'out_file',
+                    bandpass_filter, 'in_file')
     preproc.connect(bandpass_filter, 'out_file',
-                    smooth, 'inputnode.in_files')
-    preproc.connect(bandpass_filter, 'out_file',
-                    choosesusan, 'motion_files')
+                    outputnode, 'bandpassed_file')
+    preproc.connect(choosesusan, 'cor_smoothed_files',
+                    medianval, 'in_file')
     preproc.connect(meanscale, 'out_file',
                     outputnode, 'scaled_files')
     preproc.connect(inputnode, 'highpass_sigma',

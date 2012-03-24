@@ -372,7 +372,12 @@ def weight_mean(image, art_file):
     from nipype.utils.filemanip import split_filename
     import os
     import nipype.interfaces.freesurfer as fs
-
+    
+    if not isinstance(image,list):
+        image = [image]
+    if not isinstance(art_file,list):
+        art_file = [art_file]
+    
     def try_import(fname):
         try:
             a = np.genfromtxt(fname)
@@ -479,7 +484,11 @@ def z_image(image,outliers):
     from scipy.stats.mstats import zscore
     from nipype.utils.filemanip import split_filename
     import os
-
+    if isinstance(image,list):
+        image = image[0]
+    if isinstance(outliers,list):
+        outliers = outliers[0]
+        
     def try_import(fname):
         try:
             a = np.genfromtxt(fname)
@@ -490,17 +499,17 @@ def z_image(image,outliers):
     z_img = os.path.abspath('z_no_outliers_' + split_filename(image)[1] + '.nii.gz')
     arts = try_import(outliers)
     img = nib.load(image)
-    data, aff = img.get_data(), img.get_affine()
+    data, aff = np.asarray(img.get_data()), img.get_affine()
     weights = np.bool_(np.zeros(data.shape))
     for a in arts:
         weights[:, :, :, np.int_(a)] = True
     data_mask = np.ma.array(data, mask=weights)
-    z = zscore(data_mask, axis=3)
+    z = (data_mask - np.mean(data_mask, axis=3)[:,:,:,None])/np.std(data_mask,axis=3)[:,:,:,None]
     final_image = nib.Nifti1Image(z, aff)
     final_image.to_filename(z_img)
 
     z_img2 = os.path.abspath('z_' + split_filename(image)[1] + '.nii.gz')
-    z2 = zscore(data, axis=3)
+    z2 = (data - np.mean(data, axis=3)[:,:,:,None])/np.std(data,axis=3)[:,:,:,None]
     final_image = nib.Nifti1Image(z2, aff)
     final_image.to_filename(z_img2)
 
