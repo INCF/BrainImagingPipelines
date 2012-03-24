@@ -107,7 +107,13 @@ def prep_workflow(subjects, fieldmap):
                       sinkd, 'preproc.regressors')
     modelflow.connect(preproc, 'outputspec.z_img', 
                       sinkd, 'preproc.z_image')
-    
+    modelflow.connect(preproc, 'outputspec.scaled_files',
+                      sinkd, 'preproc.scaled_output')
+    modelflow.connect(preproc, 'outputspec.bandpassed_file',
+                      sinkd, 'preproc.bandpassed_file')
+    modelflow.connect(preproc, 'outputspec.reg_fsl_file',
+                      sinkd, 'bbreg.@fsl_file')
+ 
     modelflow.base_dir = os.path.join(c.working_dir,'work_dir')
     return modelflow
 
