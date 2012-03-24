@@ -4,7 +4,6 @@ import nipype.interfaces.utility as util    # utility
 import nipype.pipeline.engine as pe         # pypeline engine
 import nipype.algorithms.rapidart as ra     # rapid artifact detection
 import nipype.interfaces.io as nio          # input/output
-from config import *
 from nipype.algorithms.modelgen import SpecifyModel
 from nipype.algorithms.misc import TSNR
 from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
@@ -15,6 +14,7 @@ sys.path.insert(0,'..')
 from base import create_first
 from utils import pickfirst
 from preproc import prep_workflow
+import argparse
 
 def preproc_datagrabber(name='preproc_datagrabber'):
     # create a node to obtain the preproc files
@@ -24,7 +24,7 @@ def preproc_datagrabber(name='preproc_datagrabber'):
                                                                'highpassed_files',
                                                                'outlier_files']),
                          name = name)
-    datasource.inputs.base_directory = os.path.join(sink_dir,'analyses','func')
+    datasource.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
     datasource.inputs.template ='*'
     datasource.inputs.field_template = dict(noise_components='%s/preproc/noise_components/*/noise_components.txt',
                                             motion_parameters='%s/preproc/motion/*.par',
@@ -82,19 +82,19 @@ def noise_mot(subinfo,files,num_noise_components):
 def combine_wkflw(subjects, name='work_dir'):
     
     modelflow = pe.Workflow(name=name)
-    modelflow.base_dir = os.path.join(root_dir)
+    modelflow.base_dir = os.path.join(c.working_dir)
     
     preproc = preproc_datagrabber()
     
     infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
                          name='subject_names')
-    infosource.iterables = ('subject_id', subjects)
+    infosource.iterables = ('subject_id', c.subjects)
     
     modelflow.connect(infosource,'subject_id',preproc,'subject_id')
-    preproc.iterables = ('fwhm', fwhm)
+    preproc.iterables = ('fwhm', c.fwhm)
     
     def getsubs(subject_id):
-        from config import getcontrasts, get_run_numbers, subjectinfo, fwhm
+        #from config import getcontrasts, get_run_numbers, subjectinfo, fwhm
         subs = [('_subject_id_%s/'%subject_id,''),
                 ('_plot_type_',''),
                 ('_fwhm','fwhm'),
@@ -108,9 +108,9 @@ def combine_wkflw(subjects, name='work_dir'):
             subs.append(('_highpass%d/'%i, ''))
             subs.append(('_realign%d/'%i, ''))
             subs.append(('_meanfunc2%d/'%i, ''))
-        cons = getcontrasts(subject_id)
-        runs = get_run_numbers(subject_id)
-        info = subjectinfo(subject_id)
+        cons = c.getcontrasts(subject_id)
+        runs = c.get_run_numbers(subject_id)
+        info = c.subjectinfo(subject_id)
         for i, run in enumerate(runs):
             subs.append(('_modelestimate%d/'%i, '_run_%d_%02d_'%(i,run)))
             subs.append(('_modelgen%d/'%i, '_run_%d_%02d_'%(i,run)))
@@ -124,7 +124,7 @@ def combine_wkflw(subjects, name='work_dir'):
             subs.append(('pe%d.'%(i+1), 'pe%02d_%s.'%(i+1,name)))
         for i in range(len(info[0].conditions), 256):
             subs.append(('pe%d.'%(i+1), 'others/pe%02d.'%(i+1)))
-        for i in fwhm:
+        for i in c.fwhm:
             subs.append(('_register%d/'%(i),''))
         
         return subs
@@ -132,8 +132,8 @@ def combine_wkflw(subjects, name='work_dir'):
     # create a node to create the subject info
     s = pe.Node(SpecifyModel(),name='s')
     s.inputs.input_units =                              'secs'
-    s.inputs.time_repetition =                          TR
-    s.inputs.high_pass_filter_cutoff =                  hpcutoff
+    s.inputs.time_repetition =                          c.TR
+    s.inputs.high_pass_filter_cutoff =                  c.hpcutoff
     #subjinfo =                                          subjectinfo(subj)
     
     
@@ -163,8 +163,8 @@ def combine_wkflw(subjects, name='work_dir'):
     
     # generate first level analysis workflow
     modelfit =                                          create_first()
-    modelfit.inputs.inputspec.interscan_interval =      interscan_interval
-    modelfit.inputs.inputspec.film_threshold =          film_threshold
+    modelfit.inputs.inputspec.interscan_interval =      c.interscan_interval
+    modelfit.inputs.inputspec.film_threshold =          c.film_threshold
     
     
     contrasts = pe.Node(util.Function(input_names=['subject_id'], output_names=['contrasts'], function=getcontrasts), name='getcontrasts')
@@ -175,7 +175,7 @@ def combine_wkflw(subjects, name='work_dir'):
     
     modelfit.inputs.inputspec.bases =                   {'dgamma':{'derivs': False}}
     modelfit.inputs.inputspec.model_serial_correlations = True
-    noise_motn.inputs.num_noise_components =            num_noise_components
+    noise_motn.inputs.num_noise_components =           c.num_noise_components
     
     # make a data sink
     sinkd = pe.Node(nio.DataSink(), name='sinkd')
@@ -211,9 +211,21 @@ def combine_wkflw(subjects, name='work_dir'):
     
 if __name__ == "__main__":
     
-    first_level = combine_wkflw(subjects)
+    parser = argparse.ArgumentParser(description="example: \
+                        run resting_preproc.py -c config.py")
+    parser.add_argument('-c','--config',
+                        dest='config',
+                        required=True,
+                        help='location of config file'
+                        )
+    args = parser.parse_args()
+    path, fname = os.path.split(os.path.realpath(args.config))
+    sys.path.append(path)
+    c = __import__(fname.split('.')[0])
+    
+    first_level = combine_wkflw(c.subjects)
     
     if run_on_grid:
-        first_level.run(plugin='PBS')
+        first_level.run(plugin='PBS', plugin_args = c.plugin_args)
     else:
         first_level.run()
