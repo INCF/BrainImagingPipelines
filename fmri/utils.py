@@ -322,34 +322,40 @@ def choose_susan(fwhm, motion_files, smoothed_files):
     return cor_smoothed_files
 
 
-def get_substitutions(subject_id):
+def get_substitutions(subject_id, use_fieldmap):
     subs = [('_subject_id_%s/' % subject_id, ''),
-            ('_plot_type_', ''),
             ('_fwhm', 'fwhm'),
-            ('_dtype_mcf_mask_mean', '_mean'),
-            ('_dtype_mcf_mask_smooth_mask_gms_tempfilt',
-             '_smoothed_preprocessed'),
-            ('_dtype_mcf_mask_gms_tempfilt',
-             '_unsmoothed_preprocessed'),
-            ('_dtype_mcf', '_mcf')]
+            ('_register0/', ''),
+            ('_threshold20/aseg_thresh_warped_dil_thresh',
+             '%s_brainmask' % subject_id),
+            ]
+    if use_fieldmap:
+        subs.append(('vsm.nii', '%s_vsm.nii' % subject_id))
 
-    for i in range(4):  #SG: assumes max 4 runs
-        subs.append(('_plot_motion%d' % i, ''))
-        subs.append(('_highpass%d/' % i, ''))
-        subs.append(('_realign%d/' % i, ''))
-        subs.append(('_meanfunc2%d/' % i, ''))
+    for i in range(20):  #SG: assumes max 4 runs
+        subs.append(('_bandpass_filter%d/' % i, '%s_r%02d_' % (subject_id, i)))
+        subs.append(('_scale_median%d/' % i, '%s_r%02d_' % (subject_id, i)))
+        subs.append(('_create_nuisance_filter%d/' % i,
+                     '%s_r%02d_' % (subject_id, i)))
+        subs.append(('_tsnr%d/' % i, '%s_r%02d_' % (subject_id, i)))
+        subs.append(('_z_score%d/' % i, '%s_r%02d_' % (subject_id, i)))
+    return subs
+
+def get_regexp_substitutions(subject_id, use_fieldmap):
+    subs = [('corr.*_filt', 'bandpassed'),
+            ('corr.*_gms', 'fullspectrum'),
+            ('corr.*%s' % subject_id, '%s_register' % subject_id),
+            ('corr.*_tsnr', 'tsnr'),
+            ('motion/.*dtype', 'motion/%s' % subject_id),
+            ('mean/corr.*dtype', 'mean/%s_mean' % subject_id),
+            ('corr.*dtype', '%s' % subject_id)
+            ]
     return subs
 
 
 def get_datasink(root_dir, fwhm):
     sinkd = pe.Node(nio.DataSink(), name='sinkd')
     sinkd.inputs.base_directory = os.path.join(root_dir, 'analyses', 'func')
-    sinkd.inputs.regexp_substitutions = [('mask/fwhm_%d/_threshold([0-9]*)/.*nii' % x,
-                                          'mask/fwhm_%d/funcmask.nii' % x) for x in fwhm]
-    sinkd.inputs.regexp_substitutions.append(('realigned/fwhm_([0-9])/_copy_geom([0-9]*)/',
-                                              'realigned/'))
-    sinkd.inputs.regexp_substitutions.append(('motion/fwhm_([0-9])/', 'motion/'))
-    sinkd.inputs.regexp_substitutions.append(('bbreg/fwhm_([0-9])/', 'bbreg/'))
     return sinkd
 
 
