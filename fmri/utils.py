@@ -347,8 +347,8 @@ def get_regexp_substitutions(subject_id, use_fieldmap):
             ('corr.*%s' % subject_id, '%s_register' % subject_id),
             ('corr.*_tsnr', 'tsnr'),
             ('motion/.*dtype', 'motion/%s' % subject_id),
-            ('mean/corr.*dtype', 'mean/%s_mean' % subject_id),
-            ('corr.*dtype', '%s' % subject_id)
+            ('mean/corr.*nii', 'mean/%s_mean.nii' % subject_id),
+            ('corr.*.nii', '%s' % subject_id)
             ]
     return subs
 
