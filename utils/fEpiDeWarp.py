@@ -1,16 +1,14 @@
 import os
 import warnings
-from nipype.interfaces.freesurfer.base import FSCommand, FSTraitedSpec
+from nipype.interfaces.fsl.base import FSLCommand, FSLCommandInputSpec
 from nipype.interfaces.base import (TraitedSpec, File,
-                                    Undefined, traits, isdefined)
-from nipype.utils.filemanip import split_filename, fname_presuffix
-from nibabel import load
+                                    traits, isdefined)
+from nipype.utils.filemanip import split_filename
 
 warn = warnings.warn
 warnings.filterwarnings('always', category=UserWarning)
 
-
-class EpiDeWarpInputSpec(FSTraitedSpec):
+class EPIDeWarpInputSpec(FSLCommandInputSpec):
 
     mag_file = File(exists=True,
                   desc='Magnitude file',
@@ -45,15 +43,14 @@ class EpiDeWarpInputSpec(FSTraitedSpec):
     cleanup = traits.Bool(desc='cleanup',
                           argstr='--cleanup')
 
-
-class EpiDeWarpOutputSpec(TraitedSpec):
+class EPIDeWarpOutputSpec(TraitedSpec):
     unwarped_file = File(desc="unwarped epi file")
     vsm_file = File(desc="voxel shift map")
     exfdw = File(desc="dewarped functional volume example")
     exf_mask = File(desc="Mask from example functional volume")
 
 
-class EpiDeWarp(FSCommand):
+class EPIDeWarp(FSLCommand):
     """Wraps fieldmap unwarping script from Freesurfer's epidewarp.fsl_
 
     Examples
@@ -71,22 +68,22 @@ class EpiDeWarp(FSCommand):
     """
 
     _cmd = 'epidewarp.fsl'
-    input_spec = EpiDeWarpInputSpec
-    output_spec = EpiDeWarpOutputSpec
+    input_spec = EPIDeWarpInputSpec
+    output_spec = EPIDeWarpOutputSpec
 
     def _gen_filename(self, name):
         if name == 'exfdw':
             if isdefined(self.inputs.exf_file):
-                return os.path.abspath(split_filename(self.inputs.exf_file)[1]\
-                                       + "_exfdw.nii.gz")
+                return self._gen_fname(split_filename(self.inputs.exf_file)[1],
+                                  suffix="_exfdw")
             else:
-                return os.path.abspath("exfdw.nii.gz")
+                return self._gen_fname("exfdw")
         if name == 'epidw':
             if isdefined(self.inputs.epi_file):
-                return os.path.abspath(split_filename(self.inputs.epi_file)[1]\
-                                       + "_epidw.nii.gz")
+                return self._gen_fname(split_filename(self.inputs.epi_file)[1],
+                                  suffix="_epidw")
         if name == 'vsm':
-            return os.path.abspath("vsm.nii.gz")
+            return self._gen_fname('vsm')
         if name == 'tmpdir':
             return os.path.join(os.getcwd(), 'temp')
         return None
@@ -105,15 +102,14 @@ class EpiDeWarp(FSCommand):
         if not isdefined(self.inputs.vsm):
             outputs['vsm_file'] = self._gen_filename('vsm')
         else:
-            outputs['vsm_file'] = self.inputs.vsm
+            outputs['vsm_file'] = self._gen_fname(self.inputs.vsm)
         if not isdefined(self.inputs.tmpdir):
-            outputs['exf_mask'] = os.path.join(self._gen_filename('tmpdir'),
-                                               'maskexf.nii.gz')
+            outputs['exf_mask'] = self._gen_fname(cwd=self._gen_filename('tmpdir'),
+                                                  basename='maskexf')
         else:
-            outputs['exf_mask'] = os.path.join(self.inputs.tmpdir,
-                                               'maskexf.nii.gz')
+            outputs['exf_mask'] = self._gen_fname(cwd=self.inputs.tmpdir,
+                                                  basename='maskexf')
         return outputs
-
         
 if __name__ == "__main__":
     import nipype.pipeline.engine as pe
