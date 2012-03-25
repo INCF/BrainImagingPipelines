@@ -49,12 +49,11 @@ def create_filter_matrix(motion_params, composite_norm,
     options = np.array([motion_params, composite_norm,
                         compcorr_components, art_outliers])
     selector = np.array(selector)
+    fieldnames = ['motion', 'comp_norm', 'compcor', 'art', 'dmotion']
 
     splitter = np.vectorize(lambda x: os.path.split(x)[1])
-    filenames = ['%s' % item for item in \
-                        splitter(options[selector[:-1]])]
-    filter_file = os.path.abspath("filter+%s+outliers.txt" %\
-                                  "+".join(filenames))
+    filenames = [fieldnames[i] for i, val in enumerate(selector) if val]
+    filter_file = os.path.abspath("filter_%s.txt" % "_".join(filenames))
 
     z = None
 
@@ -259,6 +258,7 @@ def create_prep(name='preproc'):
     ad.inputs.mask_type = 'file'
     ad.inputs.use_differences = [True, False]
     getmask.inputs.inputspec.contrast_type = 't2'
+    getmask.inputs.register.out_fsl_file = True
     fssource = getmask.get_node('fssource')
 
     # make connections...
@@ -337,14 +337,14 @@ def create_prep(name='preproc'):
 
     # create output node
     outputnode = pe.Node(interface=util.IdentityInterface(
-        fields=['reference',
+        fields=['mean',
                 'motion_parameters',
                 'realigned_files',
                 'smoothed_files',
                 'highpassed_files',
-                'mean',
                 'combined_motion',
                 'outlier_files',
+                'outlier_stat_files',
                 'mask',
                 'reg_cost',
                 'reg_file',
@@ -359,24 +359,25 @@ def create_prep(name='preproc'):
                 'motion_plots',
                 'FM_unwarped_epi',
                 'FM_unwarped_mean',
+                'vsm_file',
                 'bandpassed_file']),
                         name='outputspec')
 
     # make output connection
     preproc.connect(meanfunc, 'outputspec.mean_image',
-                    outputnode, 'reference')
+                    outputnode, 'mean')
     preproc.connect(motion_correct, 'par_file',
                     outputnode, 'motion_parameters')
     preproc.connect(motion_correct, 'out_file',
                     outputnode, 'realigned_files')
     preproc.connect(highpass, 'out_file',
                     outputnode, 'highpassed_files')
-    preproc.connect(meanfunc, 'outputspec.mean_image',
-                    outputnode, 'mean')
     preproc.connect(ad, 'norm_files',
                     outputnode, 'combined_motion')
     preproc.connect(ad, 'outlier_files',
                     outputnode, 'outlier_files')
+    preproc.connect(ad, 'statistic_files',
+                    outputnode, 'outlier_stat_files')
     preproc.connect(compcor, 'outputspec.noise_components',
                     outputnode, 'noise_components')
     preproc.connect(getmask, 'outputspec.mask_file',
@@ -475,6 +476,8 @@ def create_prep_fieldmap(name='preproc'):
                     choosesusan, 'motion_files')
     preproc.connect(fieldmap, 'exfdw',
                     compcor, 'inputspec.mean_file')
+    preproc.connect(fieldmap, 'vsm_file',
+                    outputspec, 'vsm_file')
     preproc.connect(fieldmap, 'exfdw',
                     outputspec, 'FM_unwarped_mean')
     preproc.connect(dewarper, 'unwarped_file',
