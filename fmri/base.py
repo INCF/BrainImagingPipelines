@@ -11,9 +11,9 @@ from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
 #import sys
 #sys.path.append('../utils')
 
-#from fEpiDeWarp import EpiDeWarp
+from fEpiDeWarp import EPIDeWarp
 
-from nipype.interfaces.fsl.utils import EPIDeWarp
+#from nipype.interfaces.fsl.utils import EPIDeWarp
 
 def create_filter_matrix(motion_params, composite_norm,
                          compcorr_components, art_outliers, selector):
@@ -239,19 +239,18 @@ def create_prep(name='preproc'):
     medianval = pe.MapNode(interface=fsl.ImageStats(op_string='-k %s -p 50'),
                            iterfield=['in_file'],
                            name='compute_median_val')
-    
-    # Calculate the z-score image of the realigned timeseries
-    
+
+    # temporal highpass filtering
+    highpass = pe.MapNode(interface=fsl.ImageMaths(suffix='_tempfilt'),
+                          iterfield=['in_file'],
+                          name='highpass')
+
+    # Calculate the z-score of output
     zscore = pe.MapNode(interface=util.Function(input_names=['image','outliers'],
                                              output_names=['z_img'],
                                              function=z_image),
                         name='z_score',
                         iterfield=['image','outliers'])
-    
-    # temporal highpass filtering
-    highpass = pe.MapNode(interface=fsl.ImageMaths(suffix='_tempfilt'),
-                          iterfield=['in_file'],
-                          name='highpass')
 
     # declare some node inputs...
     plot_motion.iterables = ('plot_type', ['rotations', 'translations'])
@@ -287,10 +286,6 @@ def create_prep(name='preproc'):
                     plot_motion, 'in_file')
     preproc.connect(motion_correct, 'out_file', 
                     meanfunc, 'inputspec.realigned_files')
-    preproc.connect(motion_correct, 'out_file', 
-                    zscore, 'image')
-    preproc.connect(ad, 'outlier_files',
-                    zscore, 'outliers')
     preproc.connect(motion_correct, 'par_file',
                     meanfunc, 'inputspec.realignment_parameters')
     preproc.connect(meanfunc, 'outputspec.mean_image',
@@ -335,13 +330,16 @@ def create_prep(name='preproc'):
                     highpass, 'op_string')
     preproc.connect(meanscale, 'out_file',
                     highpass, 'in_file')
+    preproc.connect(highpass, 'out_file',
+                    zscore, 'image')
+    preproc.connect(ad, 'outlier_files',
+                    zscore, 'outliers')
 
     # create output node
     outputnode = pe.Node(interface=util.IdentityInterface(
         fields=['reference',
                 'motion_parameters',
                 'realigned_files',
-                'mask',
                 'smoothed_files',
                 'highpassed_files',
                 'mean',
@@ -431,10 +429,8 @@ def create_prep_fieldmap(name='preproc'):
     choosesusan = preproc.get_node('select_smooth')
     meanfunc = preproc.get_node('take_mean_art')
     getmask = preproc.get_node('getmask')
-    zscore = preproc.get_node('z_score')
+
     # Disconnect old nodes
-    preproc.disconnect(motion_correct, 'out_file', 
-                    zscore, 'image')
     preproc.disconnect(motion_correct, 'out_file',
                     compcor, 'inputspec.realigned_file')
     preproc.disconnect(motion_correct, 'out_file',
@@ -469,8 +465,6 @@ def create_prep_fieldmap(name='preproc'):
                     fieldmap, 'mag_file')
     preproc.connect(fieldmap, 'exfdw',
                     getmask, 'inputspec.source_file')
-    preproc.connect(dewarper, 'unwarped_file',
-                    zscore, 'image')
     preproc.connect(dewarper, 'unwarped_file',
                     compcor, 'inputspec.realigned_file')
     preproc.connect(dewarper, 'unwarped_file',
@@ -580,7 +574,9 @@ def create_rest_prep(name='preproc',fieldmap=False):
     highpass = preproc.get_node('highpass')
     outputnode = preproc.get_node('outputspec')
     choosesusan = preproc.get_node('select_smooth')
-    
+    getmask = preproc.get_node('getmask')
+    zscore = preproc.get_node('z_score')
+
     #disconnect old nodes
     preproc.disconnect(motion_correct, 'out_file',
                        smooth, 'inputnode.in_files')
@@ -588,6 +584,9 @@ def create_rest_prep(name='preproc',fieldmap=False):
                        choosesusan, 'motion_files')
     preproc.disconnect(choosesusan, 'cor_smoothed_files',
                        medianval, 'in_file')
+    preproc.disconnect(highpass, 'out_file',
+                       zscore, 'image')
+
     if fieldmap:
         fieldmap = preproc.get_node('dewarper')
         preproc.disconnect(fieldmap, 'unwarped_file', 
@@ -608,6 +607,8 @@ def create_rest_prep(name='preproc',fieldmap=False):
                     addoutliers, 'motion_params')
     preproc.connect(addoutliers, 'filter_file',
                     remove_noise, 'design_file')
+    preproc.connect(getmask, ('outputspec.mask_file', pickfirst),
+                    remove_noise, 'mask')
     preproc.connect(remove_noise, 'out_file',
                     smooth, 'inputnode.in_files')
     preproc.connect(remove_noise, 'out_file',
@@ -626,6 +627,8 @@ def create_rest_prep(name='preproc',fieldmap=False):
                     bandpass_filter, 'highpass_sigma')
     preproc.connect(inputnode, 'lowpass_sigma',
                     bandpass_filter, 'lowpass_sigma')
+    preproc.connect(bandpass_filter, 'out_file',
+                    zscore, 'image')
     preproc.connect(inputnode, 'reg_params',
                     addoutliers, 'selector')
     preproc.connect(addoutliers, 'filter_file',
