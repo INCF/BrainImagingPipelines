@@ -40,12 +40,11 @@ surf_dir : Freesurfer subjects directory
 crash_dir : Location to store crash files
 """
 
-
-working_dir = '/mindhive/scratch/keshavan/sad/resting'
+working_dir = '/mindhive/scratch/satra/sad/resting'
 
 base_dir = '/mindhive/gablab/sad/SAD_STUDY_Resting/data'
 
-sink_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/resting'
+sink_dir = '/mindhive/gablab/sad/bips/resting'
 
 field_dir = '/mindhive/gablab/sad/Data_reorganized'
 
@@ -95,14 +94,12 @@ patients = ['SAD_P03', 'SAD_P04', 'SAD_P05', 'SAD_P07', 'SAD_P08', 'SAD_P09',
             'SAD_P46', 'SAD_P47', 'SAD_P48', 'SAD_P49', 'SAD_P50', 'SAD_P51',
             'SAD_P52', 'SAD_P53', 'SAD_P54', 'SAD_P55', 'SAD_P56', 'SAD_P57',
             'SAD_P58']
+subjects = patients + controls
 subjects = ['SAD_024']
 
-run_on_grid = True
+run_on_grid = False
 
 plugin_args = {'qsub_args': '-q many'}
-
-# SG : use_fieldmap
-fieldmap = True
 
 test_mode = True
 
@@ -147,7 +144,9 @@ sigma : Int
 
 """
 
-echospacing = 0.58
+use_fieldmap = True
+
+echospacing = 0.7  #SG: CHECK THIS
 
 TE_diff = 2.46
 
