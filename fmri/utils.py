@@ -500,9 +500,9 @@ def z_image(image,outliers):
     arts = try_import(outliers)
     img = nib.load(image)
     data, aff = np.asarray(img.get_data()), img.get_affine()
-    weights = np.bool_(np.zeros(data.shape))
+    weights = np.zeros(data.shape, dtype=bool)
     for a in arts:
-        weights[:, :, :, np.int_(a)] = True
+        weights[:, :, :, a] = True
     data_mask = np.ma.array(data, mask=weights)
     z = (data_mask - np.mean(data_mask, axis=3)[:,:,:,None])/np.std(data_mask,axis=3)[:,:,:,None]
     final_image = nib.Nifti1Image(z, aff)
