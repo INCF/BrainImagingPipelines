@@ -8,8 +8,8 @@ import nipype.interfaces.utility as util
 
 from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
                    getmeanscale, highpass_operand, pickfirst)
-#import sys
-#sys.path.append('../utils')
+import sys
+sys.path.append('../utils')
 
 from fEpiDeWarp import EPIDeWarp
 
