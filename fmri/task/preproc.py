@@ -1,6 +1,7 @@
 #Imports ---------------------------------------------------------------------
 import sys
 sys.path.insert(0,'..')
+sys.path.insert(0,'../../utils')
 import nipype.interfaces.fsl as fsl         # fsl
 import nipype.interfaces.utility as util    # utility
 import nipype.pipeline.engine as pe         # pypeline engine
@@ -9,7 +10,6 @@ import numpy as np
 import nipype.algorithms.rapidart as ra     # rapid artifact detection
 import nipype.interfaces.io as nio          # input/output
 import array
-from config import *
 from base import create_prep, create_prep_fieldmap
 from utils import get_datasink, get_substitutions
 from nipype.algorithms.modelgen import SpecifyModel
@@ -36,7 +36,7 @@ def prep_workflow(subjects,fieldmap):
     modelflow = pe.Workflow(name='preproc')
     
     # make a data sink
-    sinkd = get_datasink(sink_dir,fwhm)
+    sinkd = get_datasink(c.sink_dir,c.fwhm)
     
     # generate preprocessing workflow
     dataflow = c.create_dataflow()
