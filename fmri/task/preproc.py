@@ -75,7 +75,7 @@ def prep_workflow(subjects,fieldmap):
     # make connections
     modelflow.connect(infosource, 'subject_id',
                       sinkd, 'container')
-    modelflow.connect(infosource, ('subject_id', get_substitutions),
+    modelflow.connect(infosource, ('subject_id', get_substitutions, c.use_fieldmap),
                       sinkd, 'substitutions')
     modelflow.connect(infosource, 'subject_id',
                       dataflow, 'subject_id')
@@ -83,7 +83,7 @@ def prep_workflow(subjects,fieldmap):
                       preproc, 'inputspec.fssubject_id')
     modelflow.connect(dataflow,'func',
                       preproc, 'inputspec.func')
-    modelflow.connect(preproc, 'outputspec.reference',
+    modelflow.connect(preproc, 'outputspec.mean',
                       sinkd, 'preproc.motion.reference')
     modelflow.connect(preproc, 'outputspec.motion_parameters',
                       sinkd, 'preproc.motion')
@@ -136,7 +136,7 @@ if __name__ == "__main__":
     sys.path.append(path)
     c = __import__(fname.split('.')[0])
 
-    preprocess = prep_workflow(c.subjects, c.fieldmap)
+    preprocess = prep_workflow(c.subjects, c.use_fieldmap)
     realign = preprocess.get_node('preproc.realign')
     realign.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
     realign.inputs.loops = 2
@@ -144,7 +144,7 @@ if __name__ == "__main__":
     cc = preprocess.get_node('preproc.CompCor')
     cc.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
     if c.run_on_grid:
-        preprocess.run(plugin='PBS',plugin_args = c.plugin_args)
+        preprocess.run(plugin=c.plugin,plugin_args = c.plugin_args)
     else:
         preprocess.run()
     

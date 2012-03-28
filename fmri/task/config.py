@@ -47,7 +47,7 @@ working_dir = '/mindhive/scratch/keshavan/sad/task'
 
 base_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/data/'
 
-sink_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/'
+sink_dir = '/mindhive/gablab/sad/bips/task'
 
 field_dir = '/mindhive/gablab/sad/Data_reorganized'
 
@@ -97,13 +97,15 @@ patients = ['SAD_P03', 'SAD_P04', 'SAD_P05', 'SAD_P07', 'SAD_P08', 'SAD_P09',
             'SAD_P52', 'SAD_P53', 'SAD_P54', 'SAD_P55', 'SAD_P56', 'SAD_P57',
             'SAD_P58']
 
-subjects = ['SAD_018']#controls+patients
+subjects = ['SAD_024']#controls+patients
 
 run_on_grid = True
 
-plugin_args = {'qsub_args': '-q many'}
+plugin = 'PBS'
 
-fieldmap = True
+plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
+
+use_fieldmap = True
 
 test_mode = True
 
@@ -282,11 +284,6 @@ def create_fieldmap_dataflow(name="datasource_fieldmap"):
 First-level
 ^^^^^^^^^^^
 
-get_run_numbers : Function with one parameter, subject_id.
-                  Returns a list of ints with length \
-                  equal to the number of functional runs \
-                  for that subject_id
-
 subjectinfo : Function with one parameter, subject_id. \
               Returns a list of Bunches, where each Bunch \
               in the list corresponds to each functional run.
@@ -305,20 +302,10 @@ getcontrasts : Function with one parameter, subject_id. \
 
 """
 
-
-   
-   
-def get_run_numbers(subject_id):
-    if subject_id == "SAD_018":
-        return [0, 1]
-    else:
-        return [0]
-
-
 def subjectinfo(subject_id):
     from nipype.interfaces.base import Bunch
     from copy import deepcopy
-    from config import get_run_numbers
+    #from . import get_run_numbers
     print "Subject ID: %s\n"%str(subject_id)  
     output = []
     names = ['AngryFaces','NeutralFaces','PotentScenes','EmotionalScenes','NeutralScenes']
@@ -336,7 +323,12 @@ def subjectinfo(subject_id):
 'SAD_P47','SAD_P50','SAD_P51','SAD_P52','SAD_P55','SAD_P56','SAD_POST05','SAD_POST06','SAD_POST08','SAD_POST10','SAD_POST12','SAD_POST14',
 'SAD_POST16','SAD_POST20','SAD_POST22','SAD_POST27','SAD_POST31','SAD_POST34','SAD_POST38','SAD_POST36','SAD_POST44','SAD_POST45','SAD_POST47',
 'SAD_POST50','SAD_POST51','SAD_POST52']
-    
+    def get_run_numbers(subject_id):
+        if subject_id == "SAD_018":
+            return [0, 1]
+        else:
+            return [0]
+        
     for r in range(len(get_run_numbers(subject_id))):
         if subject_id in regular:
 	        onsets = [[45,120,240,315,405,465],[60,135,195,285,420,495],[30,105,255,330,375,525],[15,165,210,300,390,510],[75,150,225,345,435,480]]
