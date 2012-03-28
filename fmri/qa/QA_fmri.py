@@ -14,7 +14,7 @@ from nipype.interfaces.io import FreeSurferSource
 from nipype.interfaces import fsl
 #from nipype.utils.config import config
 #config.enable_debug_mode()
-from QA_utils import plot_ADnorm, tsdiffana, tsnr_roi
+from QA_utils import plot_ADnorm, tsdiffana, tsnr_roi, combine_table
 import sys
 sys.path.insert(0,'../../utils/')
 from reportsink.io import ReportSink
@@ -199,8 +199,6 @@ def QA_workflow(name='QA'):
                          name='subject_names')
     infosource.iterables = ('subject_id', c.subjects)
     
-    #infosource.inputs.subject_id = c.subjects
-    
     datagrabber = preproc_datagrabber()
     
     datagrabber.inputs.fwhm = c.fwhm
@@ -250,26 +248,26 @@ def QA_workflow(name='QA'):
     roiplot = tsnr_roi(plot=True)
     roiplot.inputs.inputspec.TR = c.TR
     
-    #fssource = pe.Node(nio.FreeSurferSource(),
-    #                   name = 'fssource')
-    #workflow.connect(infosource,'subject_id',fssource,'subject_id')
-    #workflow.connect(inputspec, 'sd', fssource, 'subjects_dir')
+    roidevplot = tsnr_roi(plot=False,name='tsnr_stddev_roi',roi=['all'])
+    roidevplot.inputs.inputspec.TR = c.TR
+    roisnrplot = tsnr_roi(plot=False,name='SNR_roi',roi=['all'])
+    roisnrplot.inputs.inputspec.TR = c.TR
+    
     workflow.connect(fssource, ('aparc_aseg', pickfirst), roiplot, 'inputspec.aparc_aseg')
+    workflow.connect(fssource, ('aparc_aseg', pickfirst), roisnrplot, 'inputspec.aparc_aseg')
+    workflow.connect(fssource, ('aparc_aseg', pickfirst), roidevplot, 'inputspec.aparc_aseg')
     
     workflow.connect(infosource, 'subject_id', roiplot, 'inputspec.subject')
+    workflow.connect(infosource, 'subject_id', roidevplot, 'inputspec.subject')
+    workflow.connect(infosource, 'subject_id', roisnrplot, 'inputspec.subject')
     
-    #tablecombine = pe.Node(util.Function(input_names = ['roimean',
-    #                                                    'roidev',
-    #                                                    'roisnr'],
-    #                                     output_names = ['roisnr'], 
-    #                                     function = combine_table),
-    #                       name='combinetable')
+    tablecombine = pe.Node(util.Function(input_names = ['roidev',
+                                                        'roisnr'],
+                                         output_names = ['roisnr'], 
+                                         function = combine_table),
+                           name='combinetable')
     
-    #roiavgplot = tsnr_roi(plot=False,name='tsnr_mean_roi',roi=['all'])
     
-    #roidevplot = tsnr_roi(plot=False,name='tsnr_stddev_roi',roi=['all'])
-    
-    #roisnrplot = tsnr_roi(plot=False,name='SNR_roi',roi=['all'])
     
     adnormplot = pe.MapNode(util.Function(input_names = ['ADnorm','TR'], 
                                        output_names = ['plot'], 
@@ -296,6 +294,7 @@ def QA_workflow(name='QA'):
                                                           'tsdiffana',
                                                           'ADnorm',
                                                           'overlayMean',
+                                                          'tsnr_roi_table',
                                                           'roiplot']),name='report_sink')
     write_rep.inputs.Introduction = "Quality Assurance Report for fMRI preprocessing."
     write_rep.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
@@ -323,16 +322,13 @@ def QA_workflow(name='QA'):
     workflow.connect(inputspec,'reg_file',roiplot,'inputspec.reg_file')
     workflow.connect(inputspec,'tsnr_detrended',roiplot,'inputspec.tsnr_file')
     workflow.connect(roiplot,'outputspec.out_file',write_rep,'roiplot')
-    #workflow.connect(inputspec,'reg_file',roiavgplot,'inputspec.reg_file')
-    #workflow.connect(inputspec,'tsnr_mean',roiavgplot,'inputspec.tsnr_file')
-    #workflow.connect(roiavgplot,'outputspec.out_file',tablecombine,'roimean')
-    #workflow.connect(inputspec,'reg_file',roidevplot,'inputspec.reg_file')
-    #workflow.connect(inputspec,'tsnr_stddev',roidevplot,'inputspec.tsnr_file')
-    #workflow.connect(roidevplot,'outputspec.out_file',tablecombine,'roidev')
-    #workflow.connect(inputspec,'reg_file',roisnrplot,'inputspec.reg_file')
-    #workflow.connect(inputspec,'tsnr',roisnrplot,'inputspec.tsnr_file')
-    #workflow.connect(roisnrplot,'outputspec.out_file',tablecombine,'roisnr')
-    #workflow.connect(tablecombine, 'roisnr', write_rep, 'tsnr_roi_table')
+    workflow.connect(inputspec,'reg_file',roidevplot,'inputspec.reg_file')
+    workflow.connect(inputspec,'tsnr_stddev',roidevplot,'inputspec.tsnr_file')
+    workflow.connect(roidevplot,'outputspec.roi_table',tablecombine,'roidev')
+    workflow.connect(inputspec,'reg_file',roisnrplot,'inputspec.reg_file')
+    workflow.connect(inputspec,'tsnr',roisnrplot,'inputspec.tsnr_file')
+    workflow.connect(roisnrplot,'outputspec.roi_table',tablecombine,'roisnr')
+    workflow.connect(tablecombine, ('roisnr',totable), write_rep, 'tsnr_roi_table')
     workflow.connect(inputspec,'ADnorm',adnormplot,'ADnorm')
     workflow.connect(adnormplot,'plot',write_rep,'ADnorm')
     workflow.connect(fssource,'orig',convert,'in_file')

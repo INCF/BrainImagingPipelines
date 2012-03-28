@@ -136,8 +136,9 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False):
     roiplotter.inputs.plot = plot
 
     preproc.connect(roistripper,'roi_file',roiplotter,'statsfile')
-    outputspec = pe.Node(interface=util.IdentityInterface(fields=['out_file']),name='outputspec')
+    outputspec = pe.Node(interface=util.IdentityInterface(fields=['out_file','roi_table']),name='outputspec')
     preproc.connect(roiplotter,'Fname',outputspec,'out_file')
+    preproc.connect(roiplotter,'AvgRoi',outputspec,'roi_table')
 
     return preproc
     
@@ -226,18 +227,19 @@ def plot_timeseries(roi,statsfile,TR,plot):
                 print fname
                 Fname.append(fname)
             else:
+                print "Average ROI value: ", np.mean(list(stats[i])[1])
                 AvgRoi.append([title,np.mean(list(stats[i])[1])])
         else:
             print "roi %s not found!"%R
-  
+    print AvgRoi  
     return Fname, AvgRoi
 
 
-def combine_table(roimean,roidev,roisnr):
-    if len(roimean) == len(roidev) and len(roimean) == len(roisnr):
+def combine_table(roidev,roisnr):
+    if len(roisnr) == len(roidev):
         for i, roi in enumerate(roisnr):
             # merge mean and stddev table
-            roi.append(roimean[i][1])
+            roi.append(roidev[i][1]*roisnr[i][1])
             roi.append(roidev[i][1])
             
         roisnr.sort(key=lambda x:x[1])
