@@ -77,7 +77,7 @@ Examples
 """
     input_spec = ReportSinkInputSpec
 
-    def __init__(self, infields=None, **kwargs):
+    def __init__(self, orderfields=None, infields=None, **kwargs):
         """
 Parameters
 ----------
@@ -94,6 +94,9 @@ Indicates the input fields to be dynamically created
                 self.inputs.add_trait(key, traits.Any)
                 self.inputs._outputs[key] = Undefined
                 undefined_traits[key] = Undefined
+        
+        self._orderfields = orderfields
+            
         self.inputs.trait_set(trait_change_notify=False, **undefined_traits)
 
     def _list_outputs(self):
@@ -123,7 +126,12 @@ Indicates the input fields to be dynamically created
         #for key, files in self.inputs._outputs.items():
         print self.inputs._outputs_order
         
-        for key in self.inputs._outputs_order:
+        if self._orderfields:
+            order = self._orderfields
+        else:
+            order = self.inputs._outputs_order
+        
+        for key in order:
             files = self.inputs._outputs[key]
             if not isdefined(files):
                 continue

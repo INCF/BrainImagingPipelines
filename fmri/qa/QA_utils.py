@@ -82,8 +82,8 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False):
     inputspec = pe.Node(interface=util.IdentityInterface(fields=['reg_file',
                                                                  'tsnr_file',
                                                                  'TR',
-                                                                 'subject',
-                                                                 'sd']),name='inputspec')
+                                                                 'aparc_aseg',
+                                                                 'subject']),name='inputspec')
     
     voltransform = pe.Node(interface=ApplyVolTransform(inverse=True, interp='nearest'),name='applyreg')
     
@@ -91,8 +91,8 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False):
     
     preproc.connect(inputspec,'reg_file',voltransform,'reg_file')
     
-    voltransform.inputs.target_file = os.path.join(sd,subject,'mri/aparc+aseg.mgz')
-    
+    #voltransform.inputs.target_file = os.path.join(sd,subject,'mri/aparc+aseg.mgz')
+    preproc.connect(inputspec,'aparc_aseg',voltransform,'target_file')
     
     statsflow = create_get_stats_flow()
     preproc.connect(voltransform,'transformed_file',statsflow,'inputspec.label_file')
@@ -121,8 +121,9 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False):
                                        output_names=['roi_file'],
                                        function=strip_ids),
                           name='roistripper')
-    roistripper.inputs.subject_id = subject
-
+    
+    preproc.connect(inputspec,'subject',roistripper,'subject_id')
+    
     preproc.connect(statsflow, 'segstats.avgwf_txt_file', roistripper, 'roi_file')
     preproc.connect(statsflow, 'segstats.summary_file', roistripper, 'summary_file')
 
@@ -131,7 +132,7 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False):
                                        function=plot_timeseries),
                           name='roiplotter')
     roiplotter.inputs.roi = roi
-    roiplotter.inputs.TR = TR
+    preproc.connect(inputspec,'TR',roiplotter,'TR')
     roiplotter.inputs.plot = plot
 
     preproc.connect(roistripper,'roi_file',roiplotter,'statsfile')

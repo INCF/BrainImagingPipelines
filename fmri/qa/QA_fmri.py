@@ -14,13 +14,14 @@ from nipype.interfaces.io import FreeSurferSource
 from nipype.interfaces import fsl
 #from nipype.utils.config import config
 #config.enable_debug_mode()
-from QA_utils import plot_ADnorm, tsdiffana
+from QA_utils import plot_ADnorm, tsdiffana, tsnr_roi
 import sys
 sys.path.insert(0,'../../utils/')
 from reportsink.io import ReportSink
 import argparse
 
 totable = lambda x: [[x]]
+pickfirst = lambda x: x[0]
 
 def get_config_params(subject_id, table):
         table.insert(0,['subject_id',subject_id])
@@ -245,8 +246,17 @@ def QA_workflow(name='QA'):
                                       output_names = ['out_file'], 
                                       function=tsdiffana), 
                         name='tsdiffana', iterfield=["img"])
+    fssource = pe.Node(interface = FreeSurferSource(),name='fssource')
+    roiplot = tsnr_roi(plot=True)
+    roiplot.inputs.inputspec.TR = c.TR
     
-    #roiplot = tsnr_roi(sd=surf_dir,subject=subjects[0],TR=TR,plot=True)
+    #fssource = pe.Node(nio.FreeSurferSource(),
+    #                   name = 'fssource')
+    #workflow.connect(infosource,'subject_id',fssource,'subject_id')
+    #workflow.connect(inputspec, 'sd', fssource, 'subjects_dir')
+    workflow.connect(fssource, ('aparc_aseg', pickfirst), roiplot, 'inputspec.aparc_aseg')
+    
+    workflow.connect(infosource, 'subject_id', roiplot, 'inputspec.subject')
     
     #tablecombine = pe.Node(util.Function(input_names = ['roimean',
     #                                                    'roidev',
@@ -266,7 +276,7 @@ def QA_workflow(name='QA'):
                                        function=plot_ADnorm), 
                          name='ADnormplot', iterfield=['ADnorm'])
     
-    fssource = pe.Node(interface = FreeSurferSource(),name='fssource')
+    
     
     convert = pe.Node(interface=fs.MRIConvert(),name='converter')
     
@@ -278,7 +288,15 @@ def QA_workflow(name='QA'):
     
     slicer = pe.MapNode(interface=fsl.Slicer(),name='slicer',iterfield=['in_file'])
     
-    write_rep = pe.Node(interface=ReportSink(),name='report_sink')
+    write_rep = pe.Node(interface=ReportSink(orderfields=['Introduction',
+                                                          'in_file',
+                                                          'config_params',
+                                                          'art_file',
+                                                          'motion_plots',
+                                                          'tsdiffana',
+                                                          'ADnorm',
+                                                          'overlayMean',
+                                                          'roiplot']),name='report_sink')
     write_rep.inputs.Introduction = "Quality Assurance Report for fMRI preprocessing."
     write_rep.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
     workflow.connect(infosource,'subject_id',write_rep,'container')
@@ -302,9 +320,9 @@ def QA_workflow(name='QA'):
     workflow.connect(inputspec,'in_file',tsdiff,'img')
     workflow.connect(tsdiff,"out_file",write_rep,"tsdiffana")
     workflow.connect(inputspec,('config_params',totable), write_rep,'config_params')
-    #workflow.connect(inputspec,'reg_file',roiplot,'inputspec.reg_file')
-    #workflow.connect(inputspec,'tsnr_detrended',roiplot,'inputspec.tsnr_file')
-    #workflow.connect(roiplot,'outputspec.out_file',write_rep,'roiplot')
+    workflow.connect(inputspec,'reg_file',roiplot,'inputspec.reg_file')
+    workflow.connect(inputspec,'tsnr_detrended',roiplot,'inputspec.tsnr_file')
+    workflow.connect(roiplot,'outputspec.out_file',write_rep,'roiplot')
     #workflow.connect(inputspec,'reg_file',roiavgplot,'inputspec.reg_file')
     #workflow.connect(inputspec,'tsnr_mean',roiavgplot,'inputspec.tsnr_file')
     #workflow.connect(roiavgplot,'outputspec.out_file',tablecombine,'roimean')
