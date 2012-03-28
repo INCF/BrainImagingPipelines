@@ -27,8 +27,9 @@ class ReportSinkInputSpec(DynamicTraitedSpec, BaseInterfaceInputSpec):
     base_directory = Directory(
         desc='Path to the base directory for writing report.')
     
-
+    container = traits.Str(desc = 'Folder within base directory in which to store output')
     _outputs = traits.Dict(traits.Str, value={}, usedefault=True)
+    _outputs_order = []
     remove_dest_dir = traits.Bool(False, usedefault=True,
                                   desc='remove dest directory when copying dirs')
 
@@ -37,9 +38,11 @@ class ReportSinkInputSpec(DynamicTraitedSpec, BaseInterfaceInputSpec):
             if not isdefined(value):
                 super(ReportSinkInputSpec, self).__setattr__(key, value)
             self._outputs[key] = value
+            self._outputs_order.append(key)
         else:
             if key in self._outputs:
                 self._outputs[key] = value
+                self._outputs_order.append(key)
             super(ReportSinkInputSpec, self).__setattr__(key, value)
 
 
@@ -100,7 +103,10 @@ Indicates the input fields to be dynamically created
         if not isdefined(outdir):
             outdir = '.'
         outdir = os.path.abspath(outdir)
-
+        
+        if isdefined(self.inputs.container):
+            outdir = os.path.join(outdir, self.inputs.container)
+            
         if not os.path.exists(outdir):
             try:
                 os.makedirs(outdir)
@@ -114,7 +120,11 @@ Indicates the input fields to be dynamically created
         rep = report(os.path.abspath(os.path.join(outdir,'Report.pdf')),'Report')
         
         # Loop through all inputs
-        for key, files in self.inputs._outputs.items():
+        #for key, files in self.inputs._outputs.items():
+        print self.inputs._outputs_order
+        
+        for key in self.inputs._outputs_order:
+            files = self.inputs._outputs[key]
             if not isdefined(files):
                 continue
             iflogger.debug("key: %s files: %s"%(key, str(files)))
