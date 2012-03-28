@@ -18,8 +18,68 @@ from QA_utils import plot_ADnorm, tsdiffana
 import sys
 sys.path.insert(0,'../../utils/')
 from reportsink.io import ReportSink
+import argparse
 
 totable = lambda x: [[x]]
+
+def get_config_params(subject_id, table):
+        table.insert(0,['subject_id',subject_id])
+        return table
+
+def preproc_datagrabber(name='preproc_datagrabber'):
+    # create a node to obtain the preproc files
+    datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id','fwhm'],
+                                                   outfields=['noise_components',
+                                                              'motion_parameters',
+                                                               'highpassed_files',
+                                                               'outlier_files',
+                                                               'art_norm',
+                                                               'tsnr',
+                                                               'tsnr_detrended',
+                                                               'tsnr_stddev',
+                                                               'reg_file',
+                                                               'motion_plots']),
+                         name = name)
+    datasource.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
+    datasource.inputs.template ='*'
+    datasource.inputs.field_template = dict(noise_components='%s/preproc/noise_components/*/noise_components.txt',
+                                            motion_parameters='%s/preproc/motion/*.par',
+                                            highpassed_files='%s/preproc/highpass/fwhm_%d/*/*.nii.gz',
+                                            outlier_files='%s/preproc/art/*_outliers.txt',
+                                            art_norm='%s/preproc/art/norm.*.txt',
+                                            tsnr='%s/preproc/tsnr/*_tsnr.nii.gz',
+                                            tsnr_detrended='%s/preproc/tsnr/*_detrended.nii.gz',
+                                            tsnr_stddev='%s/preproc/tsnr/*tsnr_stddev.nii.gz',
+                                            reg_file='%s/preproc/bbreg/*.dat',
+                                            motion_plots='%s/preproc/motion/*.png')
+    datasource.inputs.template_args = dict(noise_components=[['subject_id']],
+                                           motion_parameters=[['subject_id']],
+                                           highpassed_files=[['subject_id','fwhm']],
+                                           outlier_files=[['subject_id']],
+                                           art_norm=[['subject_id']],
+                                           tsnr=[['subject_id']],
+                                           tsnr_detrended=[['subject_id']],
+                                           tsnr_stddev=[['subject_id']],
+                                           reg_file=[['subject_id']],
+                                           motion_plots=[['subject_id']])
+    return datasource
+
+
+def start_config_table():
+    table = []
+    table.append(['TR',str(c.TR)])
+    table.append(['Slice Order',str(c.SliceOrder)])
+    table.append(['Interleaved',str(c.Interleaved)])
+    if c.use_fieldmap:
+        table.append(['Echo Spacing',str(c.echospacing)])
+        table.append(['Fieldmap Smoothing',str(c.sigma)])
+        table.append(['TE difference',str(c.TE_diff)])
+    table.append(['Art: norm thresh',str(c.norm_thresh)])
+    table.append(['Art: z thresh',str(c.z_thresh)])
+    table.append(['fwhm',str(c.fwhm)])
+    table.append(['Highpass cutoff',str(c.hpcutoff)])
+    return table
+        
 
 def reporter(in_file,art_file,config_params,motion_plots,tsdiffana,
              ADnorm, overlayMean):
@@ -119,8 +179,6 @@ def QA_workflow(name='QA'):
         
     workflow =pe.Workflow(name=name)
     
-    # Define Nodes
-    
     inputspec = pe.Node(interface=util.IdentityInterface(fields=['subject_id',
                                                                  'config_params',
                                                                  'in_file',
@@ -135,6 +193,40 @@ def QA_workflow(name='QA'):
                                                                  'TR',
                                                                  'sd']),
                         name='inputspec')
+    
+    infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
+                         name='subject_names')
+    infosource.iterables = ('subject_id', c.subjects)
+    
+    #infosource.inputs.subject_id = c.subjects
+    
+    datagrabber = preproc_datagrabber()
+    
+    datagrabber.inputs.fwhm = c.fwhm
+    
+    orig_datagrabber = c.create_dataflow()
+    
+    workflow.connect(infosource, 'subject_id',
+                     datagrabber, 'subject_id')
+    
+    workflow.connect(infosource, 'subject_id', orig_datagrabber, 'subject_id')
+    
+    workflow.connect(orig_datagrabber, 'func', inputspec, 'in_file')
+    workflow.connect(infosource, 'subject_id', inputspec, 'subject_id')
+    workflow.connect(datagrabber, 'outlier_files', inputspec, 'art_file')
+    workflow.connect(datagrabber, 'motion_plots', inputspec, 'motion_plots')
+    workflow.connect(datagrabber, 'reg_file', inputspec, 'reg_file')
+    workflow.connect(datagrabber, 'tsnr_detrended', inputspec, 'tsnr_detrended')
+    workflow.connect(datagrabber, 'tsnr', inputspec, 'tsnr')
+    workflow.connect(datagrabber, 'tsnr_stddev', inputspec, 'tsnr_stddev')
+    workflow.connect(datagrabber, 'art_norm', inputspec, 'ADnorm')
+    
+    inputspec.inputs.TR = c.TR
+    inputspec.inputs.sd = c.surf_dir
+    
+    # Define Nodes
+    
+    
     """                    
     write_rep = pe.Node(util.Function(input_names=['in_file',
                                                    'art_file',
@@ -188,6 +280,8 @@ def QA_workflow(name='QA'):
     
     write_rep = pe.Node(interface=ReportSink(),name='report_sink')
     write_rep.inputs.Introduction = "Quality Assurance Report for fMRI preprocessing."
+    write_rep.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
+    workflow.connect(infosource,'subject_id',write_rep,'container')
     
     # Define Inputs
     
@@ -237,21 +331,22 @@ def QA_workflow(name='QA'):
     return workflow
     
 if __name__ == "__main__":
+    
+    parser = argparse.ArgumentParser(description="example: \
+                        run resting_preproc.py -c config.py")
+    parser.add_argument('-c','--config',
+                        dest='config',
+                        required=True,
+                        help='location of config file'
+                        )
+    args = parser.parse_args()
+    path, fname = os.path.split(os.path.realpath(args.config))
+    sys.path.append(path)
+    c = __import__(fname.split('.')[0])
+    
     a = QA_workflow()
-    a.base_dir = './'
+    a.base_dir = c.working_dir
     a.write_graph()
-    a.inputs.inputspec.subject_id = 'SAD_018'
-    a.inputs.inputspec.TR = 2.5
-    a.inputs.inputspec.sd = '/mindhive/xnat/surfaces/sad'
-    a.inputs.inputspec.in_file = ['/mindhive/gablab/sad/PY_STUDY_DIR/Block/data/SAD_018/f3.nii']
-    a.inputs.inputspec.art_file = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/analyses/func/SAD_018/preproc/art/fwhm_5/art.corr_f3_dtype.nii_outliers.txt'
-    a.inputs.inputspec.motion_plots = glob('/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/analyses/func/SAD_018/preproc/motion/*.png')
-    a.inputs.inputspec.reg_file = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/analyses/func/SAD_018/preproc/bbreg/_register0/corr_f3_dtype_mean_bbreg_SAD_018.dat'
-    a.inputs.inputspec.tsnr_detrended = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/work_dir/SAD_018/preproc/preproc/compcorr/_fwhm_5/tsnr/mapflow/_tsnr0/corr_f3_dtype_detrended.nii.gz'
-    a.inputs.inputspec.tsnr_mean = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/work_dir/SAD_018/preproc/preproc/compcorr/_fwhm_5/tsnr/mapflow/_tsnr0/corr_f3_dtype_tsnr_mean.nii.gz'
-    a.inputs.inputspec.tsnr = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/work_dir/SAD_018/preproc/preproc/compcorr/_fwhm_5/tsnr/mapflow/_tsnr0/corr_f3_dtype_tsnr.nii.gz'
-    a.inputs.inputspec.tsnr_stddev = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/work_dir/SAD_018/preproc/preproc/compcorr/_fwhm_5/tsnr/mapflow/_tsnr0/corr_f3_dtype_tsnr_stddev.nii.gz'
-    a.inputs.inputspec.ADnorm = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/analyses/func/SAD_018/preproc/art/norm.corr_f3_dtype.nii.txt'
-    a.inputs.inputspec.config_params = [['Subject','TR'],['SAD_018',2.5]]
+    a.inputs.inputspec.config_params = start_config_table()
     a.run()
     
