@@ -124,7 +124,6 @@ Indicates the input fields to be dynamically created
         
         # Loop through all inputs
         #for key, files in self.inputs._outputs.items():
-        print self.inputs._outputs_order
         
         if self._orderfields:
             order = self._orderfields

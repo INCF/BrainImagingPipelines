@@ -21,6 +21,7 @@ from reportsink.io import ReportSink
 import argparse
 
 totable = lambda x: [[x]]
+to1table = lambda x: [x]
 pickfirst = lambda x: x[0]
 
 def get_config_params(subject_id, table):
@@ -261,11 +262,11 @@ def QA_workflow(name='QA'):
     workflow.connect(infosource, 'subject_id', roidevplot, 'inputspec.subject')
     workflow.connect(infosource, 'subject_id', roisnrplot, 'inputspec.subject')
     
-    tablecombine = pe.Node(util.Function(input_names = ['roidev',
+    tablecombine = pe.MapNode(util.Function(input_names = ['roidev',
                                                         'roisnr'],
                                          output_names = ['roisnr'], 
                                          function = combine_table),
-                           name='combinetable')
+                           name='combinetable', iterfield=['roidev','roisnr'])
     
     
     
@@ -328,7 +329,7 @@ def QA_workflow(name='QA'):
     workflow.connect(inputspec,'reg_file',roisnrplot,'inputspec.reg_file')
     workflow.connect(inputspec,'tsnr',roisnrplot,'inputspec.tsnr_file')
     workflow.connect(roisnrplot,'outputspec.roi_table',tablecombine,'roisnr')
-    workflow.connect(tablecombine, ('roisnr',totable), write_rep, 'tsnr_roi_table')
+    workflow.connect(tablecombine, ('roisnr',to1table), write_rep, 'tsnr_roi_table')
     workflow.connect(inputspec,'ADnorm',adnormplot,'ADnorm')
     workflow.connect(adnormplot,'plot',write_rep,'ADnorm')
     workflow.connect(fssource,'orig',convert,'in_file')
