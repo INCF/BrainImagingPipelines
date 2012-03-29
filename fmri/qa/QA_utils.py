@@ -104,7 +104,7 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False):
         import numpy as np
         import os
         roi_idx = np.genfromtxt(summary_file)[:,1].astype(int)
-        roi_vals = np.genfromtxt(roi_file[0])
+        roi_vals = np.genfromtxt(roi_file)
         rois2skip = [0, 2, 4, 5, 7, 14, 15, 24, 30, 31, 41, 43, 44, 46,
                      62, 63, 77, 80, 85, 1000, 2000]
         ids2remove = []
@@ -120,7 +120,7 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False):
     roistripper = pe.MapNode(util.Function(input_names=['subject_id', 'summary_file', 'roi_file'],
                                        output_names=['roi_file'],
                                        function=strip_ids),
-                          name='roistripper', iterfield=['summary_file'])
+                          name='roistripper', iterfield=['summary_file','roi_file'])
     
     preproc.connect(inputspec,'subject',roistripper,'subject_id')
     
@@ -158,7 +158,7 @@ def tsdiffana(img):
     x = plt.sca(axes[0])
     plt.savefig(of,dpi=300)
     out_file.append(of)
-    
+    plt.close()
     return out_file
 
 def plot_timeseries(roi,statsfile,TR,plot):

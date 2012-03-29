@@ -152,6 +152,7 @@ Indicates the input fields to be dynamically created
                     rep.add_table(thing)
                 else:
                     if thing.endswith('.png') or thing.endswith('.jpg'):
+                        rep.add_text(os.path.split(thing)[1])
                         rep.add_image(thing)
                     else:
                         rep.add_text(thing)
