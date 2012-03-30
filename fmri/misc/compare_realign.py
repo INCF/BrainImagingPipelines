@@ -16,6 +16,8 @@ config.set('execution', 'remove_unnecessary_outputs', 'false')
 
 def plot_trans(nipy1,nipy2,fsl,spm):
     import matplotlib.pyplot as plt
+    import matplotlib
+    matplotlib.use('Agg')
     import numpy as np
     import os
     fname=os.path.abspath('translations.png')
@@ -34,6 +36,8 @@ def plot_trans(nipy1,nipy2,fsl,spm):
     
 def plot_rot(nipy1,nipy2,fsl,spm):
     import matplotlib.pyplot as plt
+    import matplotlib
+    matplotlib.use('Agg')
     import numpy as np
     import os
     fname=os.path.abspath('rotations.png')
@@ -52,6 +56,8 @@ def plot_rot(nipy1,nipy2,fsl,spm):
     
 def corr_mat(nipy1,nipy2,fsl,spm):
     import numpy as np
+    import matplotlib
+    matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     import os
     fname=os.path.abspath('correlation.png')
@@ -67,8 +73,12 @@ def compare_workflow(name='compare_realignments'):
     
     workflow =pe.Workflow(name=name)
     
+    infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
+                         name='subject_names')
+    infosource.iterables = ('subject_id', c.subjects)
+    
     datagrabber = c.create_dataflow()
-    datagrabber.inputs.subject_id = c.subjects[0]
+    workflow.connect(infosource, 'subject_id', datagrabber, 'subject_id')
     
     realign_nipy = pe.Node(interface=FmriRealign4d(), name='realign_nipy')
     realign_nipy.inputs.tr = c.TR
@@ -142,6 +152,6 @@ if __name__ == "__main__":
     compare = compare_workflow()
     compare.base_dir = c.working_dir
     if c.run_on_grid:
-        compare.run(plugin=c.plugin, plugin_args=c.plugin_args)
+        compare.run(plugin=c.plugin, plugin_args=c.plugin_args['qsub_args']+'-X')
     else:
         compare.run()

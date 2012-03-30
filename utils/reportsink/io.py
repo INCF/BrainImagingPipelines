@@ -17,7 +17,7 @@ from nipype.interfaces.base import (TraitedSpec, traits, File, Directory,
                                     OutputMultiPath, DynamicTraitedSpec,
                                     Undefined, BaseInterfaceInputSpec)
 from nipype.utils.filemanip import (copyfile, list_to_filename,
-                                    filename_to_list)
+                                    filename_to_list, save_json)
 from nipype.interfaces.io import IOBase
 import logging
 iflogger = logging.getLogger('interface')
@@ -47,7 +47,7 @@ class ReportSinkInputSpec(DynamicTraitedSpec, BaseInterfaceInputSpec):
 
 
 class ReportSink(IOBase):
-    """ ReportSink module to write outputs to a pdf
+    """ ReportSink module to write outputs to a pdf and save to json file
 
 This interface allows arbitrary creation of input attributes. The names of 
 these attributes define the Report structure to create for display of images,
@@ -159,4 +159,7 @@ Indicates the input fields to be dynamically created
         
         # write the report
         rep.write()
+        # save json
+        save_json(os.path.join(outdir, self.inputs.report_name+'.json'), self.inputs._outputs)
+        
         return None
