@@ -11,16 +11,10 @@ import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import nipype.interfaces.io as nio
 import nipype.interfaces.freesurfer as fs
+import argparse
+import sys
+from nipype.interfaces.io import FreeSurferSource
 
-""" To create this report you need to know the locations of:
-    - freesurfer output for each subject
-    - fmri zstat images per contrast per subject
-    - you may need to make tweaks to the code to print the contrast title above each picture correctly! (unless you used fsl naming) 
-    - before running, in the terminal type 'echo $DISPLAY' and copy the output.
-    - then you need to add a line in your bash_profile: export DISPLAY=output(for me it was ba3:2.0)
-    - always run this script on the cluster.
-    - ask Anisha if you have any questions """
-    
 
 def get_coords(labels, in_file, subsess, fsdir):
     from nibabel import load
@@ -135,19 +129,16 @@ def show_slices(image_in, anat_file, coordinates,thr):
 
 
 
-def img_wkflw(outdir,subsess,fsdir, thr, csize, name='slice_image_generator'):
-    inputspec = pe.Node(util.IdentityInterface(fields=['in_file','mask_file','anat_file','reg_file']),
+def img_wkflw(thr, csize, name='slice_image_generator'):
+    inputspec = pe.Node(util.IdentityInterface(fields=['in_file','mask_file','anat_file','reg_file', 'subject_id','fsdir']),
                         name='inputspec')
     workflow = pe.Workflow(name=name)
-    workflow.base_dir = outdir
     
     #applyreg = pe.MapNode(interface=fs.ApplyVolTransform(),name='applyreg',iterfield=['source_file'])
     #workflow.connect(inputspec,'anat_file',applyreg,'target_file')
     #workflow.connect(inputspec,'in_file',applyreg,'source_file')
     #workflow.connect(inputspec,'reg_file',applyreg,'reg_file')
-    
-    
-    
+
     applymask = pe.MapNode(interface=fsl.ApplyMask(), name='applymask',iterfield=['in_file'])
     workflow.connect(inputspec,'in_file',applymask,'in_file')
     workflow.connect(inputspec,'mask_file',applymask,'mask_file')
@@ -160,8 +151,12 @@ def img_wkflw(outdir,subsess,fsdir, thr, csize, name='slice_image_generator'):
     
     getcoords = pe.MapNode(util.Function(input_names=["labels","in_file",'subsess','fsdir'], output_names = ["coordinates","cs",'locations','percents','meanval'], function= get_coords), iterfield=['labels','in_file']
                           , name="get_coords")   
-    getcoords.inputs.subsess = subsess
-    getcoords.inputs.fsdir = fsdir
+    
+    
+    workflow.connect(inputspec, 'subject_id', getcoords, 'subsess')
+    workflow.connect(inputspec, 'fsdir', getcoords, 'fsdir')
+    
+    
     workflow.connect(getlabels,'labels', getcoords, 'labels')
     workflow.connect(applymask,'out_file',getcoords,'in_file')  
     
@@ -186,93 +181,101 @@ def img_wkflw(outdir,subsess,fsdir, thr, csize, name='slice_image_generator'):
     
     return workflow               
     
-def get_data(subs, maindir, outdir, fsdir,fwhm,name='get_data'):
+def get_data(name='first_level_datagrab'):
     
-    if not os.path.exists(outdir):
-        os.mkdir(outdir)
-    
-    print maindir
-    print outdir
-    workflow = pe.Workflow(name=name)
-    workflow.base_dir = outdir
-    
-    datasource = pe.Node(nio.DataGrabber(infields=['subject_id'], outfields=['func', 'struct','mask','reg']), name='datasource')
-    datasource.inputs.base_directory = outdir
+    datasource = pe.Node(nio.DataGrabber(infields=['subject_id', 'fwhm'], outfields=['func','mask','reg','des_mat','des_mat_cov']), name='datasource')
+
     datasource.inputs.template = '*'
-    print os.path.join(maindir,'/%s/modelfit/contrasts/fwhm_5/*zstat*')
-    print os.path.join(fsdir,'/%s/mri/brain.mgz')
-    print os.path.join(maindir,'/%s/preproc/mask/fwhm_5/funcmask.nii')
-    print os.path.join(maindir,'/%s/preproc/bbreg/*.dat')
-    datasource.inputs.field_template = dict(func=os.path.join(maindir,'%s/modelfit/contrasts/fwhm_'+str(fwhm)+'/*zstat*'),
-                                            struct=os.path.join(fsdir,'%s/mri/brain.mgz'),
-                                            mask = os.path.join(maindir,'%s/preproc/mask/fwhm_'+str(fwhm)+'/funcmask.nii'),
-                                            reg = os.path.join(maindir,'%s/preproc/bbreg/_register0/*.dat'))
-    datasource.inputs.template_args = dict(func=[['subject_id']],
-                                           struct=[['subject_id']], mask=[['subject_id']], reg = [['subject_id']])
-    datasource.inputs.subject_id = subs
-    outputspec = pe.Node(util.IdentityInterface(fields=['func','struct','mask','reg']), name='outputspec')
-                        
     
-    workflow.connect(datasource,'func',outputspec,'func')
-    workflow.connect(datasource,'struct',outputspec,'struct')
-    workflow.connect(datasource,'mask',outputspec,'mask')
-    workflow.connect(datasource,'reg',outputspec,'reg')
+    datasource.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
     
-    return workflow
+    datasource.inputs.field_template = dict(func='%s/modelfit/contrasts/fwhm_'+'%s'+'/*/*zstat*',
+                                            mask = '%s/preproc/mask/'+'*.nii',
+                                            reg = '%s/preproc/bbreg/*.dat',
+                                            des_mat = '%s/modelfit/design/fwhm_%s/*/run?.png',
+                                            des_mat_cov = '%s/modelfit/design/fwhm_%s/*/*cov.png')
+    
+    datasource.inputs.template_args = dict(func=[['subject_id','fwhm']],
+                                           mask=[['subject_id']], 
+                                           reg = [['subject_id']],
+                                           des_mat = [['subject_id','fwhm']],
+                                           des_mat_cov = [['subject_id','fwhm']])
+    return datasource
     
 
     
-def combine_report(subjects,maindir,fsdir,thr=2.326,csize=30,fwhm=5):
-    import os
-    print maindir
-    outdir = maindir+'analyses/func/images'
-    if not os.path.exists(outdir):
-        os.mkdir(outdir)
-    workflow = pe.Workflow(name='volumes')
-    workflow.base_dir = os.path.join(outdir,subjects)
+def combine_report(thr=2.326,csize=30):
     
-    dataflow = get_data(subjects, maindir = os.path.join(maindir,'analyses/func'), fsdir = fsdir, outdir = os.path.join(outdir,subjects),fwhm = fwhm)
+    workflow = pe.Workflow(name='first_level_report')
     
-    imgflow = img_wkflw(os.path.join(outdir,subjects),subjects,fsdir,thr=thr,csize=csize)
+    dataflow = get_data()
     
-    writereport = pe.Node(util.Function( input_names = ["cs","locations","percents", "in_files", "maindir","subjects","meanval","imagefiles","surface_ims",'thr','csize','fwhm'], output_names =["report","elements"], function = write_report), name = "writereport" )
-    writereport.inputs.maindir = outdir
-    writereport.inputs.subjects = subjects
+    infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
+                         name='subject_names')
+    infosource.iterables = ('subject_id', c.subjects)
+    
+    infosource1 = pe.Node(util.IdentityInterface(fields=['fwhm']),
+                         name='fwhms')
+    infosource1.iterables = ('fwhm', c.fwhm)
+    
+    fssource = pe.Node(interface = FreeSurferSource(),name='fssource')
+    
+    workflow.connect(infosource, 'subject_id', dataflow, 'subject_id')
+    workflow.connect(infosource1, 'fwhm', dataflow, 'fwhm')
+    
+    workflow.connect(infosource, 'subject_id', fssource, 'subject_id')
+    fssource.inputs.subjects_dir = c.surf_dir
+    
+    imgflow = img_wkflw(thr=thr,csize=csize)
+    
+    workflow.connect(dataflow,'func',imgflow, 'inputspec.in_file')
+    workflow.connect(dataflow,'mask',imgflow, 'inputspec.mask_file')
+    workflow.connect(dataflow,'reg',imgflow, 'inputspec.reg_file')
+    
+    workflow.connect(fssource,'brain',imgflow, 'inputspec.anat_file')
+    
+    workflow.connect(infosource, 'subject_id', imgflow, 'inputspec.subject_id')
+    imgflow.inputs.inputspec.fsdir = c.surf_dir
+    
+    
+    writereport = pe.Node(util.Function( input_names = ["cs","locations","percents", "in_files", "des_mat_cov","des_mat","subjects","meanval","imagefiles","surface_ims",'thr','csize','fwhm'], output_names =["report","elements"], function = write_report), name = "writereport" )
+    
+    workflow.connect(infosource, 'subject_id', writereport, 'subjects')
+    workflow.connect(infosource1, 'fwhm', writereport, 'fwhm')
+    
     writereport.inputs.thr = thr
     writereport.inputs.csize = csize
-    writereport.inputs.fwhm = fwhm
-        
-    workflow.connect(dataflow,'outputspec.func',imgflow, 'inputspec.in_file')
-    workflow.connect(dataflow,'outputspec.struct',imgflow, 'inputspec.anat_file')
-    workflow.connect(dataflow,'outputspec.mask',imgflow, 'inputspec.mask_file')
-    workflow.connect(dataflow,'outputspec.reg',imgflow, 'inputspec.reg_file')
     
-    
-    makesurfaceplots = pe.Node(util.Function(input_names = ['con_image','reg_file','subject_id','thr'], output_names = ['surface_ims', 'surface_mgzs'], function = make_surface_plots), 
+    makesurfaceplots = pe.Node(util.Function(input_names = ['con_image','reg_file','subject_id','thr','sd'], output_names = ['surface_ims', 'surface_mgzs'], function = make_surface_plots), 
                                name = 'make_surface_plots')
-    makesurfaceplots.inputs.subject_id = subjects
+    
+    workflow.connect(infosource, 'subject_id', makesurfaceplots, 'subject_id')
+    
     makesurfaceplots.inputs.thr = thr
-
+    makesurfaceplots.inputs.sd = c.surf_dir
+    
     sinker = pe.Node(nio.DataSink(), name='sinker')
-    sinker.inputs.base_directory = os.path.join(outdir,subjects)
+    sinker.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
     
-    workflow.connect(dataflow,'outputspec.func',makesurfaceplots,'con_image')
-    workflow.connect(dataflow,'outputspec.reg',makesurfaceplots,'reg_file')
+    workflow.connect(dataflow,'func',makesurfaceplots,'con_image')
+    workflow.connect(dataflow,'reg',makesurfaceplots,'reg_file')
     
+    workflow.connect(dataflow, 'des_mat', writereport, 'des_mat')
+    workflow.connect(dataflow, 'des_mat_cov', writereport, 'des_mat_cov')
     workflow.connect(imgflow, 'outputspec.cs', writereport, 'cs')
     workflow.connect(imgflow, 'outputspec.locations', writereport, 'locations')
     workflow.connect(imgflow, 'outputspec.percents', writereport, 'percents')
     workflow.connect(imgflow, 'outputspec.meanval', writereport, 'meanval')
     workflow.connect(imgflow,'outputspec.imagefiles', writereport, 'imagefiles')
     
-    workflow.connect(dataflow, 'outputspec.func', writereport, 'in_files')
+    workflow.connect(dataflow, 'func', writereport, 'in_files')
     workflow.connect(makesurfaceplots,'surface_ims', writereport, 'surface_ims')
     workflow.connect(writereport,"report",sinker,"report")
     
     
     return workflow
 
-def write_report(cs,locations,percents,in_files,maindir,subjects, meanval, imagefiles, surface_ims, thr, csize, fwhm):
+def write_report(cs,locations,percents,in_files,des_mat,des_mat_cov,subjects, meanval, imagefiles, surface_ims, thr, csize, fwhm):
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer, BaseDocTemplate, Frame, NextPageTemplate, PageBreak, PageTemplate
     from reportlab.pdfgen import canvas
     from reportlab.lib.units import inch
@@ -345,14 +348,16 @@ def write_report(cs,locations,percents,in_files,maindir,subjects, meanval, image
     elements.append(PageBreak())
     
     # Design & Covariance Matrices
-    maindir = os.path.split(maindir)[0]
-
-    des_mat_all = sorted(glob(os.path.join(maindir,subjects,'modelfit','design','fwhm_%d'%fwhm[-1],'*.png')))
-    des_mat_cov = sorted(glob(os.path.join(maindir,subjects,'modelfit','design','fwhm_%d'%fwhm[-1],'*_cov.png')))
-    des_mat = np.setdiff1d(des_mat_all,des_mat_cov)
     
-    print des_mat
-    print des_mat_cov
+    #maindir = os.path.split(maindir)[0]
+
+    #des_mat_all = sorted(glob(os.path.join(maindir,subjects,'modelfit','design','fwhm_%d'%fwhm[-1],'*.png')))
+    #des_mat_cov = sorted(glob(os.path.join(maindir,subjects,'modelfit','design','fwhm_%d'%fwhm[-1],'*_cov.png')))
+    #des_mat = np.setdiff1d(des_mat_all,des_mat_cov)
+    
+    #print des_mat
+    #print des_mat_cov
+    
     for i in range(len(des_mat)):
         ptext = '<font size=10>%s</font>' %('Design Matrix:')   
         elements.append(Paragraph(ptext, styles["Normal"]))
@@ -406,7 +411,7 @@ def write_report(cs,locations,percents,in_files,maindir,subjects, meanval, image
     doc.build(elements)
     return report, elements 
 
-def make_surface_plots(con_image,reg_file,subject_id,thr):  
+def make_surface_plots(con_image,reg_file,subject_id,thr,sd):  
     import matplotlib
     matplotlib.use('Agg')
     #from surfer import Brain
@@ -415,14 +420,13 @@ def make_surface_plots(con_image,reg_file,subject_id,thr):
         
     def make_image(zstat_path,bbreg_path):
         name_path = os.path.join(os.getcwd(),os.path.split(zstat_path)[1]+'_reg_surface.mgh')
-        systemcommand ='mri_vol2surf --mov %s --reg %s --hemi lh --projfrac-max 0 1 0.1 --o %s --out_type mgh'%(zstat_path,bbreg_path,name_path)
+        systemcommand ='mri_vol2surf --mov %s --reg %s --hemi lh --projfrac-max 0 1 0.1 --o %s --out_type mgh --sd %s'%(zstat_path,bbreg_path,name_path, sd)
         print systemcommand
         os.system(systemcommand)
         return name_path
         
     def make_brain(subject_id,image_path):
         from mayavi import mlab
-        #mlab.options.backend = 'Agg'
         from surfer import Brain
         hemi = 'lh'
         surface = 'inflated'
@@ -447,14 +451,25 @@ def make_surface_plots(con_image,reg_file,subject_id,thr):
   
 if __name__ == '__main__':
 
-    subsess = ['SAD_017']
-      
-    for sub in subsess:
-        modelflow = combine_report(sub,maindir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/', fsdir = '/mindhive/xnat/surfaces/sad/')
-        print "###########  RUNNING %s #################"%sub
-        modelflow.run()
+    parser = argparse.ArgumentParser(description="example: \
+                        run resting_preproc.py -c config.py")
+    parser.add_argument('-c','--config',
+                        dest='config',
+                        required=True,
+                        help='location of config file'
+                        )
+    args = parser.parse_args()
+    path, fname = os.path.split(os.path.realpath(args.config))
+    sys.path.append(path)
+    c = __import__(fname.split('.')[0])
 
+    workflow = combine_report()
+    workflow.base_dir = c.working_dir
     
+    if c.run_on_grid:
+        workflow.run(plugin=c.plugin, plugin_args=c.plugin_args)
+    else:
+        workflow.run()
     
     
         

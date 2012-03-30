@@ -161,5 +161,5 @@ Indicates the input fields to be dynamically created
         rep.write()
         # save json
         save_json(os.path.join(outdir, self.inputs.report_name+'.json'), self.inputs._outputs)
-        
+        print "json file " , os.path.join(outdir, self.inputs.report_name+'.json')
         return None

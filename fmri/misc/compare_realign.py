@@ -132,7 +132,8 @@ def compare_workflow(name='compare_realignments'):
     workflow.connect(trans, 'fname', report, 'Translations')
     workflow.connect(rot, 'fname', report, 'Rotations')
     workflow.connect(coef, 'fname', report, 'Correlation_Matrix')
-
+    workflow.connect(infosource,'subject_id',report,'container')
+    
     return workflow
 
 if __name__ == "__main__":
