@@ -139,7 +139,7 @@ Indicates the input fields to be dynamically created
             tempoutdir = outdir
             
             # Add name of input as a title
-            rep.add_text('<b>%s</b>' % key)
+            rep.add_text('<b>%s</b>' % key.replace('_',' '))
             
             # flattening list
             if isinstance(files, list):

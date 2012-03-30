@@ -11,6 +11,16 @@ from nipype.interfaces import freesurfer as fs
 from nipype.interfaces.io import FreeSurferSource
 from nipype.interfaces import fsl
 
+def art_output(art_file):
+    import numpy as np
+    try:
+        out=np.asarray(np.genfromtxt(art_file))
+    except:
+        out=np.asarray([])
+    table=[["file",art_file],["num outliers", str(out.shape)],["timepoints",str(out)]]
+    return table
+        
+
 def plot_ADnorm(ADnorm,TR):
     """ Returns a plot of the composite_norm file output from art
     
