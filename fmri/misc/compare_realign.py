@@ -14,22 +14,6 @@ matplotlib.use('Agg')
 from nipype import config
 config.set('execution', 'remove_unnecessary_outputs', 'false')
 
-def pickfirst(files):
-    """Return first file from a list of files
-
-    Parameters
-    ----------
-    files : list of filenames
-
-    Returns
-    -------
-    file : returns the filename corresponding to the middle run
-    """
-    if isinstance(files, list):
-        return files[0]
-    else:
-        return files
-
 def plot_trans(nipy1,nipy2,fsl,spm):
     import matplotlib.pyplot as plt
     import numpy as np
@@ -97,24 +81,28 @@ def compare_workflow(name='compare_realignments'):
     realign_nipy_no_t.inputs.interleaved = c.Interleaved
     
     
-    realign_mflirt = pe.Node(interface=fsl.MCFLIRT(save_plots=True), name='mcflirt')
+    realign_mflirt = pe.MapNode(interface=fsl.MCFLIRT(save_plots=True), name='mcflirt', iterfield=['in_file'])
     
-    realign_spm = pe.Node(interface=spm.Realign(), name='spm')
+    realign_spm = pe.MapNode(interface=spm.Realign(), name='spm', iterfield=['in_files'])
     
     report = pe.Node(interface=ReportSink(orderfields=['Introduction','Translations','Rotations','Correlation_Matrix']), name='write_report')
     report.inputs.Introduction = 'Comparing realignment nodes for subject %s'%c.subjects[0]
-    report.inputs.base_directory= '.'
+    report.inputs.base_directory= os.path.join(c.sink_dir,'analyses','func')
+    report.inputs.report_name = 'Comparing_Motion'
     
-    rot = pe.Node(util.Function(input_names=['nipy1','nipy2','fsl','spm'],output_names=['fname'],function=plot_rot),name='plot_rot')
+    rot = pe.MapNode(util.Function(input_names=['nipy1','nipy2','fsl','spm'],output_names=['fname'],function=plot_rot),name='plot_rot',
+                     iterfield=['nipy1','nipy2','fsl','spm'])
     
-    trans = pe.Node(util.Function(input_names=['nipy1','nipy2','fsl','spm'],output_names=['fname'],function=plot_trans),name='plot_trans')
+    trans = pe.MapNode(util.Function(input_names=['nipy1','nipy2','fsl','spm'],output_names=['fname'],function=plot_trans),name='plot_trans',
+                       iterfield=['nipy1','nipy2','fsl','spm'])
 
-    coef = pe.Node(util.Function(input_names=['nipy1','nipy2','fsl','spm'],output_names=['fname'],function=corr_mat),name='cor_mat')
+    coef = pe.MapNode(util.Function(input_names=['nipy1','nipy2','fsl','spm'],output_names=['fname'],function=corr_mat),name='cor_mat',
+                      iterfield=['nipy1','nipy2','fsl','spm'])
     
-    workflow.connect(datagrabber, ('func',pickfirst), realign_nipy, 'in_file')
-    workflow.connect(datagrabber, ('func',pickfirst), realign_nipy_no_t, 'in_file')
-    workflow.connect(datagrabber, ('func',pickfirst), realign_mflirt, 'in_file')
-    workflow.connect(datagrabber, ('func',pickfirst), realign_spm, 'in_files')
+    workflow.connect(datagrabber, 'func', realign_nipy, 'in_file')
+    workflow.connect(datagrabber, 'func', realign_nipy_no_t, 'in_file')
+    workflow.connect(datagrabber, 'func', realign_mflirt, 'in_file')
+    workflow.connect(datagrabber, 'func', realign_spm, 'in_files')
     
     workflow.connect(realign_nipy, 'par_file', rot, 'nipy1')
     workflow.connect(realign_nipy_no_t, 'par_file', rot, 'nipy2')
@@ -151,6 +139,9 @@ if __name__ == "__main__":
     sys.path.append(path)
     c = __import__(fname.split('.')[0])
     
-    compare = compare_workflow(name='compare_sad_task')
-    compare.base_dir = os.getcwd()
-    compare.run(plugin='PBS')
+    compare = compare_workflow()
+    compare.base_dir = c.working_dir
+    if c.run_on_grid:
+        compare.run(plugin=c.plugin, plugin_args=c.plugin_args)
+    else:
+        compare.run()

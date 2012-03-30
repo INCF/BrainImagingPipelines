@@ -32,7 +32,7 @@ class ReportSinkInputSpec(DynamicTraitedSpec, BaseInterfaceInputSpec):
     _outputs_order = []
     remove_dest_dir = traits.Bool(False, usedefault=True,
                                   desc='remove dest directory when copying dirs')
-
+    report_name = traits.Str('Report',usedefault=True, desc='Name of report')
     def __setattr__(self, key, value):
         if key not in self.copyable_trait_names():
             if not isdefined(value):
@@ -120,7 +120,7 @@ Indicates the input fields to be dynamically created
                     raise(inst)
         
         # Begin Report
-        rep = report(os.path.abspath(os.path.join(outdir,'Report.pdf')),'Report')
+        rep = report(os.path.abspath(os.path.join(outdir,self.inputs.report_name+'.pdf')),self.inputs.report_name)
         
         # Loop through all inputs
         #for key, files in self.inputs._outputs.items():
