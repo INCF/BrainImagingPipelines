@@ -133,11 +133,6 @@ def img_wkflw(thr, csize, name='slice_image_generator'):
     inputspec = pe.Node(util.IdentityInterface(fields=['in_file','mask_file','anat_file','reg_file', 'subject_id','fsdir']),
                         name='inputspec')
     workflow = pe.Workflow(name=name)
-    
-    #applyreg = pe.MapNode(interface=fs.ApplyVolTransform(),name='applyreg',iterfield=['source_file'])
-    #workflow.connect(inputspec,'anat_file',applyreg,'target_file')
-    #workflow.connect(inputspec,'in_file',applyreg,'source_file')
-    #workflow.connect(inputspec,'reg_file',applyreg,'reg_file')
 
     applymask = pe.MapNode(interface=fsl.ApplyMask(), name='applymask',iterfield=['in_file'])
     workflow.connect(inputspec,'in_file',applymask,'in_file')
@@ -347,17 +342,6 @@ def write_report(cs,locations,percents,in_files,des_mat,des_mat_cov,subjects, me
     elements.append(Spacer(1, 12)) 
     elements.append(PageBreak())
     
-    # Design & Covariance Matrices
-    
-    #maindir = os.path.split(maindir)[0]
-
-    #des_mat_all = sorted(glob(os.path.join(maindir,subjects,'modelfit','design','fwhm_%d'%fwhm[-1],'*.png')))
-    #des_mat_cov = sorted(glob(os.path.join(maindir,subjects,'modelfit','design','fwhm_%d'%fwhm[-1],'*_cov.png')))
-    #des_mat = np.setdiff1d(des_mat_all,des_mat_cov)
-    
-    #print des_mat
-    #print des_mat_cov
-    
     for i in range(len(des_mat)):
         ptext = '<font size=10>%s</font>' %('Design Matrix:')   
         elements.append(Paragraph(ptext, styles["Normal"]))
@@ -466,10 +450,14 @@ if __name__ == '__main__':
     workflow = combine_report()
     workflow.base_dir = c.working_dir
     
-    if c.run_on_grid:
-        workflow.run(plugin=c.plugin, plugin_args=c.plugin_args)
+
+    if not os.environ['SUBJECTS_DIR'] == c.surf_dir:
+        print "Your SUBJECTS_DIR is incorrect!"
+        print "export SUBJECTS_DIR=%s"%c.surf_dir
+        
     else:
-        workflow.run()
-    
-    
+        if c.run_on_grid:
+            workflow.run(plugin=c.plugin, plugin_args=c.plugin_args)
+        else:
+            workflow.run()
         
