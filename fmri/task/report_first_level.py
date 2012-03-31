@@ -14,7 +14,8 @@ import nipype.interfaces.freesurfer as fs
 import argparse
 import sys
 from nipype.interfaces.io import FreeSurferSource
-
+sys.path.insert(0,'..')
+from utils import pickfirst
 
 def get_coords(labels, in_file, subsess, fsdir):
     from nibabel import load
@@ -223,7 +224,22 @@ def combine_report(thr=2.326,csize=30):
     
     imgflow = img_wkflw(thr=thr,csize=csize)
     
-    workflow.connect(dataflow,'func',imgflow, 'inputspec.in_file')
+    # adding cluster correction before sending to imgflow
+    
+    smoothest = pe.MapNode(fsl.SmoothEstimate(), name='smooth_estimate', iterfield=['zstat_file'])
+    workflow.connect(dataflow,'func', smoothest, 'zstat_file')
+    workflow.connect(dataflow,'mask',smoothest, 'mask_file')
+    
+    cluster = pe.MapNode(fsl.Cluster(), name='cluster', iterfield=['in_file','dlh','volume'])
+    workflow.connect(smoothest,'dlh', cluster, 'dlh')
+    workflow.connect(smoothest, 'volume', cluster, 'volume')
+    cluster.inputs.connectivity = csize
+    cluster.inputs.threshold = thr
+    cluster.inputs.out_threshold_file = True
+    workflow.connect(dataflow,'func',cluster,'in_file')
+    
+    workflow.connect(cluster, 'threshold_file',imgflow,'inputspec.in_file')
+    #workflow.connect(dataflow,'func',imgflow, 'inputspec.in_file')
     workflow.connect(dataflow,'mask',imgflow, 'inputspec.mask_file')
     workflow.connect(dataflow,'reg',imgflow, 'inputspec.reg_file')
     
@@ -252,6 +268,7 @@ def combine_report(thr=2.326,csize=30):
     sinker = pe.Node(nio.DataSink(), name='sinker')
     sinker.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
     
+    workflow.connect(infosource,'subject_id',sinker,'container')
     workflow.connect(dataflow,'func',makesurfaceplots,'con_image')
     workflow.connect(dataflow,'reg',makesurfaceplots,'reg_file')
     
@@ -332,7 +349,7 @@ def write_report(cs,locations,percents,in_files,des_mat,des_mat_cov,subjects, me
     contrasts = []
     for fil in in_files:
         pt = os.path.split(fil)[1]
-        contrasts.append(pt[18:-7]) # This is where the contrast name is extracted from the file name! change the indices if it doesn't look nice
+        contrasts.append(pt) 
         ptext = '<font size=10>%s</font>' %pt   
         elements.append(Paragraph(ptext, styles["Normal"]))
         elements.append(Spacer(1, 12))     
@@ -457,7 +474,7 @@ if __name__ == '__main__':
         
     else:
         if c.run_on_grid:
-            workflow.run(plugin=c.plugin, plugin_args=c.plugin_args)
+            workflow.run(plugin=c.plugin, plugin_args=c.plugin_args['qsub_args']+'-X')
         else:
             workflow.run()
         

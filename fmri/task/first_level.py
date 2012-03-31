@@ -133,7 +133,7 @@ def combine_wkflw(c, name='work_dir'):
     
     # create a node to create the subject info
     s = pe.Node(SpecifyModel(),name='s')
-    s.inputs.input_units =                              'secs'
+    s.inputs.input_units =                              c.input_units
     s.inputs.time_repetition =                          c.TR
     s.inputs.high_pass_filter_cutoff =                  c.hpcutoff
     #subjinfo =                                          subjectinfo(subj)
