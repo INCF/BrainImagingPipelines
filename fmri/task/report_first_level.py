@@ -359,6 +359,11 @@ def write_report(cs,locations,percents,in_files,des_mat,des_mat_cov,subjects, me
     elements.append(Spacer(1, 12)) 
     elements.append(PageBreak())
     
+    if not isinstance(des_mat,list):
+        des_mat = [des_mat]
+    if not isinstance(des_mat_cov,list):
+        des_mat_cov = [des_mat_cov]
+    
     for i in range(len(des_mat)):
         ptext = '<font size=10>%s</font>' %('Design Matrix:')   
         elements.append(Paragraph(ptext, styles["Normal"]))

@@ -33,7 +33,6 @@ def preproc_datagrabber(name='preproc_datagrabber'):
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id','fwhm'],
                                                    outfields=['noise_components',
                                                               'motion_parameters',
-                                                               'highpassed_files',
                                                                'outlier_files',
                                                                'art_norm',
                                                                'tsnr',
@@ -44,9 +43,7 @@ def preproc_datagrabber(name='preproc_datagrabber'):
                          name = name)
     datasource.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
     datasource.inputs.template ='*'
-    datasource.inputs.field_template = dict(noise_components='%s/preproc/noise_components/*/noise_components.txt',
-                                            motion_parameters='%s/preproc/motion/*.par',
-                                            highpassed_files='%s/preproc/highpass/fwhm_%d/*/*.nii.gz',
+    datasource.inputs.field_template = dict(motion_parameters='%s/preproc/motion/*.par',
                                             outlier_files='%s/preproc/art/*_outliers.txt',
                                             art_norm='%s/preproc/art/norm.*.txt',
                                             tsnr='%s/preproc/tsnr/*_tsnr.nii.gz',
@@ -54,13 +51,10 @@ def preproc_datagrabber(name='preproc_datagrabber'):
                                             tsnr_stddev='%s/preproc/tsnr/*tsnr_stddev.nii.gz',
                                             reg_file='%s/preproc/bbreg/*.dat',
                                             motion_plots='%s/preproc/motion/*.png')
-    datasource.inputs.template_args = dict(noise_components=[['subject_id']],
-                                           motion_parameters=[['subject_id']],
-                                           highpassed_files=[['subject_id','fwhm']],
+    datasource.inputs.template_args = dict(motion_parameters=[['subject_id']],
                                            outlier_files=[['subject_id']],
                                            art_norm=[['subject_id']],
                                            tsnr=[['subject_id']],
-                                           tsnr_detrended=[['subject_id']],
                                            tsnr_stddev=[['subject_id']],
                                            reg_file=[['subject_id']],
                                            motion_plots=[['subject_id']])
@@ -79,7 +73,11 @@ def start_config_table():
     table.append(['Art: norm thresh',str(c.norm_thresh)])
     table.append(['Art: z thresh',str(c.z_thresh)])
     table.append(['fwhm',str(c.fwhm)])
-    table.append(['Highpass cutoff',str(c.hpcutoff)])
+    try:
+        table.append(['Highpass cutoff',str(c.hpcutoff)])
+    except:
+        table.append(['highpass sigma',str(c.highpass_sigma)])
+        table.append(['lowpass sigma',str(c.lowpass_sigma)])
     return table
 
 def overlay_new(stat_image,background_image):
@@ -163,7 +161,6 @@ def QA_workflow(name='QA'):
                                                                  'art_file',
                                                                  'motion_plots',
                                                                  'reg_file',
-                                                                 'tsnr_detrended',
                                                                  'tsnr',
                                                                  'tsnr_mean',
                                                                  'tsnr_stddev',
@@ -192,7 +189,6 @@ def QA_workflow(name='QA'):
     workflow.connect(datagrabber, 'outlier_files', inputspec, 'art_file')
     workflow.connect(datagrabber, 'motion_plots', inputspec, 'motion_plots')
     workflow.connect(datagrabber, 'reg_file', inputspec, 'reg_file')
-    workflow.connect(datagrabber, 'tsnr_detrended', inputspec, 'tsnr_detrended')
     workflow.connect(datagrabber, 'tsnr', inputspec, 'tsnr')
     workflow.connect(datagrabber, 'tsnr_stddev', inputspec, 'tsnr_stddev')
     workflow.connect(datagrabber, 'art_norm', inputspec, 'ADnorm')
