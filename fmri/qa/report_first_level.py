@@ -16,6 +16,10 @@ import sys
 from nipype.interfaces.io import FreeSurferSource
 sys.path.insert(0,'..')
 from utils import pickfirst
+sys.path.insert(0,'../../utils')
+from reportsink.io import ReportSink
+from QA_utils import tsnr_roi
+
 
 def get_coords(labels, in_file, subsess, fsdir):
     from nibabel import load
@@ -179,7 +183,7 @@ def img_wkflw(thr, csize, name='slice_image_generator'):
     
 def get_data(name='first_level_datagrab'):
     
-    datasource = pe.Node(nio.DataGrabber(infields=['subject_id', 'fwhm'], outfields=['func','mask','reg','des_mat','des_mat_cov']), name='datasource')
+    datasource = pe.Node(nio.DataGrabber(infields=['subject_id', 'fwhm'], outfields=['func','mask','reg','des_mat','des_mat_cov','detrended']), name='datasource')
 
     datasource.inputs.template = '*'
     
@@ -188,12 +192,14 @@ def get_data(name='first_level_datagrab'):
     datasource.inputs.field_template = dict(func='%s/modelfit/contrasts/fwhm_'+'%s'+'/*/*zstat*',
                                             mask = '%s/preproc/mask/'+'*.nii',
                                             reg = '%s/preproc/bbreg/*.dat',
+                                            detrended = '%s/preproc/tsnr/*detrended.nii.gz',
                                             des_mat = '%s/modelfit/design/fwhm_%s/*/run?.png',
                                             des_mat_cov = '%s/modelfit/design/fwhm_%s/*/*cov.png')
     
     datasource.inputs.template_args = dict(func=[['subject_id','fwhm']],
                                            mask=[['subject_id']], 
                                            reg = [['subject_id']],
+                                           detrended = [['subject_id']],
                                            des_mat = [['subject_id','fwhm']],
                                            des_mat_cov = [['subject_id','fwhm']])
     return datasource
@@ -248,10 +254,28 @@ def combine_report(thr=2.326,csize=30):
     workflow.connect(infosource, 'subject_id', imgflow, 'inputspec.subject_id')
     imgflow.inputs.inputspec.fsdir = c.surf_dir
     
+    writereport = pe.Node(util.Function( input_names = ["cs","locations","percents", "in_files", "des_mat_cov","des_mat","subjects","meanval","imagefiles","surface_ims",'thr','csize','fwhm','onset_images'], output_names =["report","elements"], function = write_report), name = "writereport" )
     
-    writereport = pe.Node(util.Function( input_names = ["cs","locations","percents", "in_files", "des_mat_cov","des_mat","subjects","meanval","imagefiles","surface_ims",'thr','csize','fwhm'], output_names =["report","elements"], function = write_report), name = "writereport" )
+    
+    # add plot detrended timeseries with onsets if block
+    if c.is_block_design:
+        plottseries = tsnr_roi(plot=True)
+        plottseries.inputs.inputspec.TR = c.TR
+        workflow.connect(dataflow,'reg',plottseries, 'inputspec.reg_file')
+        workflow.connect(fssource, ('aparc_aseg',pickfirst), plottseries, 'inputspec.aparc_aseg')
+        workflow.connect(infosource, 'subject_id', plottseries, 'inputspec.subject')
+        workflow.connect(dataflow, 'detrended', plottseries,'inputspec.tsnr_file')
+        workflow.connect(infosource,('subject_id',c.subjectinfo),plottseries,'inputspec.onsets')
+        workflow.connect(plottseries,'outputspec.out_file',writereport,'onset_images')
+    
+    
+    
+    
+    #writereport = pe.Node(interface=ReportSink(),name='reportsink')
+    #writereport.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
     
     workflow.connect(infosource, 'subject_id', writereport, 'subjects')
+    #workflow.connect(infosource, 'subject_id', writereport, 'container')
     workflow.connect(infosource1, 'fwhm', writereport, 'fwhm')
     
     writereport.inputs.thr = thr
@@ -287,7 +311,10 @@ def combine_report(thr=2.326,csize=30):
     
     return workflow
 
-def write_report(cs,locations,percents,in_files,des_mat,des_mat_cov,subjects, meanval, imagefiles, surface_ims, thr, csize, fwhm):
+def write_report(cs,locations,percents,in_files,
+                 des_mat,des_mat_cov,subjects, meanval, 
+                 imagefiles, surface_ims, thr, csize, fwhm,
+                 onset_images):
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer, BaseDocTemplate, Frame, NextPageTemplate, PageBreak, PageTemplate
     from reportlab.pdfgen import canvas
     from reportlab.lib.units import inch
@@ -378,6 +405,17 @@ def write_report(cs,locations,percents,in_files,des_mat,des_mat_cov,subjects, me
         im = get_and_scale(des_mat_cov[i],.6)
         elements.append(im)    
         elements.append(PageBreak())
+    
+    if onset_images:
+        for image in onset_images:
+            if isinstance(image,list):
+                for im0 in image:
+                    im = get_and_scale(im0)
+                    elements.append(im)
+            else:
+                im = get_and_scale(image)
+                elements.append(im)
+                
     
     for i, con_cs in enumerate(cs):
         data = [['Size','Location','Ratio','Mean(z)','Image']]

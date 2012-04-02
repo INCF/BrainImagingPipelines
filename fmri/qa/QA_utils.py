@@ -54,7 +54,7 @@ def plot_ADnorm(ADnorm,TR):
     plt.close()
     return plot
     
-def tsnr_roi(roi=[1021],name='roi_flow',plot=False):
+def tsnr_roi(roi=[1021],name='roi_flow',plot=False, onsets=False):
     """ Return a workflow that outputs either a graph of the average \
         
     timseries of each roi specified OR a table of average value across \
@@ -93,7 +93,8 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False):
                                                                  'tsnr_file',
                                                                  'TR',
                                                                  'aparc_aseg',
-                                                                 'subject']),name='inputspec')
+                                                                 'subject',
+                                                                 'onsets']),name='inputspec')
     
     voltransform = pe.MapNode(interface=ApplyVolTransform(inverse=True, interp='nearest'),name='applyreg', iterfield=['source_file'])
     
@@ -137,13 +138,17 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False):
     preproc.connect(statsflow, 'segstats.avgwf_txt_file', roistripper, 'roi_file')
     preproc.connect(statsflow, 'segstats.summary_file', roistripper, 'summary_file')
 
-    roiplotter = pe.MapNode(util.Function(input_names=['statsfile', 'roi','TR','plot'],
+    roiplotter = pe.MapNode(util.Function(input_names=['statsfile', 'roi','TR','plot','onsets'],
                                        output_names=['Fname','AvgRoi'],
                                        function=plot_timeseries),
                           name='roiplotter', iterfield=['statsfile'])
     roiplotter.inputs.roi = roi
     preproc.connect(inputspec,'TR',roiplotter,'TR')
     roiplotter.inputs.plot = plot
+    if onsets:
+        preproc.connect(inputspec,'onsets',roiplotter,'onsets')
+    else:
+        roiplotter.inputs.onsets = None
 
     preproc.connect(roistripper,'roi_file',roiplotter,'statsfile')
     outputspec = pe.Node(interface=util.IdentityInterface(fields=['out_file','roi_table']),name='outputspec')
@@ -171,7 +176,7 @@ def tsdiffana(img):
     plt.close()
     return out_file
 
-def plot_timeseries(roi,statsfile,TR,plot):
+def plot_timeseries(roi,statsfile,TR,plot,onsets):
     """ Returns a plot of an averaged timeseries across an roi
     
     Parameters
@@ -225,7 +230,10 @@ def plot_timeseries(roi,statsfile,TR,plot):
                 X = np.array(range(len(nums)))*TR
                 plt.figure(1)
                 p1 = plt.plot(X,nums)
-                    
+                
+                if onsets:
+                    p2 = plt.plot(onsets)
+                
                 plt.title(title)
                 plt.xlabel('time (s)')
                 plt.ylabel('signal')

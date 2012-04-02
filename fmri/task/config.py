@@ -45,11 +45,11 @@ crash_dir : Location to store crash files
 
 working_dir = '/mindhive/scratch/keshavan/sad/task'
 
-base_dir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/data/'
+base_dir = '/mnt/gablab/sad/PY_STUDY_DIR/Block/data/'
 
-sink_dir = '/mindhive/gablab/sad/bips/task'
+sink_dir = '/mnt/gablab/sad/bips/task'
 
-field_dir = '/mindhive/gablab/sad/Data_reorganized'
+field_dir = '/mnt/gablab/sad/Data_reorganized'
 
 surf_dir = '/mindhive/xnat/surfaces/sad/'
 
@@ -100,7 +100,6 @@ patients = ['SAD_P03', 'SAD_P04', 'SAD_P05', 'SAD_P07', 'SAD_P08', 'SAD_P09',
 subjects = ['SAD_024']#controls+patients
 
 run_on_grid = True
-
 plugin = 'PBS'
 
 plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
@@ -231,6 +230,8 @@ interscan_interval = 2
 film_threshold = 1000
 
 overlaythresh = (3.09, 10.00)
+
+is_block_design = True
 
 """
 Functions
