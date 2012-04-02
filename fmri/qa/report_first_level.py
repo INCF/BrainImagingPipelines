@@ -267,7 +267,8 @@ def combine_report(thr=2.326,csize=30):
         workflow.connect(dataflow, 'detrended', plottseries,'inputspec.tsnr_file')
         workflow.connect(infosource,('subject_id',c.subjectinfo),plottseries,'inputspec.onsets')
         workflow.connect(plottseries,'outputspec.out_file',writereport,'onset_images')
-    
+    else:
+        writereport.inputs.onset_images = None
     
     
     

@@ -102,7 +102,6 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False, onsets=False):
     
     preproc.connect(inputspec,'reg_file',voltransform,'reg_file')
     
-    #voltransform.inputs.target_file = os.path.join(sd,subject,'mri/aparc+aseg.mgz')
     preproc.connect(inputspec,'aparc_aseg',voltransform,'target_file')
     
     statsflow = create_get_stats_flow()
@@ -232,7 +231,11 @@ def plot_timeseries(roi,statsfile,TR,plot,onsets):
                 p1 = plt.plot(X,nums)
                 
                 if onsets:
-                    p2 = plt.plot(onsets)
+                    # onsets is a Bunch with "names", "onsets" and "durations".
+                    for B in onsets:
+                        p = []*len(B.onsets)
+                        for i, ons in enumerate(B.onsets):
+                            p[i] = plt.plot(ons,nums[ons])
                 
                 plt.title(title)
                 plt.xlabel('time (s)')
