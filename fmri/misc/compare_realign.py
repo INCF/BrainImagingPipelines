@@ -1,3 +1,7 @@
+import nipype.interfaces.matlab as mlab
+mlab.MatlabCommand.set_default_matlab_cmd("matlab -nodesktop -nosplash")
+mlab.MatlabCommand.set_default_paths('/software/spm8_4290')
+
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import nipype.interfaces.io as nio
