@@ -11,6 +11,16 @@ from nipype.interfaces import freesurfer as fs
 from nipype.interfaces.io import FreeSurferSource
 from nipype.interfaces import fsl
 
+def art_output(art_file):
+    import numpy as np
+    try:
+        out=np.asarray(np.genfromtxt(art_file))
+    except:
+        out=np.asarray([])
+    table=[["file",art_file],["num outliers", str(out.shape)],["timepoints",str(out)]]
+    return table
+        
+
 def plot_ADnorm(ADnorm,TR):
     """ Returns a plot of the composite_norm file output from art
     
@@ -35,16 +45,16 @@ def plot_ADnorm(ADnorm,TR):
     plot = os.path.abspath('plot_'+os.path.split(ADnorm)[1]+'.png')
     
     data = np.genfromtxt(ADnorm)
-    print data.shape    
     plt.figure(1,figsize = (8,3))
     X = np.array(range(data.shape[0]))*TR
     plt.plot(X,data)
     plt.xlabel('Time (s)')
     plt.ylabel('Composite Norm')
     plt.savefig(plot)
+    plt.close()
     return plot
     
-def tsnr_roi(roi=[1021],name='roi_flow',plot=False):
+def tsnr_roi(roi=[1021],name='roi_flow',plot=False, onsets=False):
     """ Return a workflow that outputs either a graph of the average \
         
     timseries of each roi specified OR a table of average value across \
@@ -82,17 +92,17 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False):
     inputspec = pe.Node(interface=util.IdentityInterface(fields=['reg_file',
                                                                  'tsnr_file',
                                                                  'TR',
+                                                                 'aparc_aseg',
                                                                  'subject',
-                                                                 'sd']),name='inputspec')
+                                                                 'onsets']),name='inputspec')
     
-    voltransform = pe.Node(interface=ApplyVolTransform(inverse=True, interp='nearest'),name='applyreg')
+    voltransform = pe.MapNode(interface=ApplyVolTransform(inverse=True, interp='nearest'),name='applyreg', iterfield=['source_file'])
     
     preproc.connect(inputspec,'tsnr_file',voltransform,'source_file')
     
     preproc.connect(inputspec,'reg_file',voltransform,'reg_file')
     
-    voltransform.inputs.target_file = os.path.join(sd,subject,'mri/aparc+aseg.mgz')
-    
+    preproc.connect(inputspec,'aparc_aseg',voltransform,'target_file')
     
     statsflow = create_get_stats_flow()
     preproc.connect(voltransform,'transformed_file',statsflow,'inputspec.label_file')
@@ -103,8 +113,8 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False):
     def strip_ids(subject_id, summary_file, roi_file):
         import numpy as np
         import os
-        roi_idx = np.genfromtxt(summary_file[0])[:,1].astype(int)
-        roi_vals = np.genfromtxt(roi_file[0])
+        roi_idx = np.genfromtxt(summary_file)[:,1].astype(int)
+        roi_vals = np.genfromtxt(roi_file)
         rois2skip = [0, 2, 4, 5, 7, 14, 15, 24, 30, 31, 41, 43, 44, 46,
                      62, 63, 77, 80, 85, 1000, 2000]
         ids2remove = []
@@ -117,26 +127,32 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False):
         np.savetxt(filename, newvals, '%.4f', delimiter=',')
         return filename
 
-    roistripper = pe.Node(util.Function(input_names=['subject_id', 'summary_file', 'roi_file'],
+    roistripper = pe.MapNode(util.Function(input_names=['subject_id', 'summary_file', 'roi_file'],
                                        output_names=['roi_file'],
                                        function=strip_ids),
-                          name='roistripper')
-    roistripper.inputs.subject_id = subject
-
+                          name='roistripper', iterfield=['summary_file','roi_file'])
+    
+    preproc.connect(inputspec,'subject',roistripper,'subject_id')
+    
     preproc.connect(statsflow, 'segstats.avgwf_txt_file', roistripper, 'roi_file')
     preproc.connect(statsflow, 'segstats.summary_file', roistripper, 'summary_file')
 
-    roiplotter = pe.Node(util.Function(input_names=['statsfile', 'roi','TR','plot'],
+    roiplotter = pe.MapNode(util.Function(input_names=['statsfile', 'roi','TR','plot','onsets'],
                                        output_names=['Fname','AvgRoi'],
                                        function=plot_timeseries),
-                          name='roiplotter')
+                          name='roiplotter', iterfield=['statsfile'])
     roiplotter.inputs.roi = roi
-    roiplotter.inputs.TR = TR
+    preproc.connect(inputspec,'TR',roiplotter,'TR')
     roiplotter.inputs.plot = plot
+    if onsets:
+        preproc.connect(inputspec,'onsets',roiplotter,'onsets')
+    else:
+        roiplotter.inputs.onsets = None
 
     preproc.connect(roistripper,'roi_file',roiplotter,'statsfile')
-    outputspec = pe.Node(interface=util.IdentityInterface(fields=['out_file']),name='outputspec')
+    outputspec = pe.Node(interface=util.IdentityInterface(fields=['out_file','roi_table']),name='outputspec')
     preproc.connect(roiplotter,'Fname',outputspec,'out_file')
+    preproc.connect(roiplotter,'AvgRoi',outputspec,'roi_table')
 
     return preproc
     
@@ -156,10 +172,10 @@ def tsdiffana(img):
     x = plt.sca(axes[0])
     plt.savefig(of,dpi=300)
     out_file.append(of)
-    
+    plt.close()
     return out_file
 
-def plot_timeseries(roi,statsfile,TR,plot):
+def plot_timeseries(roi,statsfile,TR,plot,onsets):
     """ Returns a plot of an averaged timeseries across an roi
     
     Parameters
@@ -207,36 +223,39 @@ def plot_timeseries(roi,statsfile,TR,plot):
         
         if temp:
             #find roi name for plot title
-            print roinum.shape
-            print R, roiname[roinum==str(np.int_(R))]
             title = roiname[roinum==str(np.int_(R))][0]
             if plot:
                 nums = list(stats[i])[1:]
                 X = np.array(range(len(nums)))*TR
                 plt.figure(1)
                 p1 = plt.plot(X,nums)
-                    
+                
+                if onsets:
+                    # onsets is a Bunch with "names", "onsets" and "durations".
+                    for B in onsets:
+                        p = []*len(B.onsets)
+                        for i, ons in enumerate(B.onsets):
+                            p[i] = plt.plot(ons,nums[ons])
+                
                 plt.title(title)
                 plt.xlabel('time (s)')
                 plt.ylabel('signal')
                 fname = os.path.join(os.getcwd(),os.path.split(statsfile)[1][:-4]+'_'+title+'.png')
                 plt.savefig(fname,dpi=200)
                 plt.close()
-                print fname
                 Fname.append(fname)
             else:
                 AvgRoi.append([title,np.mean(list(stats[i])[1])])
         else:
             print "roi %s not found!"%R
-  
     return Fname, AvgRoi
 
 
-def combine_table(roimean,roidev,roisnr):
-    if len(roimean) == len(roidev) and len(roimean) == len(roisnr):
+def combine_table(roidev,roisnr):
+    if len(roisnr) == len(roidev):
         for i, roi in enumerate(roisnr):
             # merge mean and stddev table
-            roi.append(roimean[i][1])
+            roi.append(roidev[i][1]*roisnr[i][1])
             roi.append(roidev[i][1])
             
         roisnr.sort(key=lambda x:x[1])

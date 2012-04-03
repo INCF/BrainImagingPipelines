@@ -14,80 +14,116 @@ from nipype.interfaces.io import FreeSurferSource
 from nipype.interfaces import fsl
 #from nipype.utils.config import config
 #config.enable_debug_mode()
-from QA_utils import plot_ADnorm, tsdiffana
+from QA_utils import plot_ADnorm, tsdiffana, tsnr_roi, combine_table, art_output
 import sys
 sys.path.insert(0,'../../utils/')
 from reportsink.io import ReportSink
+import argparse
 
 totable = lambda x: [[x]]
+to1table = lambda x: [x]
+pickfirst = lambda x: x[0]
 
-def reporter(in_file,art_file,config_params,motion_plots,tsdiffana,
-             ADnorm, overlayMean):
-             #roiplot,tsnr_roi_table, ADnorm, overlayMean):
-    from write_report import report # This is located in ~keshavan/lib/python
-    import numpy as np
-    import os
-    # first some handy functions
-    def count_outs(art_file):   
-        try:
-            a = np.genfromtxt(art_file)
-            if a.shape ==():
-                num_arts = 1
-                arts = [a]
-            else:
-                num_arts = a.shape[0]
-                arts = a
-        except:
-            num_arts = 0
-            arts = []
-        return arts, num_arts
+def get_config_params(subject_id, table):
+        table.insert(0,['subject_id',subject_id])
+        return table
+
+def preproc_datagrabber(name='preproc_datagrabber'):
+    # create a node to obtain the preproc files
+    datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id','fwhm'],
+                                                   outfields=['noise_components',
+                                                              'motion_parameters',
+                                                               'outlier_files',
+                                                               'art_norm',
+                                                               'tsnr',
+                                                               'tsnr_detrended',
+                                                               'tsnr_stddev',
+                                                               'reg_file',
+                                                               'motion_plots']),
+                         name = name)
+    datasource.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
+    datasource.inputs.template ='*'
+    datasource.inputs.field_template = dict(motion_parameters='%s/preproc/motion/*.par',
+                                            outlier_files='%s/preproc/art/*_outliers.txt',
+                                            art_norm='%s/preproc/art/norm.*.txt',
+                                            tsnr='%s/preproc/tsnr/*_tsnr.nii.gz',
+                                            tsnr_detrended='%s/preproc/tsnr/*_detrended.nii.gz',
+                                            tsnr_stddev='%s/preproc/tsnr/*tsnr_stddev.nii.gz',
+                                            reg_file='%s/preproc/bbreg/*.dat',
+                                            motion_plots='%s/preproc/motion/*.png')
+    datasource.inputs.template_args = dict(motion_parameters=[['subject_id']],
+                                           outlier_files=[['subject_id']],
+                                           art_norm=[['subject_id']],
+                                           tsnr=[['subject_id']],
+                                           tsnr_stddev=[['subject_id']],
+                                           reg_file=[['subject_id']],
+                                           motion_plots=[['subject_id']])
+    return datasource
+
+
+def start_config_table():
+    table = []
+    table.append(['TR',str(c.TR)])
+    table.append(['Slice Order',str(c.SliceOrder)])
+    table.append(['Interleaved',str(c.Interleaved)])
+    if c.use_fieldmap:
+        table.append(['Echo Spacing',str(c.echospacing)])
+        table.append(['Fieldmap Smoothing',str(c.sigma)])
+        table.append(['TE difference',str(c.TE_diff)])
+    table.append(['Art: norm thresh',str(c.norm_thresh)])
+    table.append(['Art: z thresh',str(c.z_thresh)])
+    table.append(['fwhm',str(c.fwhm)])
+    try:
+        table.append(['Highpass cutoff',str(c.hpcutoff)])
+    except:
+        table.append(['highpass sigma',str(c.highpass_sigma)])
+        table.append(['lowpass sigma',str(c.lowpass_sigma)])
+    return table
+
+def overlay_new(stat_image,background_image):
+    import os.path
+    import pylab as pl
+    from nibabel import load
+    from nipy.labs import viz
+    from pylab import colorbar, gca, axes
+    # Second example, with a given anatomical image slicing in the Z
+    # direction
     
-    rep = report(os.path.abspath('QA_Report.pdf'),'Quality Assurance Report')
-    rep.add_text('<b>In files: </b>')
-    for f in in_file:
-        rep.add_text(f)
-       
-    # config
-    rep.add_text('<b>Configuration</b>:')  
-    rep.add_table(config_params)
-          
-    # Artifact Detection    
-    rep.add_text('<b>Artifact Detection: </b>')
-    arts, num_arts = count_outs(art_file)
-    rep.add_text('Number of artifacts: %s'%str(num_arts))
-    rep.add_text('Timepoints: %s'%str(arts))
+    fnames = [os.path.abspath('z_view.png'),
+             os.path.abspath('x_view.png'),
+             os.path.abspath('y_view.png')]
+            
+    formatter='%.2f'
+    img = load(stat_image)
+    data, affine = img.get_data(), img.get_affine()
     
-    # Motion plots
-    rep.add_text('<b>Motion Plots: </b>')
-    for m in motion_plots:
-        rep.add_image(m)
+    anat_img = load(background_image)
+    anat = anat_img.get_data()
+    anat_affine = anat_img.get_affine()
+
+    viz.plot_map(data, affine, anat=anat, anat_affine=anat_affine,
+                 slicer='z', threshold=10, cmap=viz.cm._cm.hot)
+    cb = colorbar(gca().get_images()[1], cax=axes([0.3, 0.00, 0.4, 0.07]),
+                         orientation='horizontal', format=formatter)
+    cb.set_ticks([cb._values.min(), cb._values.max()])
+    pl.savefig(fnames[0],bbox_inches='tight')
+
+    viz.plot_map(data, affine, anat=anat, anat_affine=anat_affine,
+                 slicer='x', threshold=10, cmap=viz.cm._cm.hot)
+    cb = colorbar(gca().get_images()[1], cax=axes([0.3, -0.06, 0.4, 0.07]), 
+                         orientation='horizontal', format=formatter)
+    cb.set_ticks([cb._values.min(), cb._values.max()])
+    pl.savefig(fnames[1],bbox_inches='tight')
+
+    viz.plot_map(data, affine, anat=anat, anat_affine=anat_affine,
+                 slicer='y', threshold=10, cmap=viz.cm._cm.hot)
+    cb = colorbar(gca().get_images()[1], cax=axes([0.3, -0.08, 0.4, 0.07]), 
+                         orientation='horizontal', format=formatter)
+    cb.set_ticks([cb._values.min(), cb._values.max()])
+    pl.savefig(fnames[2],bbox_inches='tight')
     
-    # Composite Norm plot
-    rep.add_text('<b>Composite Norm Plot: </b>')
-    rep.add_image(ADnorm,scale=1)
-    
-    # TSNR overlay
-    rep.add_text('<b>TSNR Overlay: </b>')
-    rep.add_image(overlayMean,scale=0.8)
-    
-    #tsdiffana
-    rep.add_pagebreak()
-    rep.add_text('<b>Time Series Diagnostics: </b>')
-    for tsdiff in tsdiffana:
-        rep.add_image(tsdiff[0])
-        
-    # ROI mean table
-    #rep.add_text('<b>TSNR Mean and Standard Deviation: </b>')
-    #rep.add_table(tsnr_roi_table)
-    
-    # ROI plots
-    #rep.add_text('<b>ROI plots: </b>')
-    #for pl in roiplot:
-    #    rep.add_image(pl,scale=0.6)
-        
-    fname = rep.write()
-    return fname
-    
+    return fnames
+
     
 
 def QA_workflow(name='QA'):
@@ -119,15 +155,12 @@ def QA_workflow(name='QA'):
         
     workflow =pe.Workflow(name=name)
     
-    # Define Nodes
-    
     inputspec = pe.Node(interface=util.IdentityInterface(fields=['subject_id',
                                                                  'config_params',
                                                                  'in_file',
                                                                  'art_file',
                                                                  'motion_plots',
                                                                  'reg_file',
-                                                                 'tsnr_detrended',
                                                                  'tsnr',
                                                                  'tsnr_mean',
                                                                  'tsnr_stddev',
@@ -135,123 +168,156 @@ def QA_workflow(name='QA'):
                                                                  'TR',
                                                                  'sd']),
                         name='inputspec')
-    """                    
-    write_rep = pe.Node(util.Function(input_names=['in_file',
-                                                   'art_file',
-                                                   'config_params',
-                                                   'motion_plots',
-                                                   'tsdiffana',
-                                                   'roiplot',
-                                                   'tsnr_roi_table',
-                                                   'ADnorm',
-                                                   'overlayMean'],
-                                      output_names=['fname'],
-                                      function=reporter),
-                        name='write_report')
-    """
+    
+    infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
+                         name='subject_names')
+    infosource.iterables = ('subject_id', c.subjects)
+    
+    datagrabber = preproc_datagrabber()
+    
+    datagrabber.inputs.fwhm = c.fwhm
+    
+    orig_datagrabber = c.create_dataflow()
+    
+    workflow.connect(infosource, 'subject_id',
+                     datagrabber, 'subject_id')
+    
+    workflow.connect(infosource, 'subject_id', orig_datagrabber, 'subject_id')
+    
+    workflow.connect(orig_datagrabber, 'func', inputspec, 'in_file')
+    workflow.connect(infosource, 'subject_id', inputspec, 'subject_id')
+    workflow.connect(datagrabber, 'outlier_files', inputspec, 'art_file')
+    workflow.connect(datagrabber, 'motion_plots', inputspec, 'motion_plots')
+    workflow.connect(datagrabber, 'reg_file', inputspec, 'reg_file')
+    workflow.connect(datagrabber, 'tsnr', inputspec, 'tsnr')
+    workflow.connect(datagrabber, 'tsnr_stddev', inputspec, 'tsnr_stddev')
+    workflow.connect(datagrabber, 'art_norm', inputspec, 'ADnorm')
+    
+    inputspec.inputs.TR = c.TR
+    inputspec.inputs.sd = c.surf_dir
+    
+    # Define Nodes
+
     tsdiff = pe.MapNode(util.Function(input_names = ['img'], 
                                       output_names = ['out_file'], 
                                       function=tsdiffana), 
                         name='tsdiffana', iterfield=["img"])
+                        
+    art_info = pe.MapNode(util.Function(input_names = ['art_file'], 
+                                      output_names = ['table'], 
+                                      function=art_output), 
+                        name='art_output', iterfield=["art_file"])
     
-    #roiplot = tsnr_roi(sd=surf_dir,subject=subjects[0],TR=TR,plot=True)
+    fssource = pe.Node(interface = FreeSurferSource(),name='fssource')
+        
+    roidevplot = tsnr_roi(plot=False,name='tsnr_stddev_roi',roi=['all'])
+    roidevplot.inputs.inputspec.TR = c.TR
+    roisnrplot = tsnr_roi(plot=False,name='SNR_roi',roi=['all'])
+    roisnrplot.inputs.inputspec.TR = c.TR
     
-    #tablecombine = pe.Node(util.Function(input_names = ['roimean',
-    #                                                    'roidev',
-    #                                                    'roisnr'],
-    #                                     output_names = ['roisnr'], 
-    #                                     function = combine_table),
-    #                       name='combinetable')
+    workflow.connect(fssource, ('aparc_aseg', pickfirst), roisnrplot, 'inputspec.aparc_aseg')
+    workflow.connect(fssource, ('aparc_aseg', pickfirst), roidevplot, 'inputspec.aparc_aseg')
     
-    #roiavgplot = tsnr_roi(plot=False,name='tsnr_mean_roi',roi=['all'])
+    workflow.connect(infosource, 'subject_id', roidevplot, 'inputspec.subject')
+    workflow.connect(infosource, 'subject_id', roisnrplot, 'inputspec.subject')
     
-    #roidevplot = tsnr_roi(plot=False,name='tsnr_stddev_roi',roi=['all'])
+    tablecombine = pe.MapNode(util.Function(input_names = ['roidev',
+                                                        'roisnr'],
+                                         output_names = ['roisnr'], 
+                                         function = combine_table),
+                           name='combinetable', iterfield=['roidev','roisnr'])
     
-    #roisnrplot = tsnr_roi(plot=False,name='SNR_roi',roi=['all'])
+    
     
     adnormplot = pe.MapNode(util.Function(input_names = ['ADnorm','TR'], 
                                        output_names = ['plot'], 
                                        function=plot_ADnorm), 
                          name='ADnormplot', iterfield=['ADnorm'])
     
-    fssource = pe.Node(interface = FreeSurferSource(),name='fssource')
+    
     
     convert = pe.Node(interface=fs.MRIConvert(),name='converter')
     
     voltransform = pe.MapNode(interface=ApplyVolTransform(),name='register',iterfield=['source_file'])
     
-    overlay = pe.MapNode(interface = fsl.Overlay(),name ='overlay',iterfield=['stat_image'])
+    overlaynew = pe.MapNode(util.Function(input_names=['stat_image','background_image'],
+                                          output_names=['fnames'], function=overlay_new), 
+                                          name='overlay_new', iterfield=['stat_image'])
     
-    convert2 = pe.MapNode(interface=fsl.SwapDimensions(),name='converter2',iterfield=["in_file"])
     
-    slicer = pe.MapNode(interface=fsl.Slicer(),name='slicer',iterfield=['in_file'])
-    
-    write_rep = pe.Node(interface=ReportSink(),name='report_sink')
+    write_rep = pe.Node(interface=ReportSink(orderfields=['Introduction',
+                                                          'in_file',
+                                                          'config_params',
+                                                          'Art_Detect',
+                                                          'motion_plots',
+                                                          'tsdiffana',
+                                                          'ADnorm',
+                                                          'TSNR_Images',
+                                                          'tsnr_roi_table']),
+                                             name='report_sink')
     write_rep.inputs.Introduction = "Quality Assurance Report for fMRI preprocessing."
+    write_rep.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
+    workflow.connect(infosource,'subject_id',write_rep,'container')
     
     # Define Inputs
     
     convert.inputs.out_type = 'niigz'
     convert.inputs.in_type = 'mgz'
-    overlay.inputs.full_bg_range = True
-    overlay.inputs.stat_thresh = (0.0,100.0)
-    convert2.inputs.new_dims = ('RL','PA','IS')
-    slicer.inputs.middle_slices = True
     
     # Define Connections
     workflow.connect(inputspec,'TR',adnormplot,'TR')
     workflow.connect(inputspec,'subject_id',fssource,'subject_id')
     workflow.connect(inputspec,'sd',fssource,'subjects_dir')
     workflow.connect(inputspec,'in_file',write_rep,'in_file')
-    workflow.connect(inputspec,'art_file',write_rep,'art_file')
+    workflow.connect(inputspec,'art_file',art_info,'art_file')
+    workflow.connect(art_info,('table',to1table), write_rep,'Art_Detect')
     workflow.connect(inputspec,'motion_plots',write_rep,'motion_plots')
     workflow.connect(inputspec,'in_file',tsdiff,'img')
     workflow.connect(tsdiff,"out_file",write_rep,"tsdiffana")
     workflow.connect(inputspec,('config_params',totable), write_rep,'config_params')
-    #workflow.connect(inputspec,'reg_file',roiplot,'inputspec.reg_file')
-    #workflow.connect(inputspec,'tsnr_detrended',roiplot,'inputspec.tsnr_file')
-    #workflow.connect(roiplot,'outputspec.out_file',write_rep,'roiplot')
-    #workflow.connect(inputspec,'reg_file',roiavgplot,'inputspec.reg_file')
-    #workflow.connect(inputspec,'tsnr_mean',roiavgplot,'inputspec.tsnr_file')
-    #workflow.connect(roiavgplot,'outputspec.out_file',tablecombine,'roimean')
-    #workflow.connect(inputspec,'reg_file',roidevplot,'inputspec.reg_file')
-    #workflow.connect(inputspec,'tsnr_stddev',roidevplot,'inputspec.tsnr_file')
-    #workflow.connect(roidevplot,'outputspec.out_file',tablecombine,'roidev')
-    #workflow.connect(inputspec,'reg_file',roisnrplot,'inputspec.reg_file')
-    #workflow.connect(inputspec,'tsnr',roisnrplot,'inputspec.tsnr_file')
-    #workflow.connect(roisnrplot,'outputspec.out_file',tablecombine,'roisnr')
-    #workflow.connect(tablecombine, 'roisnr', write_rep, 'tsnr_roi_table')
+    workflow.connect(inputspec,'reg_file',roidevplot,'inputspec.reg_file')
+    workflow.connect(inputspec,'tsnr_stddev',roidevplot,'inputspec.tsnr_file')
+    workflow.connect(roidevplot,'outputspec.roi_table',tablecombine,'roidev')
+    workflow.connect(inputspec,'reg_file',roisnrplot,'inputspec.reg_file')
+    workflow.connect(inputspec,'tsnr',roisnrplot,'inputspec.tsnr_file')
+    workflow.connect(roisnrplot,'outputspec.roi_table',tablecombine,'roisnr')
+    workflow.connect(tablecombine, ('roisnr',to1table), write_rep, 'tsnr_roi_table')
     workflow.connect(inputspec,'ADnorm',adnormplot,'ADnorm')
     workflow.connect(adnormplot,'plot',write_rep,'ADnorm')
     workflow.connect(fssource,'orig',convert,'in_file')
     workflow.connect(convert,'out_file',voltransform,'target_file') 
     workflow.connect(inputspec,'reg_file',voltransform,'reg_file')
     workflow.connect(inputspec,'tsnr',voltransform, 'source_file')
-    workflow.connect(voltransform,'transformed_file', overlay,'stat_image')
-    workflow.connect(convert,'out_file', overlay,'background_image')
-    workflow.connect(overlay,'out_file',convert2,'in_file')
-    workflow.connect(convert2,'out_file',slicer,'in_file') 
-    workflow.connect(slicer,'out_file',write_rep,'overlayMean')
+    
+    workflow.connect(voltransform,'transformed_file', overlaynew,'stat_image')
+    workflow.connect(convert,'out_file', overlaynew,'background_image')
+    
+    workflow.connect(overlaynew, 'fnames', write_rep, 'TSNR_Images')
     
     workflow.write_graph()
     return workflow
     
 if __name__ == "__main__":
+    
+    parser = argparse.ArgumentParser(description="example: \
+                        run resting_preproc.py -c config.py")
+    parser.add_argument('-c','--config',
+                        dest='config',
+                        required=True,
+                        help='location of config file'
+                        )
+    args = parser.parse_args()
+    path, fname = os.path.split(os.path.realpath(args.config))
+    sys.path.append(path)
+    c = __import__(fname.split('.')[0])
+    
     a = QA_workflow()
-    a.base_dir = './'
+    a.base_dir = c.working_dir
     a.write_graph()
-    a.inputs.inputspec.subject_id = 'SAD_018'
-    a.inputs.inputspec.TR = 2.5
-    a.inputs.inputspec.sd = '/mindhive/xnat/surfaces/sad'
-    a.inputs.inputspec.in_file = ['/mindhive/gablab/sad/PY_STUDY_DIR/Block/data/SAD_018/f3.nii']
-    a.inputs.inputspec.art_file = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/analyses/func/SAD_018/preproc/art/fwhm_5/art.corr_f3_dtype.nii_outliers.txt'
-    a.inputs.inputspec.motion_plots = glob('/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/analyses/func/SAD_018/preproc/motion/*.png')
-    a.inputs.inputspec.reg_file = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/analyses/func/SAD_018/preproc/bbreg/_register0/corr_f3_dtype_mean_bbreg_SAD_018.dat'
-    a.inputs.inputspec.tsnr_detrended = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/work_dir/SAD_018/preproc/preproc/compcorr/_fwhm_5/tsnr/mapflow/_tsnr0/corr_f3_dtype_detrended.nii.gz'
-    a.inputs.inputspec.tsnr_mean = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/work_dir/SAD_018/preproc/preproc/compcorr/_fwhm_5/tsnr/mapflow/_tsnr0/corr_f3_dtype_tsnr_mean.nii.gz'
-    a.inputs.inputspec.tsnr = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/work_dir/SAD_018/preproc/preproc/compcorr/_fwhm_5/tsnr/mapflow/_tsnr0/corr_f3_dtype_tsnr.nii.gz'
-    a.inputs.inputspec.tsnr_stddev = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/work_dir/SAD_018/preproc/preproc/compcorr/_fwhm_5/tsnr/mapflow/_tsnr0/corr_f3_dtype_tsnr_stddev.nii.gz'
-    a.inputs.inputspec.ADnorm = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1preproc/workflows/analyses/func/SAD_018/preproc/art/norm.corr_f3_dtype.nii.txt'
-    a.inputs.inputspec.config_params = [['Subject','TR'],['SAD_018',2.5]]
-    a.run()
+    a.inputs.inputspec.config_params = start_config_table()
+    
+    if c.run_on_grid:
+        a.run(plugin=c.plugin,plugin_args=c.plugin_args)
+    else:
+        a.run()
     
