@@ -11,9 +11,7 @@ from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
 import sys
 sys.path.append('../utils')
 
-from fEpiDeWarp import EPIDeWarp
-
-#from nipype.interfaces.fsl.utils import EPIDeWarp
+from nipype.interfaces.fsl.utils import EPIDeWarp
 
 def create_filter_matrix(motion_params, composite_norm,
                          compcorr_components, art_outliers, selector):
