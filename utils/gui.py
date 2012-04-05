@@ -2,6 +2,7 @@ from Tkinter import *
 from nipype.utils.filemanip import save_json, load_json
 import argparse
 import os
+from tkFileDialog import askopenfilename
 
 class gui_base():
     
@@ -15,7 +16,7 @@ class gui_base():
         self.canvas.grid(row=0, column=0, sticky='nswe')
         
         self.scrollbar = Scrollbar(self.Top,orient=VERTICAL,command=self.canvas.yview)
-        self.scrollbar.grid(row=0, column=1, sticky='we')
+        self.scrollbar.grid(row=0, column=1, sticky='ns')
 
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
         
@@ -39,6 +40,15 @@ class gui_base():
         B.pack()
         self.buttons.append(B)
         self.top.update_idletasks()    
+    
+    def ask_filename(self):
+        filename = askopenfilename(filetypes=[("allfiles","*"),("configfiles","*.json")])
+        return filename
+        
+    def add_label(self,label):
+        L = Label(self.top,text=label)
+        L.pack()
+        self.top.update_idletasks()
     
     def add_entry(self,label,typ=str):
         L = Label(self.top,text=label)

@@ -40,13 +40,14 @@ if __name__== "__main__":
     a.add_checkbox("a_compcor")
     a.add_checkbox("t_compcor")
     a.add_entry("num_noise_components",float)
-    a.add_entry("hpcutoff",float)
-    a.add_entry("interscan_interval",float)
-    a.add_entry("film_threshold",float)
-    a.add_entry("overlayThresh")
-    a.add_checkbox("is_block_design")
-    a.add_entry("subjectinfo_path")
-    a.add_entry("contrast_path")
+    a.add_checkbox("regress_motion")
+    a.add_checkbox("regress_motion_derivs")
+    a.add_checkbox("regress_composite_norm")
+    a.add_checkbox("regress_outliers")
+    a.add_checkbox("regress_compcorr_components")
+    a.add_entry("highpass_freq",float)
+    a.add_entry("lowpass_freq",float)
+    
     
     a.add_button(a.to_json,"save")
     
