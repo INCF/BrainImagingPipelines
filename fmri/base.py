@@ -765,3 +765,7 @@ def create_first(name='modelfit'):
     modelfit.connect(modelgen, 'design_cov',
                      outputspec, 'design_cov')
     return modelfit
+    
+#def normalize(name = "normalize"):
+    
+    

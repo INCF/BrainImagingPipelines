@@ -47,6 +47,7 @@ if __name__== "__main__":
     a.add_checkbox("is_block_design")
     a.add_entry("subjectinfo_path")
     a.add_entry("contrast_path")
+    a.add_entry("something")
     
     a.add_button(a.to_json,"save")
     
