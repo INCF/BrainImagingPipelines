@@ -39,7 +39,9 @@ def preproc_datagrabber(name='preproc_datagrabber'):
                                                                'tsnr_detrended',
                                                                'tsnr_stddev',
                                                                'reg_file',
-                                                               'motion_plots']),
+                                                               'motion_plots',
+                                                               'mean_image',
+                                                               'mask']),
                          name = name)
     datasource.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
     datasource.inputs.template ='*'
@@ -50,14 +52,18 @@ def preproc_datagrabber(name='preproc_datagrabber'):
                                             tsnr_detrended='%s/preproc/tsnr/*_detrended.nii.gz',
                                             tsnr_stddev='%s/preproc/tsnr/*tsnr_stddev.nii.gz',
                                             reg_file='%s/preproc/bbreg/*.dat',
-                                            motion_plots='%s/preproc/motion/*.png')
+                                            motion_plots='%s/preproc/motion/*.png',
+                                            mean_image='%s/preproc/meanfunc/*.nii.gz',
+                                            mask='%s/preproc/mask/*_brainmask.nii')
     datasource.inputs.template_args = dict(motion_parameters=[['subject_id']],
                                            outlier_files=[['subject_id']],
                                            art_norm=[['subject_id']],
                                            tsnr=[['subject_id']],
                                            tsnr_stddev=[['subject_id']],
                                            reg_file=[['subject_id']],
-                                           motion_plots=[['subject_id']])
+                                           motion_plots=[['subject_id']],
+                                           mean_image=[['subject_id']],
+                                           mask=[['subject_id']])
     return datasource
 
 
@@ -257,6 +263,8 @@ def QA_workflow(name='QA'):
                                              name='report_sink')
     write_rep.inputs.Introduction = "Quality Assurance Report for fMRI preprocessing."
     write_rep.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
+    write_rep.inputs.report_name = "Preprocessing_Report"
+    write_rep.inputs.json_sink = c.json_sink
     workflow.connect(infosource,'subject_id',write_rep,'container')
     
     # Define Inputs

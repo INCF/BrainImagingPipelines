@@ -40,17 +40,17 @@ surf_dir : Freesurfer subjects directory
 crash_dir : Location to store crash files
 """
 
-working_dir = '/mindhive/scratch/satra/sad/resting'
+working_dir = '/mindhive/scratch/keshavan/sad/resting'
 
 base_dir = '/mindhive/gablab/sad/SAD_STUDY_Resting/data'
 
-sink_dir = '/mindhive/gablab/sad/bips/resting'
+sink_dir = '/mindhive/scratch/keshavan/sad/resting'
 
 field_dir = '/mindhive/gablab/sad/Data_reorganized'
 
 crash_dir = working_dir
 
-surf_dir = '/mindhive/xnat/surfaces/sad/'
+surf_dir = '/mindhive/xnat/surfaces/sad/' #names should match subject names
 
 """
 Workflow Inputs:
@@ -94,8 +94,8 @@ patients = ['SAD_P03', 'SAD_P04', 'SAD_P05', 'SAD_P07', 'SAD_P08', 'SAD_P09',
             'SAD_P46', 'SAD_P47', 'SAD_P48', 'SAD_P49', 'SAD_P50', 'SAD_P51',
             'SAD_P52', 'SAD_P53', 'SAD_P54', 'SAD_P55', 'SAD_P56', 'SAD_P57',
             'SAD_P58']
-subjects = patients + controls
-subjects = ['SAD_024']
+
+subjects = ['SAD_024','SAD_P03']
 
 run_on_grid = False
 
@@ -162,7 +162,7 @@ z_thresh :
 
 """
 
-norm_thresh = 2
+norm_thresh = 0.5
 
 z_thresh = 3
 
@@ -208,15 +208,16 @@ Bandpass Filter
 ^^^^^^^^^^^^^^^
 
 highpass_sigma : Float
-                 Highpass  cut off in mm
+                 Highpass  cut off in volumes
 lowpass _sigma : Float
-                 Lowpass cut off in mm
+                 Lowpass cut off in volumes
 
 """
+# Fix: convert Hz to volumes, so you can specify Hz in config
 
-highpass_sigma = 100/(2*TR)
+highpass_freq = .01
 
-lowpass_sigma = 12.5/(2*TR)
+lowpass_freq = .08
 
 """
 Functions
@@ -249,7 +250,7 @@ def create_dataflow(name="datasource"):
                          name = name)
     datasource.inputs.base_directory = base_dir
     datasource.inputs.template ='*'
-    datasource.inputs.field_template = dict(func='%s/resting*.nii')
+    datasource.inputs.field_template = dict(func='%s/BOLD/resting.nii')
     datasource.inputs.template_args = dict(func=[['subject_id']])
     return datasource
     
@@ -262,8 +263,8 @@ def create_fieldmap_dataflow(name="datasource_fieldmap"):
                          name = name)
     datasource.inputs.base_directory = field_dir
     datasource.inputs.template ='*'
-    datasource.inputs.field_template = dict(mag='%s/fieldmap_resting/*run00*.nii.gz',
-                                            phase='%s/fieldmap_resting/*run01*.nii.gz')
+    datasource.inputs.field_template = dict(mag='%s/fieldmap/fieldmap_resting/magnitude.nii.gz',
+                                            phase='%s/fieldmap/fieldmap_resting/phase.nii.gz')
     datasource.inputs.template_args = dict(mag=[['subject_id']],
                                            phase=[['subject_id']])
     return datasource

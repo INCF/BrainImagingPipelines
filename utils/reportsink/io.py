@@ -33,6 +33,8 @@ class ReportSinkInputSpec(DynamicTraitedSpec, BaseInterfaceInputSpec):
     remove_dest_dir = traits.Bool(False, usedefault=True,
                                   desc='remove dest directory when copying dirs')
     report_name = traits.Str('Report',usedefault=True, desc='Name of report')
+    json_sink = Directory(desc="place to store json in addition to base_directory")
+    
     def __setattr__(self, key, value):
         if key not in self.copyable_trait_names():
             if not isdefined(value):
@@ -161,5 +163,12 @@ Indicates the input fields to be dynamically created
         rep.write()
         # save json
         save_json(os.path.join(outdir, self.inputs.report_name+'.json'), self.inputs._outputs)
+        if isdefined(self.inputs.json_sink):
+            if not isdefined(self.inputs.container):
+                save_json(os.path.join(self.inputs.json_sink, self.inputs.report_name+'.json'), self.inputs._outputs)
+            else:
+                if not os.path.exists(os.path.join(self.inputs.json_sink,self.inputs.container)):
+                    os.mkdir(os.path.join(self.inputs.json_sink,self.inputs.container))
+                save_json(os.path.join(self.inputs.json_sink,self.inputs.container, self.inputs.report_name+'.json'), self.inputs._outputs)
         print "json file " , os.path.join(outdir, self.inputs.report_name+'.json')
         return None
