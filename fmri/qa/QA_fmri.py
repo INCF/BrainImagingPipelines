@@ -103,7 +103,7 @@ def overlay_dB(stat_image,background_image,threshold):
     formatter='%.2f'
     img = load(stat_image)
     data, affine = img.get_data(), img.get_affine()
-    data[data != 0] = 20*np.log10(np.asarray(data[data != 0]))
+    data[data > 1] = 20*np.log10(np.asarray(data[data > 1]))
 
     anat_img = load(background_image)
     anat = anat_img.get_data()

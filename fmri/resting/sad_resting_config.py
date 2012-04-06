@@ -52,6 +52,8 @@ crash_dir = working_dir
 
 surf_dir = '/mindhive/xnat/surfaces/sad/' #names should match subject names
 
+base_norm_dir = '/mindhive/xnat/surfaces/sad/ANTS'
+
 """
 Workflow Inputs:
 ----------------
@@ -220,6 +222,16 @@ highpass_freq = .01
 lowpass_freq = .08
 
 """
+Normalization
+^^^^^^^^^^^^^
+
+norm_template : location of template to normalize to
+
+"""
+
+norm_template = '/software/fsl/fsl-4.1.6/data/standard/MNI152_T1_1mm_brain.nii.gz'
+
+"""
 Functions
 ---------
 
@@ -267,4 +279,23 @@ def create_fieldmap_dataflow(name="datasource_fieldmap"):
                                             phase='%s/fieldmap/fieldmap_resting/phase.nii.gz')
     datasource.inputs.template_args = dict(mag=[['subject_id']],
                                            phase=[['subject_id']])
+    return datasource
+    
+def create_norm_dataflow(name="datasource"):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio 
+    # create a node to obtain the functional images
+    datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
+                                                   outfields=['warp_field',
+                                                              'affine',
+                                                              'unwarped_brain']),
+                         name = name)
+    datasource.inputs.base_directory = base_norm_dir
+    datasource.inputs.template ='*'
+    datasource.inputs.field_template = dict(warp_field='%s/ants_Warp.nii.gz',
+                                            affine='%s/ants_Affine.txt',
+                                            unwarped_brain='%s/ants_repaired.nii.gz')
+    datasource.inputs.template_args = dict(warp_field=[['subject_id']],
+                                           affine=[['subject_id']],
+                                           unwarped_brain=[['subject_id']])
     return datasource
