@@ -86,12 +86,13 @@ def start_config_table():
         table.append(['lowpass sigma',str(c.lowpass_sigma)])
     return table
 
-def overlay_new(stat_image,background_image,threshold):
+def overlay_dB(stat_image,background_image,threshold):
     import os.path
     import pylab as pl
     from nibabel import load
     from nipy.labs import viz
     from pylab import colorbar, gca, axes
+    import numpy as np
     # Second example, with a given anatomical image slicing in the Z
     # direction
     
@@ -102,7 +103,8 @@ def overlay_new(stat_image,background_image,threshold):
     formatter='%.2f'
     img = load(stat_image)
     data, affine = img.get_data(), img.get_affine()
-    
+    data[data != 0] = 20*np.log10(np.asarray(data[data != 0]))
+
     anat_img = load(background_image)
     anat = anat_img.get_data()
     anat_affine = anat_img.get_affine()
@@ -130,7 +132,53 @@ def overlay_new(stat_image,background_image,threshold):
     
     return fnames
 
+
+def overlay_new(stat_image,background_image,threshold):
+    import os.path
+    import pylab as pl
+    from nibabel import load
+    from nipy.labs import viz
+    from pylab import colorbar, gca, axes
+    import numpy as np
+    # Second example, with a given anatomical image slicing in the Z
+    # direction
     
+    fnames = [os.path.abspath('z_view.png'),
+             os.path.abspath('x_view.png'),
+             os.path.abspath('y_view.png')]
+            
+    formatter='%.2f'
+    img = load(stat_image)
+    data, affine = img.get_data(), img.get_affine()
+   
+    
+    anat_img = load(background_image)
+    anat = anat_img.get_data()
+    anat_affine = anat_img.get_affine()
+    anat = np.ones(anat.shape) - anat
+    
+    viz.plot_map(data, affine, anat=anat, anat_affine=anat_affine,
+                 slicer='z', threshold=threshold, cmap=viz.cm._cm.hot)
+    cb = colorbar(gca().get_images()[1], cax=axes([0.3, 0.00, 0.4, 0.07]),
+                         orientation='horizontal', format=formatter)
+    cb.set_ticks([cb._values.min(), cb._values.max()])
+    pl.savefig(fnames[0],bbox_inches='tight')
+
+    viz.plot_map(data, affine, anat=anat, anat_affine=anat_affine,
+                 slicer='x', threshold=threshold, cmap=viz.cm._cm.hot)
+    cb = colorbar(gca().get_images()[1], cax=axes([0.3, -0.06, 0.4, 0.07]), 
+                         orientation='horizontal', format=formatter)
+    cb.set_ticks([cb._values.min(), cb._values.max()])
+    pl.savefig(fnames[1],bbox_inches='tight')
+
+    viz.plot_map(data, affine, anat=anat, anat_affine=anat_affine,
+                 slicer='y', threshold=threshold, cmap=viz.cm._cm.hot)
+    cb = colorbar(gca().get_images()[1], cax=axes([0.3, -0.08, 0.4, 0.07]), 
+                         orientation='horizontal', format=formatter)
+    cb.set_ticks([cb._values.min(), cb._values.max()])
+    pl.savefig(fnames[2],bbox_inches='tight')
+    
+    return fnames
 
 def QA_workflow(name='QA'):
     """ Workflow that generates a Quality Assurance Report
@@ -247,27 +295,27 @@ def QA_workflow(name='QA'):
     voltransform = pe.MapNode(interface=ApplyVolTransform(),name='register',iterfield=['source_file'])
     
     overlaynew = pe.MapNode(util.Function(input_names=['stat_image','background_image','threshold'],
-                                          output_names=['fnames'], function=overlay_new), 
+                                          output_names=['fnames'], function=overlay_dB), 
                                           name='overlay_new', iterfield=['stat_image'])
-    overlaynew.inputs.threshold = 10
+    overlaynew.inputs.threshold = 20
                                  
-    #overlaymask = pe.Node(util.Function(input_names=['stat_image','background_image','threshold'],
-    #                                      output_names=['fnames'], function=overlay_new), 
-    #                                      name='overlay_mask')
-    #overlaymask.inputs.threshold = 0
+    overlaymask = pe.Node(util.Function(input_names=['stat_image','background_image','threshold'],
+                                          output_names=['fnames'], function=overlay_new), 
+                                          name='overlay_mask')
+    overlaymask.inputs.threshold = 0
     
-    overlaymask = pe.Node(interface=fsl.Overlay(),name='fsl_overlaymask')
-    overlaymask.inputs.transparency = True
-    overlaymask.inputs.stat_thresh = (0,1)
-    overlaymask.inputs.full_bg_range= True
+    #overlaymask = pe.Node(interface=fsl.Overlay(),name='fsl_overlaymask')
+    #overlaymask.inputs.transparency = True
+    #overlaymask.inputs.stat_thresh = (0,1)
+    #overlaymask.inputs.full_bg_range= True
     
-    slicermask = pe.Node(interface=fsl.Slicer(),name='slicer_mask')
-    slicermask.inputs.all_axial = True
-    slicermask.inputs.image_width = 4
+    #slicermask = pe.Node(interface=fsl.Slicer(),name='slicer_mask')
+    #slicermask.inputs.all_axial = True
+    #slicermask.inputs.image_width = 4
     
-    workflow.connect(datagrabber, 'mask', overlaymask, 'stat_image')
-    workflow.connect(datagrabber, 'mean_image', overlaymask, 'background_image')
-    workflow.connect(overlaymask,'out_file', slicermask, 'in_file')
+    workflow.connect(datagrabber, 'mask', overlaymask, 'background_image')
+    workflow.connect(datagrabber, 'mean_image', overlaymask, 'stat_image')
+    #workflow.connect(overlaymask,'out_file', slicermask, 'in_file')
     
     write_rep = pe.Node(interface=ReportSink(orderfields=['Introduction',
                                                           'in_file',
@@ -285,8 +333,8 @@ def QA_workflow(name='QA'):
     write_rep.inputs.report_name = "Preprocessing_Report"
     write_rep.inputs.json_sink = c.json_sink
     workflow.connect(infosource,'subject_id',write_rep,'container')
-    #workflow.connect(overlaymask, 'fnames', write_rep, "Brain_Mask_and_Mean_Functional")
-    workflow.connect(slicermask,'out_file', write_rep, "Brain_Mask_and_Mean_Functional")
+    workflow.connect(overlaymask, 'fnames', write_rep, "Brain_Mask_and_Mean_Functional")
+    #workflow.connect(slicermask,'out_file', write_rep, "Brain_Mask_and_Mean_Functional")
     
     # Define Inputs
     
