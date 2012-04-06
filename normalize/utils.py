@@ -18,7 +18,6 @@ def convert_affine(unwarped_brain, mean_func, out_fsl_file):
     """
     cmd = "c3d_affine_tool -ref %s -src %s %s -fsl2ras \
 -oitk fsl2antsAffine.txt" % (unwarped_brain, mean_func, out_fsl_file)
-    print cmd
     os.system(cmd)
     return os.path.abspath('fsl2antsAffine.txt')
 
