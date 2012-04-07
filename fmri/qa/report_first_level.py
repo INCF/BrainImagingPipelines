@@ -204,13 +204,38 @@ def get_data(name='first_level_datagrab'):
                                            des_mat_cov = [['subject_id','fwhm']])
     return datasource
     
+def get_fx_data(name='fixedfx_level_datagrab'):
+    
+    datasource = pe.Node(nio.DataGrabber(infields=['subject_id', 'fwhm'], outfields=['func','mask','reg','des_mat','des_mat_cov','detrended']), name='datasource')
 
+    datasource.inputs.template = '*'
     
-def combine_report(thr=2.326,csize=30):
+    datasource.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
     
-    workflow = pe.Workflow(name='first_level_report')
+    datasource.inputs.field_template = dict(func='%s/fixedfx/fwhm_'+'%s'+'*zstat*',
+                                            mask = '%s/preproc/mask/'+'*.nii',
+                                            reg = '%s/preproc/bbreg/*.dat',
+                                            detrended = '%s/preproc/tsnr/*detrended.nii.gz',
+                                            des_mat = '%s/modelfit/design/fwhm_%s/*/run?.png',
+                                            des_mat_cov = '%s/modelfit/design/fwhm_%s/*/*cov.png')
     
-    dataflow = get_data()
+    datasource.inputs.template_args = dict(func=[['subject_id','fwhm']],
+                                           mask=[['subject_id']], 
+                                           reg = [['subject_id']],
+                                           detrended = [['subject_id']],
+                                           des_mat = [['subject_id','fwhm']],
+                                           des_mat_cov = [['subject_id','fwhm']])
+    return datasource
+    
+def combine_report(thr=2.326,csize=30,fx=False):
+    
+
+    if not fx:
+        workflow = pe.Workflow(name='first_level_report')
+        dataflow = get_data()
+    else:
+        workflow = pe.Workflow(name='fixedfx_report')
+        dataflow =  get_fx_data()
     
     infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
                          name='subject_names')
@@ -307,7 +332,10 @@ def combine_report(thr=2.326,csize=30):
     
     workflow.connect(dataflow, 'func', writereport, 'in_files')
     workflow.connect(makesurfaceplots,'surface_ims', writereport, 'surface_ims')
-    workflow.connect(writereport,"report",sinker,"report")
+    if not fx:
+        workflow.connect(writereport,"report",sinker,"first_level_report")
+    else:
+        workflow.connect(writereport,"report",sinker,"fixed_fx_report")
     
     
     return workflow
@@ -503,12 +531,17 @@ if __name__ == '__main__':
                         required=True,
                         help='location of config file'
                         )
+    parser.add_argument('-fx','--fixedfx',
+                        dest='fx',
+                        required=False,
+                        help='whether to write fixedfx report'
+                        )
     args = parser.parse_args()
     path, fname = os.path.split(os.path.realpath(args.config))
     sys.path.append(path)
     c = __import__(fname.split('.')[0])
 
-    workflow = combine_report()
+    workflow = combine_report(fx=args.fx)
     workflow.base_dir = c.working_dir
     
 
