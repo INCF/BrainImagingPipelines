@@ -149,14 +149,14 @@ def resting_QA(name="resting_QA"):
     workflow.connect(inputspec,'mean_image', tosurf,'ref_volume')
     
     to_img = pe.MapNode(util.Function(input_names=['resting_image','fwhm'],
-                                   output_names=["corr_image","histogram","ims","roitable"],function=corr_image),
+                                   output_names=["corr_image","ims","roitable","histogram"],function=corr_image),
                      name="image_gen",iterfield=["resting_image"])
                      
     workflow.connect(tosurf,'out_file',to_img,'resting_image')
     workflow.connect(fwhmsource,'fwhm',to_img,'fwhm')
     #to_img.inputs.fwhm = c.fwhm
     
-    sink = pe.Node(ReportSink(),name="write_report")
+    sink = pe.Node(ReportSink(orderfields=["Introduction","Configuration","Correlation_Images","Other_Views","ROI_Table","Histogram"]),name="write_report")
     sink.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
     sink.inputs.Introduction = "Resting state corellations with seed at precuneus"
     sink.inputs.Configuration = start_config_table()
@@ -164,7 +164,11 @@ def resting_QA(name="resting_QA"):
     #workflow.connect(infosource,'subject_id',sink,'Subject')
     workflow.connect(fwhmsource,('fwhm',addtitle),sink,'report_name')
     workflow.connect(infosource,'subject_id',sink,'container')
-    workflow.connect(to_img,"corr_image",sink,"Correllation_Images")
+    workflow.connect(to_img,"corr_image",sink,"Correlation_Images")
+    workflow.connect(to_img,"ims",sink,"Other_Views")
+    workflow.connect(to_img,"roitable",sink,"ROI_Table")
+    workflow.connect(to_img,"histogram",sink,"Histogram")
+    
     
     
     return workflow
