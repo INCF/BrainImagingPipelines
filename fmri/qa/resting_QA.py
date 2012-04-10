@@ -158,6 +158,7 @@ def resting_QA(name="resting_QA"):
     
     sink = pe.Node(ReportSink(orderfields=["Introduction","Subject","Configuration","Correlation_Images","Other_Views","ROI_Table","Histogram"]),name="write_report")
     sink.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
+    sink.inputs.json_sink = c.json_sink
     sink.inputs.Introduction = "Resting state corellations with seed at precuneus"
     sink.inputs.Configuration = start_config_table()
     #sink.inputs.report_name = "Resting_State_Correlations"

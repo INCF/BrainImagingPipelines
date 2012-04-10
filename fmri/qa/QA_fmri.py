@@ -53,7 +53,7 @@ def preproc_datagrabber(name='preproc_datagrabber'):
                                             tsnr_stddev='%s/preproc/tsnr/*tsnr_stddev.nii.gz',
                                             reg_file='%s/preproc/bbreg/*.dat',
                                             motion_plots='%s/preproc/motion/*.png',
-                                            mean_image='%s/preproc/meanfunc/*.nii.gz',
+                                            mean_image='%s/preproc/mean*/*.nii.gz',
                                             mask='%s/preproc/mask/*_brainmask.nii')
     datasource.inputs.template_args = dict(motion_parameters=[['subject_id']],
                                            outlier_files=[['subject_id']],
