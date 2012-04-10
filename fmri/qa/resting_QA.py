@@ -76,9 +76,11 @@ def corr_image(resting_image,fwhm):
     for i, roi in enumerate(np.unique(values[2])):
         roitable.append([roi,np.mean(precuneus[values[0]==np.nonzero(np.array(values[2])==roi)[0][0]])])    
     
-    images = [corr_image]+ims+[os.path.abspath("histogram.png"), roitable]
+    #images = [corr_image]+ims+[os.path.abspath("histogram.png"), roitable]
+    roitable=[roitable]
+    histogram = os.path.abspath("histogram.png")
     
-    return images
+    return corr_image, ims, roitable, histogram
     
 def vol2surf(input_volume,ref_volume,reg_file,trg,hemi):
     import os
@@ -147,7 +149,7 @@ def resting_QA(name="resting_QA"):
     workflow.connect(inputspec,'mean_image', tosurf,'ref_volume')
     
     to_img = pe.MapNode(util.Function(input_names=['resting_image','fwhm'],
-                                   output_names=["images"],function=corr_image),
+                                   output_names=["corr_image","histogram","ims","roitable"],function=corr_image),
                      name="image_gen",iterfield=["resting_image"])
                      
     workflow.connect(tosurf,'out_file',to_img,'resting_image')
@@ -162,7 +164,7 @@ def resting_QA(name="resting_QA"):
     #workflow.connect(infosource,'subject_id',sink,'Subject')
     workflow.connect(fwhmsource,('fwhm',addtitle),sink,'report_name')
     workflow.connect(infosource,'subject_id',sink,'container')
-    workflow.connect(to_img,"images",sink,"Correllation_Images")
+    workflow.connect(to_img,"corr_image",sink,"Correllation_Images")
     
     
     return workflow

@@ -86,7 +86,7 @@ def start_config_table():
         table.append(['lowpass sigma',str(c.lowpass_sigma)])
     return table
 
-def overlay_dB(stat_image,background_image,threshold):
+def overlay_dB(stat_image,background_image,threshold,dB):
     import os.path
     import pylab as pl
     from nibabel import load
@@ -103,7 +103,8 @@ def overlay_dB(stat_image,background_image,threshold):
     formatter='%.2f'
     img = load(stat_image)
     data, affine = img.get_data(), img.get_affine()
-    #data[data > 1] = 20*np.log10(np.asarray(data[data > 1]))
+    if dB:
+        data[data > 1] = 20*np.log10(np.asarray(data[data > 1]))
 
     anat_img = load(background_image)
     anat = anat_img.get_data()
@@ -294,9 +295,10 @@ def QA_workflow(name='QA'):
     
     voltransform = pe.MapNode(interface=ApplyVolTransform(),name='register',iterfield=['source_file'])
     
-    overlaynew = pe.MapNode(util.Function(input_names=['stat_image','background_image','threshold'],
+    overlaynew = pe.MapNode(util.Function(input_names=['stat_image','background_image','threshold',"dB"],
                                           output_names=['fnames'], function=overlay_dB), 
                                           name='overlay_new', iterfield=['stat_image'])
+    overlaynew.inputs.dB = False
     overlaynew.inputs.threshold = 20
                                  
     overlaymask = pe.Node(util.Function(input_names=['stat_image','background_image','threshold'],
