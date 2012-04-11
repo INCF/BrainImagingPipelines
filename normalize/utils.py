@@ -1,6 +1,4 @@
 # Utility Functions ---------------------------------------------------------
-import os
-import nibabel as nb
 
 
 def convert_affine(unwarped_brain, mean_func, out_fsl_file):
@@ -34,7 +32,9 @@ def get_image_dimensions(images):
     -------
     list : returns dimensions of input image list
     """
+
     import nibabel as nb
+
     if isinstance(images, list):
         dims = []
         for image in images:
