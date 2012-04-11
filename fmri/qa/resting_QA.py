@@ -24,8 +24,8 @@ def start_config_table():
     table.append(['Art: norm thresh',str(c.norm_thresh)])
     table.append(['Art: z thresh',str(c.z_thresh)])
     table.append(['fwhm',str(c.fwhm)])    
-    table.append(['highpass sigma',str(c.highpass_sigma)])
-    table.append(['lowpass sigma',str(c.lowpass_sigma)])
+    table.append(['highpass freq',str(c.highpass_freq)])
+    table.append(['lowpass freq',str(c.lowpass_freq)])
     table.append(['Regressors',str(params)])
     return [[table]]
 
