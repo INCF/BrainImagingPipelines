@@ -54,6 +54,8 @@ surf_dir = '/mindhive/xnat/surfaces/sad/' #names should match subject names
 
 base_norm_dir = '/mindhive/xnat/surfaces/sad/ANTS'
 
+json_sink = '/mindhive/xnat/data/TSNR/sad/resting'
+
 """
 Workflow Inputs:
 ----------------
@@ -114,6 +116,8 @@ tp2s = ['SAD2_019', 'SAD2_020','SAD2_022','SAD2_024','SAD2_025',
 subjects = controls+patients+tp2s
 
 run_on_grid = True
+
+plugin = 'PBS'
 
 plugin_args = {'qsub_args': '-q many'}
 

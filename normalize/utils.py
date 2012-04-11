@@ -16,6 +16,7 @@ def convert_affine(unwarped_brain, mean_func, out_fsl_file):
     -------
     file : returns the filename corresponding to the converted registration
     """
+    import os
     cmd = "c3d_affine_tool -ref %s -src %s %s -fsl2ras \
 -oitk fsl2antsAffine.txt" % (unwarped_brain, mean_func, out_fsl_file)
     os.system(cmd)
@@ -33,6 +34,7 @@ def get_image_dimensions(images):
     -------
     list : returns dimensions of input image list
     """
+    import nibabel as nb
     if isinstance(images, list):
         dims = []
         for image in images:

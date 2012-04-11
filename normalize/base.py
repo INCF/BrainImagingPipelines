@@ -189,12 +189,12 @@ def get_full_norm_workflow(name="normalize_struct_and_post"):
 
     Outputs
     -------
-    outputspec.warped_image :
+    outputspec.warped_image : normalized moving_image image
     outputspec.warp_field :
     outputspec.affine_transformation :
     outputspec.inverse_warp :
     outputspec.unwarped_brain :
-    outputspec.warped_brain :
+    outputspec.warped_brain : normalized 
 
     Returns
     -------
