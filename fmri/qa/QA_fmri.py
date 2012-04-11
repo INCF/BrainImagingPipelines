@@ -14,7 +14,7 @@ from nipype.interfaces.io import FreeSurferSource
 from nipype.interfaces import fsl
 #from nipype.utils.config import config
 #config.enable_debug_mode()
-from QA_utils import plot_ADnorm, tsdiffana, tsnr_roi, combine_table, art_output
+from QA_utils import plot_ADnorm, tsdiffana, tsnr_roi, combine_table, art_output, plot_motion
 import sys
 sys.path.insert(0,'../../utils/')
 from reportsink.io import ReportSink
@@ -82,8 +82,8 @@ def start_config_table():
     try:
         table.append(['Highpass cutoff',str(c.hpcutoff)])
     except:
-        table.append(['highpass sigma',str(c.highpass_sigma)])
-        table.append(['lowpass sigma',str(c.lowpass_sigma)])
+        table.append(['highpass freq',str(c.highpass_freq)])
+        table.append(['lowpass freq',str(c.lowpass_freq)])
     return table
 
 def overlay_dB(stat_image,background_image,threshold,dB):
@@ -242,7 +242,7 @@ def QA_workflow(name='QA'):
     workflow.connect(orig_datagrabber, 'func', inputspec, 'in_file')
     workflow.connect(infosource, 'subject_id', inputspec, 'subject_id')
     workflow.connect(datagrabber, 'outlier_files', inputspec, 'art_file')
-    workflow.connect(datagrabber, 'motion_plots', inputspec, 'motion_plots')
+    #workflow.connect(datagrabber, 'motion_plots', inputspec, 'motion_plots')
     workflow.connect(datagrabber, 'reg_file', inputspec, 'reg_file')
     workflow.connect(datagrabber, 'tsnr', inputspec, 'tsnr')
     workflow.connect(datagrabber, 'tsnr_stddev', inputspec, 'tsnr_stddev')
@@ -252,7 +252,16 @@ def QA_workflow(name='QA'):
     inputspec.inputs.sd = c.surf_dir
     
     # Define Nodes
-
+    
+    plot_m = pe.MapNode(util.Function(input_names=['motion_parameters'],
+                                      output_names=['fname'],
+                                      function=plot_motion),
+                        name="motion_plots",
+                        iterfield=['motion_parameters'])
+    
+    workflow.connect(datagrabber,'motion_parameters',plot_m,'motion_parameters')
+    workflow.connect(plot_m, 'fname',inputspec,'motion_plots')
+    
     tsdiff = pe.MapNode(util.Function(input_names = ['img'], 
                                       output_names = ['out_file'], 
                                       function=tsdiffana), 

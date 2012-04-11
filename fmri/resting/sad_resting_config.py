@@ -42,11 +42,11 @@ crash_dir : Location to store crash files
 
 working_dir = '/mindhive/scratch/keshavan/sad/resting'
 
-base_dir = '/mindhive/gablab/sad/SAD_STUDY_Resting/data'
+base_dir = '/mindhive/xnat/data/sad'
 
 sink_dir = '/mindhive/scratch/keshavan/sad/resting'
 
-field_dir = '/mindhive/gablab/sad/Data_reorganized'
+field_dir = base_dir
 
 crash_dir = working_dir
 
@@ -96,10 +96,24 @@ patients = ['SAD_P03', 'SAD_P04', 'SAD_P05', 'SAD_P07', 'SAD_P08', 'SAD_P09',
             'SAD_P46', 'SAD_P47', 'SAD_P48', 'SAD_P49', 'SAD_P50', 'SAD_P51',
             'SAD_P52', 'SAD_P53', 'SAD_P54', 'SAD_P55', 'SAD_P56', 'SAD_P57',
             'SAD_P58']
+tp2s = ['SAD2_019', 'SAD2_020','SAD2_022','SAD2_024','SAD2_025',
+        'SAD2_027','SAD2_028','SAD2_029','SAD2_030',
+        'SAD2_031','SAD2_032','SAD2_033','SAD2_036',
+        'SAD2_038','SAD2_039','SAD2_044','SAD2_046',
+        'SAD2_047','SAD2_049','SAD2_050','SAD_POST04',
+        'SAD_POST05','SAD_POST06','SAD_POST07','SAD_POST08',
+        'SAD_POST09','SAD_POST10','SAD_POST11','SAD_POST12',
+        'SAD_POST13','SAD_POST14','SAD_POST16','SAD_POST20',
+        'SAD_POST21','SAD_POST22','SAD_POST24','SAD_POST26',
+        'SAD_POST27','SAD_POST28','SAD_POST30','SAD_POST31',
+        'SAD_POST34','SAD_POST35','SAD_POST36','SAD_POST38',
+        'SAD_POST39','SAD_POST41','SAD_POST44','SAD_POST45',
+        'SAD_POST46','SAD_POST47','SAD_POST50','SAD_POST51',
+        'SAD_POST52','SAD_POST53','SAD_POST54','SAD_POST56',
+        'SAD_POST58']
+subjects = controls+patients+tp2s
 
-subjects = ['SAD_024','SAD_P03']
-
-run_on_grid = False
+run_on_grid = True
 
 plugin_args = {'qsub_args': '-q many'}
 
@@ -148,7 +162,7 @@ sigma : Int
 
 use_fieldmap = True
 
-echospacing = 0.7  #SG: CHECK THIS
+echospacing = 0.7  #AK: confirmed
 
 TE_diff = 2.46
 
@@ -262,7 +276,7 @@ def create_dataflow(name="datasource"):
                          name = name)
     datasource.inputs.base_directory = base_dir
     datasource.inputs.template ='*'
-    datasource.inputs.field_template = dict(func='%s/BOLD/resting.nii')
+    datasource.inputs.field_template = dict(func='%s/BOLD/resting.nii.gz')
     datasource.inputs.template_args = dict(func=[['subject_id']])
     return datasource
     

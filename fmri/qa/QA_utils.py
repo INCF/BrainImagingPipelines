@@ -265,3 +265,26 @@ def combine_table(roidev,roisnr):
         roisnr.sort(key=lambda x:x[1])
         roisnr.insert(0,['ROI','TSNR'])     
     return roisnr
+    
+def plot_motion(motion_parameters):
+    import matplotlib.pyplot as plt
+    import matplotlib
+    matplotlib.use('Agg')
+    import numpy as np
+    import os
+    fname_t=os.path.abspath('translations.png')
+    plt.figure(1,figsize = (8,3))
+    plt.plot(np.genfromtxt(motion_parameters)[:,3:])
+    plt.title("Estimated Translations (mm)")
+    plt.savefig(fname_t)
+    plt.close()
+    
+    fname_r = os.path.abspath('rotations.png')
+    plt.figure(2,figsize = (8,3))
+    plt.plot(np.genfromtxt(motion_parameters)[:,:3])
+    plt.title("Estimated Rotations (rad)")
+    plt.savefig(fname_r)
+    plt.close()
+    fname = [fname_t, fname_r]
+    return fname
+    
