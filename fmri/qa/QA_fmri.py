@@ -14,7 +14,7 @@ from nipype.interfaces.io import FreeSurferSource
 from nipype.interfaces import fsl
 #from nipype.utils.config import config
 #config.enable_debug_mode()
-from QA_utils import plot_ADnorm, tsdiffana, tsnr_roi, combine_table, art_output
+from QA_utils import plot_ADnorm, tsdiffana, tsnr_roi, combine_table, art_output, plot_motion
 import sys
 sys.path.insert(0,'../../utils/')
 from reportsink.io import ReportSink
@@ -39,7 +39,9 @@ def preproc_datagrabber(name='preproc_datagrabber'):
                                                                'tsnr_detrended',
                                                                'tsnr_stddev',
                                                                'reg_file',
-                                                               'motion_plots']),
+                                                               'motion_plots',
+                                                               'mean_image',
+                                                               'mask']),
                          name = name)
     datasource.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
     datasource.inputs.template ='*'
@@ -50,14 +52,18 @@ def preproc_datagrabber(name='preproc_datagrabber'):
                                             tsnr_detrended='%s/preproc/tsnr/*_detrended.nii.gz',
                                             tsnr_stddev='%s/preproc/tsnr/*tsnr_stddev.nii.gz',
                                             reg_file='%s/preproc/bbreg/*.dat',
-                                            motion_plots='%s/preproc/motion/*.png')
+                                            motion_plots='%s/preproc/motion/*.png',
+                                            mean_image='%s/preproc/mean*/*.nii.gz',
+                                            mask='%s/preproc/mask/*_brainmask.nii')
     datasource.inputs.template_args = dict(motion_parameters=[['subject_id']],
                                            outlier_files=[['subject_id']],
                                            art_norm=[['subject_id']],
                                            tsnr=[['subject_id']],
                                            tsnr_stddev=[['subject_id']],
                                            reg_file=[['subject_id']],
-                                           motion_plots=[['subject_id']])
+                                           motion_plots=[['subject_id']],
+                                           mean_image=[['subject_id']],
+                                           mask=[['subject_id']])
     return datasource
 
 
@@ -76,16 +82,17 @@ def start_config_table():
     try:
         table.append(['Highpass cutoff',str(c.hpcutoff)])
     except:
-        table.append(['highpass sigma',str(c.highpass_sigma)])
-        table.append(['lowpass sigma',str(c.lowpass_sigma)])
+        table.append(['highpass freq',str(c.highpass_freq)])
+        table.append(['lowpass freq',str(c.lowpass_freq)])
     return table
 
-def overlay_new(stat_image,background_image):
+def overlay_dB(stat_image,background_image,threshold,dB):
     import os.path
     import pylab as pl
     from nibabel import load
     from nipy.labs import viz
     from pylab import colorbar, gca, axes
+    import numpy as np
     # Second example, with a given anatomical image slicing in the Z
     # direction
     
@@ -96,27 +103,29 @@ def overlay_new(stat_image,background_image):
     formatter='%.2f'
     img = load(stat_image)
     data, affine = img.get_data(), img.get_affine()
-    
+    if dB:
+        data[data > 1] = 20*np.log10(np.asarray(data[data > 1]))
+
     anat_img = load(background_image)
     anat = anat_img.get_data()
     anat_affine = anat_img.get_affine()
 
     viz.plot_map(data, affine, anat=anat, anat_affine=anat_affine,
-                 slicer='z', threshold=10, cmap=viz.cm._cm.hot)
+                 slicer='z', threshold=threshold, cmap=viz.cm._cm.hot)
     cb = colorbar(gca().get_images()[1], cax=axes([0.3, 0.00, 0.4, 0.07]),
                          orientation='horizontal', format=formatter)
     cb.set_ticks([cb._values.min(), cb._values.max()])
     pl.savefig(fnames[0],bbox_inches='tight')
 
     viz.plot_map(data, affine, anat=anat, anat_affine=anat_affine,
-                 slicer='x', threshold=10, cmap=viz.cm._cm.hot)
+                 slicer='x', threshold=threshold, cmap=viz.cm._cm.hot)
     cb = colorbar(gca().get_images()[1], cax=axes([0.3, -0.06, 0.4, 0.07]), 
                          orientation='horizontal', format=formatter)
     cb.set_ticks([cb._values.min(), cb._values.max()])
     pl.savefig(fnames[1],bbox_inches='tight')
 
     viz.plot_map(data, affine, anat=anat, anat_affine=anat_affine,
-                 slicer='y', threshold=10, cmap=viz.cm._cm.hot)
+                 slicer='y', threshold=threshold, cmap=viz.cm._cm.hot)
     cb = colorbar(gca().get_images()[1], cax=axes([0.3, -0.08, 0.4, 0.07]), 
                          orientation='horizontal', format=formatter)
     cb.set_ticks([cb._values.min(), cb._values.max()])
@@ -124,7 +133,53 @@ def overlay_new(stat_image,background_image):
     
     return fnames
 
+
+def overlay_new(stat_image,background_image,threshold):
+    import os.path
+    import pylab as pl
+    from nibabel import load
+    from nipy.labs import viz
+    from pylab import colorbar, gca, axes
+    import numpy as np
+    # Second example, with a given anatomical image slicing in the Z
+    # direction
     
+    fnames = [os.path.abspath('z_view.png'),
+             os.path.abspath('x_view.png'),
+             os.path.abspath('y_view.png')]
+            
+    formatter='%.2f'
+    img = load(stat_image)
+    data, affine = img.get_data(), img.get_affine()
+   
+    
+    anat_img = load(background_image)
+    anat = anat_img.get_data()
+    anat_affine = anat_img.get_affine()
+    anat = np.ones(anat.shape) - anat
+    
+    viz.plot_map(data, affine, anat=anat, anat_affine=anat_affine,
+                 slicer='z', threshold=threshold, cmap=viz.cm._cm.hot)
+    cb = colorbar(gca().get_images()[1], cax=axes([0.3, 0.00, 0.4, 0.07]),
+                         orientation='horizontal', format=formatter)
+    cb.set_ticks([cb._values.min(), cb._values.max()])
+    pl.savefig(fnames[0],bbox_inches='tight')
+
+    viz.plot_map(data, affine, anat=anat, anat_affine=anat_affine,
+                 slicer='x', threshold=threshold, cmap=viz.cm._cm.hot)
+    cb = colorbar(gca().get_images()[1], cax=axes([0.3, -0.06, 0.4, 0.07]), 
+                         orientation='horizontal', format=formatter)
+    cb.set_ticks([cb._values.min(), cb._values.max()])
+    pl.savefig(fnames[1],bbox_inches='tight')
+
+    viz.plot_map(data, affine, anat=anat, anat_affine=anat_affine,
+                 slicer='y', threshold=threshold, cmap=viz.cm._cm.hot)
+    cb = colorbar(gca().get_images()[1], cax=axes([0.3, -0.08, 0.4, 0.07]), 
+                         orientation='horizontal', format=formatter)
+    cb.set_ticks([cb._values.min(), cb._values.max()])
+    pl.savefig(fnames[2],bbox_inches='tight')
+    
+    return fnames
 
 def QA_workflow(name='QA'):
     """ Workflow that generates a Quality Assurance Report
@@ -187,7 +242,7 @@ def QA_workflow(name='QA'):
     workflow.connect(orig_datagrabber, 'func', inputspec, 'in_file')
     workflow.connect(infosource, 'subject_id', inputspec, 'subject_id')
     workflow.connect(datagrabber, 'outlier_files', inputspec, 'art_file')
-    workflow.connect(datagrabber, 'motion_plots', inputspec, 'motion_plots')
+    #workflow.connect(datagrabber, 'motion_plots', inputspec, 'motion_plots')
     workflow.connect(datagrabber, 'reg_file', inputspec, 'reg_file')
     workflow.connect(datagrabber, 'tsnr', inputspec, 'tsnr')
     workflow.connect(datagrabber, 'tsnr_stddev', inputspec, 'tsnr_stddev')
@@ -197,7 +252,16 @@ def QA_workflow(name='QA'):
     inputspec.inputs.sd = c.surf_dir
     
     # Define Nodes
-
+    
+    plot_m = pe.MapNode(util.Function(input_names=['motion_parameters'],
+                                      output_names=['fname'],
+                                      function=plot_motion),
+                        name="motion_plots",
+                        iterfield=['motion_parameters'])
+    
+    workflow.connect(datagrabber,'motion_parameters',plot_m,'motion_parameters')
+    workflow.connect(plot_m, 'fname',inputspec,'motion_plots')
+    
     tsdiff = pe.MapNode(util.Function(input_names = ['img'], 
                                       output_names = ['out_file'], 
                                       function=tsdiffana), 
@@ -240,15 +304,35 @@ def QA_workflow(name='QA'):
     
     voltransform = pe.MapNode(interface=ApplyVolTransform(),name='register',iterfield=['source_file'])
     
-    overlaynew = pe.MapNode(util.Function(input_names=['stat_image','background_image'],
-                                          output_names=['fnames'], function=overlay_new), 
+    overlaynew = pe.MapNode(util.Function(input_names=['stat_image','background_image','threshold',"dB"],
+                                          output_names=['fnames'], function=overlay_dB), 
                                           name='overlay_new', iterfield=['stat_image'])
+    overlaynew.inputs.dB = False
+    overlaynew.inputs.threshold = 20
+                                 
+    overlaymask = pe.Node(util.Function(input_names=['stat_image','background_image','threshold'],
+                                          output_names=['fnames'], function=overlay_new), 
+                                          name='overlay_mask')
+    overlaymask.inputs.threshold = 0
     
+    #overlaymask = pe.Node(interface=fsl.Overlay(),name='fsl_overlaymask')
+    #overlaymask.inputs.transparency = True
+    #overlaymask.inputs.stat_thresh = (0,1)
+    #overlaymask.inputs.full_bg_range= True
+    
+    #slicermask = pe.Node(interface=fsl.Slicer(),name='slicer_mask')
+    #slicermask.inputs.all_axial = True
+    #slicermask.inputs.image_width = 4
+    
+    workflow.connect(datagrabber, 'mask', overlaymask, 'background_image')
+    workflow.connect(datagrabber, 'mean_image', overlaymask, 'stat_image')
+    #workflow.connect(overlaymask,'out_file', slicermask, 'in_file')
     
     write_rep = pe.Node(interface=ReportSink(orderfields=['Introduction',
                                                           'in_file',
                                                           'config_params',
                                                           'Art_Detect',
+                                                          'Brain_Mask_and_Mean_Functional',
                                                           'motion_plots',
                                                           'tsdiffana',
                                                           'ADnorm',
@@ -257,7 +341,11 @@ def QA_workflow(name='QA'):
                                              name='report_sink')
     write_rep.inputs.Introduction = "Quality Assurance Report for fMRI preprocessing."
     write_rep.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
+    write_rep.inputs.report_name = "Preprocessing_Report"
+    write_rep.inputs.json_sink = c.json_sink
     workflow.connect(infosource,'subject_id',write_rep,'container')
+    workflow.connect(overlaymask, 'fnames', write_rep, "Brain_Mask_and_Mean_Functional")
+    #workflow.connect(slicermask,'out_file', write_rep, "Brain_Mask_and_Mean_Functional")
     
     # Define Inputs
     

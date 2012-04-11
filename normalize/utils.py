@@ -32,7 +32,9 @@ def get_image_dimensions(images):
     -------
     list : returns dimensions of input image list
     """
-    import nibabl as nb
+
+    import nibabel as nb
+
     if isinstance(images, list):
         dims = []
         for image in images:

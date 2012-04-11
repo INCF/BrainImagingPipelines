@@ -68,8 +68,8 @@ def prep_workflow(subjects, fieldmap):
     preproc.inputs.inputspec.interleaved = c.Interleaved
     preproc.inputs.inputspec.sliceorder = c.SliceOrder
     preproc.inputs.inputspec.compcor_select = c.compcor_select
-    preproc.inputs.inputspec.highpass_sigma = c.highpass_sigma
-    preproc.inputs.inputspec.lowpass_sigma = c.lowpass_sigma
+    preproc.inputs.inputspec.highpass_sigma = 1/(2*c.TR*c.highpass_freq)
+    preproc.inputs.inputspec.lowpass_sigma = 1/(2*c.TR*c.lowpass_freq)
     preproc.inputs.inputspec.reg_params = c.reg_params
 
     

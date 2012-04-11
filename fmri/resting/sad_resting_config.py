@@ -40,17 +40,21 @@ surf_dir : Freesurfer subjects directory
 crash_dir : Location to store crash files
 """
 
-working_dir = '/mindhive/scratch/satra/sad/resting'
+working_dir = '/mindhive/scratch/keshavan/sad/resting'
 
-base_dir = '/mindhive/gablab/sad/SAD_STUDY_Resting/data'
+base_dir = '/mindhive/xnat/data/sad'
 
-sink_dir = '/mindhive/gablab/sad/bips/resting'
+sink_dir = '/mindhive/scratch/keshavan/sad/resting'
 
-field_dir = '/mindhive/gablab/sad/Data_reorganized'
+field_dir = base_dir
 
 crash_dir = working_dir
 
-surf_dir = '/mindhive/xnat/surfaces/sad/'
+surf_dir = '/mindhive/xnat/surfaces/sad/' #names should match subject names
+
+base_norm_dir = '/mindhive/xnat/surfaces/sad/ANTS'
+
+json_sink = '/mindhive/xnat/data/TSNR/sad/resting'
 
 """
 Workflow Inputs:
@@ -94,10 +98,26 @@ patients = ['SAD_P03', 'SAD_P04', 'SAD_P05', 'SAD_P07', 'SAD_P08', 'SAD_P09',
             'SAD_P46', 'SAD_P47', 'SAD_P48', 'SAD_P49', 'SAD_P50', 'SAD_P51',
             'SAD_P52', 'SAD_P53', 'SAD_P54', 'SAD_P55', 'SAD_P56', 'SAD_P57',
             'SAD_P58']
-subjects = patients + controls
-subjects = ['SAD_024']
+tp2s = ['SAD2_019', 'SAD2_020','SAD2_022','SAD2_024','SAD2_025',
+        'SAD2_027','SAD2_028','SAD2_029','SAD2_030',
+        'SAD2_031','SAD2_032','SAD2_033','SAD2_036',
+        'SAD2_038','SAD2_039','SAD2_044','SAD2_046',
+        'SAD2_047','SAD2_049','SAD2_050','SAD_POST04',
+        'SAD_POST05','SAD_POST06','SAD_POST07','SAD_POST08',
+        'SAD_POST09','SAD_POST10','SAD_POST11','SAD_POST12',
+        'SAD_POST13','SAD_POST14','SAD_POST16','SAD_POST20',
+        'SAD_POST21','SAD_POST22','SAD_POST24','SAD_POST26',
+        'SAD_POST27','SAD_POST28','SAD_POST30','SAD_POST31',
+        'SAD_POST34','SAD_POST35','SAD_POST36','SAD_POST38',
+        'SAD_POST39','SAD_POST41','SAD_POST44','SAD_POST45',
+        'SAD_POST46','SAD_POST47','SAD_POST50','SAD_POST51',
+        'SAD_POST52','SAD_POST53','SAD_POST54','SAD_POST56',
+        'SAD_POST58']
+subjects = controls+patients+tp2s
 
-run_on_grid = False
+run_on_grid = True
+
+plugin = 'PBS'
 
 plugin_args = {'qsub_args': '-q many'}
 
@@ -146,7 +166,7 @@ sigma : Int
 
 use_fieldmap = True
 
-echospacing = 0.7  #SG: CHECK THIS
+echospacing = 0.7  #AK: confirmed
 
 TE_diff = 2.46
 
@@ -162,7 +182,7 @@ z_thresh :
 
 """
 
-norm_thresh = 2
+norm_thresh = 0.5
 
 z_thresh = 3
 
@@ -208,15 +228,26 @@ Bandpass Filter
 ^^^^^^^^^^^^^^^
 
 highpass_sigma : Float
-                 Highpass  cut off in mm
+                 Highpass  cut off in volumes
 lowpass _sigma : Float
-                 Lowpass cut off in mm
+                 Lowpass cut off in volumes
+
+"""
+# Fix: convert Hz to volumes, so you can specify Hz in config
+
+highpass_freq = .01
+
+lowpass_freq = .08
+
+"""
+Normalization
+^^^^^^^^^^^^^
+
+norm_template : location of template to normalize to
 
 """
 
-highpass_sigma = 100/(2*TR)
-
-lowpass_sigma = 12.5/(2*TR)
+norm_template = '/software/fsl/fsl-4.1.6/data/standard/MNI152_T1_1mm_brain.nii.gz'
 
 """
 Functions
@@ -249,7 +280,7 @@ def create_dataflow(name="datasource"):
                          name = name)
     datasource.inputs.base_directory = base_dir
     datasource.inputs.template ='*'
-    datasource.inputs.field_template = dict(func='%s/resting*.nii')
+    datasource.inputs.field_template = dict(func='%s/BOLD/resting.nii.gz')
     datasource.inputs.template_args = dict(func=[['subject_id']])
     return datasource
     
@@ -262,8 +293,27 @@ def create_fieldmap_dataflow(name="datasource_fieldmap"):
                          name = name)
     datasource.inputs.base_directory = field_dir
     datasource.inputs.template ='*'
-    datasource.inputs.field_template = dict(mag='%s/fieldmap_resting/*run00*.nii.gz',
-                                            phase='%s/fieldmap_resting/*run01*.nii.gz')
+    datasource.inputs.field_template = dict(mag='%s/fieldmap/fieldmap_resting/magnitude.nii.gz',
+                                            phase='%s/fieldmap/fieldmap_resting/phase.nii.gz')
     datasource.inputs.template_args = dict(mag=[['subject_id']],
                                            phase=[['subject_id']])
+    return datasource
+    
+def create_norm_dataflow(name="datasource"):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio 
+    # create a node to obtain the functional images
+    datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
+                                                   outfields=['warp_field',
+                                                              'affine',
+                                                              'unwarped_brain']),
+                         name = name)
+    datasource.inputs.base_directory = base_norm_dir
+    datasource.inputs.template ='*'
+    datasource.inputs.field_template = dict(warp_field='%s/ants_Warp.nii.gz',
+                                            affine='%s/ants_Affine.txt',
+                                            unwarped_brain='%s/ants_repaired.nii.gz')
+    datasource.inputs.template_args = dict(warp_field=[['subject_id']],
+                                           affine=[['subject_id']],
+                                           unwarped_brain=[['subject_id']])
     return datasource
