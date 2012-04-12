@@ -36,6 +36,7 @@ def func_datagrabber(name="resting_output_datagrabber"):
 
 
 def normalize_workflow(name="normalize"):
+
     norm = get_full_norm_workflow()
     datagrab = func_datagrabber()
 
