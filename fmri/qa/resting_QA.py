@@ -40,6 +40,9 @@ def corr_image(resting_image,fwhm):
     img = nb.load(resting_image)
     corrmat = np.corrcoef(np.squeeze(img.get_data()))
     corrmat[np.isnan(corrmat)] = 0
+    corrmat_npz = os.path.abspath('corrmat.npz')
+    np.savez(corrmat_npz,corrmat)
+    
     br = Brain('fsaverage5', 'lh', 'smoothwm')
 
     #br.add_overlay(corrmat[0,:], min=0.2, name=0, visible=True)
@@ -80,7 +83,7 @@ def corr_image(resting_image,fwhm):
     roitable=[roitable]
     histogram = os.path.abspath("histogram.png")
     
-    return corr_image, ims, roitable, histogram
+    return corr_image, ims, roitable, histogram, corrmat_npz
     
 def vol2surf(input_volume,ref_volume,reg_file,trg,hemi):
     import os
@@ -149,7 +152,7 @@ def resting_QA(name="resting_QA"):
     workflow.connect(inputspec,'mean_image', tosurf,'ref_volume')
     
     to_img = pe.MapNode(util.Function(input_names=['resting_image','fwhm'],
-                                   output_names=["corr_image","ims","roitable","histogram"],function=corr_image),
+                                   output_names=["corr_image","ims","roitable","histogram","corrmat_npz"],function=corr_image),
                      name="image_gen",iterfield=["resting_image"])
                      
     workflow.connect(tosurf,'out_file',to_img,'resting_image')
@@ -161,6 +164,21 @@ def resting_QA(name="resting_QA"):
     sink.inputs.json_sink = c.json_sink
     sink.inputs.Introduction = "Resting state corellations with seed at precuneus"
     sink.inputs.Configuration = start_config_table()
+    
+    corrmat_sinker = pe.Node(nio.DataSink(),name='corrmat_sink')
+    corrmat_sinker.inputs.base_directory = c.json_sink
+    
+    def get_substitutions(subject_id):
+        subs = [('_fwhm_','fwhm'),('_subject_id_%s'%subject_id,'')]
+        for i in range(20):
+            subs.append(('_image_gen%d/corrmat.npz'%i,'corrmat%02d.npz'%i))
+        return subs
+    
+    #corrmat_sinker.inputs.substitutions = #[('_fwhm_','fwhm'),('_subject_id_%s',''),('_image_gen%s','')]
+    workflow.connect(infosource,('subject_id',get_substitutions),corrmat_sinker,'substitutions')
+    workflow.connect(infosource,'subject_id',corrmat_sinker,'container')
+    workflow.connect(to_img,'corrmat_npz',corrmat_sinker,'corrmats')
+    
     #sink.inputs.report_name = "Resting_State_Correlations"
     workflow.connect(infosource,'subject_id',sink,'Subject')
     workflow.connect(fwhmsource,('fwhm',addtitle),sink,'report_name')

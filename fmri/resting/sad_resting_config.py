@@ -113,7 +113,9 @@ tp2s = ['SAD2_019', 'SAD2_020','SAD2_022','SAD2_024','SAD2_025',
         'SAD_POST46','SAD_POST47','SAD_POST50','SAD_POST51',
         'SAD_POST52','SAD_POST53','SAD_POST54','SAD_POST56',
         'SAD_POST58']
-subjects = controls+patients+tp2s
+subjects = ['SAD_POST06','SAD2_036','SAD_POST07','SAD_POST46','SAD_023','SAD_018','SAD_POST52','SAD_P57',
+            'SAD_POST50','SAD_P12','SAD2_022','SAD_POST54','SAD2_050','SAD_P43','SAD_024','SAD_POST10',
+            'SAD_POST13','SAD_POST05','SAD_POST44','SAD2_044']  #These people had errors
 
 run_on_grid = True
 

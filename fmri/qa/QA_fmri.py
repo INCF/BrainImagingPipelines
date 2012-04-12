@@ -14,7 +14,7 @@ from nipype.interfaces.io import FreeSurferSource
 from nipype.interfaces import fsl
 #from nipype.utils.config import config
 #config.enable_debug_mode()
-from QA_utils import plot_ADnorm, tsdiffana, tsnr_roi, combine_table, art_output, plot_motion
+from QA_utils import plot_ADnorm, tsdiffana, tsnr_roi, combine_table, art_output, plot_motion, plot_ribbon, plot_anat
 import sys
 sys.path.insert(0,'../../utils/')
 from reportsink.io import ReportSink
@@ -45,6 +45,7 @@ def preproc_datagrabber(name='preproc_datagrabber'):
                          name = name)
     datasource.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
     datasource.inputs.template ='*'
+    datasource.sort_filelist = True
     datasource.inputs.field_template = dict(motion_parameters='%s/preproc/motion/*.par',
                                             outlier_files='%s/preproc/art/*_outliers.txt',
                                             art_norm='%s/preproc/art/norm.*.txt',
@@ -268,11 +269,24 @@ def QA_workflow(name='QA'):
                         name='tsdiffana', iterfield=["img"])
                         
     art_info = pe.MapNode(util.Function(input_names = ['art_file'], 
-                                      output_names = ['table'], 
+                                      output_names = ['table','out'], 
                                       function=art_output), 
                         name='art_output', iterfield=["art_file"])
     
     fssource = pe.Node(interface = FreeSurferSource(),name='fssource')
+    
+    plotribbon = pe.Node(util.Function(input_names=['Brain'],
+                                      output_names=['images'],
+                                      function=plot_ribbon),
+                        name="plot_ribbon")
+    
+    workflow.connect(fssource, 'ribbon', plotribbon, 'Brain')
+    
+    
+    plotanat = pe.Node(util.Function(input_names=['brain'],
+                                      output_names=['images'],
+                                      function=plot_anat),
+                        name="plot_anat")
         
     roidevplot = tsnr_roi(plot=False,name='tsnr_stddev_roi',roi=['all'])
     roidevplot.inputs.inputspec.TR = c.TR
@@ -285,6 +299,7 @@ def QA_workflow(name='QA'):
     workflow.connect(infosource, 'subject_id', roidevplot, 'inputspec.subject')
     workflow.connect(infosource, 'subject_id', roisnrplot, 'inputspec.subject')
     
+   
     tablecombine = pe.MapNode(util.Function(input_names = ['roidev',
                                                         'roisnr'],
                                          output_names = ['roisnr'], 
@@ -293,12 +308,12 @@ def QA_workflow(name='QA'):
     
     
     
-    adnormplot = pe.MapNode(util.Function(input_names = ['ADnorm','TR'], 
+    adnormplot = pe.MapNode(util.Function(input_names = ['ADnorm','TR','norm_thresh','out'], 
                                        output_names = ['plot'], 
                                        function=plot_ADnorm), 
-                         name='ADnormplot', iterfield=['ADnorm'])
-    
-    
+                         name='ADnormplot', iterfield=['ADnorm','out'])
+    adnormplot.inputs.norm_thresh = c.norm_thresh
+    workflow.connect(art_info,'out',adnormplot,'out')
     
     convert = pe.Node(interface=fs.MRIConvert(),name='converter')
     
@@ -315,24 +330,17 @@ def QA_workflow(name='QA'):
                                           name='overlay_mask')
     overlaymask.inputs.threshold = 0
     
-    #overlaymask = pe.Node(interface=fsl.Overlay(),name='fsl_overlaymask')
-    #overlaymask.inputs.transparency = True
-    #overlaymask.inputs.stat_thresh = (0,1)
-    #overlaymask.inputs.full_bg_range= True
     
-    #slicermask = pe.Node(interface=fsl.Slicer(),name='slicer_mask')
-    #slicermask.inputs.all_axial = True
-    #slicermask.inputs.image_width = 4
-    
-    workflow.connect(datagrabber, 'mask', overlaymask, 'background_image')
-    workflow.connect(datagrabber, 'mean_image', overlaymask, 'stat_image')
+    #workflow.connect(datagrabber, 'mask', overlaymask, 'background_image')
+    workflow.connect(datagrabber, 'mean_image', plotanat, 'brain')
     #workflow.connect(overlaymask,'out_file', slicermask, 'in_file')
     
     write_rep = pe.Node(interface=ReportSink(orderfields=['Introduction',
                                                           'in_file',
                                                           'config_params',
                                                           'Art_Detect',
-                                                          'Brain_Mask_and_Mean_Functional',
+                                                          'Mean_Functional',
+                                                          'Ribbon',
                                                           'motion_plots',
                                                           'tsdiffana',
                                                           'ADnorm',
@@ -344,7 +352,7 @@ def QA_workflow(name='QA'):
     write_rep.inputs.report_name = "Preprocessing_Report"
     write_rep.inputs.json_sink = c.json_sink
     workflow.connect(infosource,'subject_id',write_rep,'container')
-    workflow.connect(overlaymask, 'fnames', write_rep, "Brain_Mask_and_Mean_Functional")
+    workflow.connect(plotanat, 'images', write_rep, "Mean_Functional")
     #workflow.connect(slicermask,'out_file', write_rep, "Brain_Mask_and_Mean_Functional")
     
     # Define Inputs
@@ -376,7 +384,7 @@ def QA_workflow(name='QA'):
     workflow.connect(convert,'out_file',voltransform,'target_file') 
     workflow.connect(inputspec,'reg_file',voltransform,'reg_file')
     workflow.connect(inputspec,'tsnr',voltransform, 'source_file')
-    
+    workflow.connect(plotribbon, 'images', write_rep, 'Ribbon')
     workflow.connect(voltransform,'transformed_file', overlaynew,'stat_image')
     workflow.connect(convert,'out_file', overlaynew,'background_image')
     

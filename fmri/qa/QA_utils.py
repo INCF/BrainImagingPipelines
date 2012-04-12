@@ -18,10 +18,10 @@ def art_output(art_file):
     except:
         out=np.asarray([])
     table=[["file",art_file],["num outliers", str(out.shape)],["timepoints",str(out)]]
-    return table
+    return table, [out]
         
 
-def plot_ADnorm(ADnorm,TR):
+def plot_ADnorm(ADnorm,TR,norm_thresh,out):
     """ Returns a plot of the composite_norm file output from art
     
     Parameters
@@ -41,7 +41,7 @@ def plot_ADnorm(ADnorm,TR):
     import matplotlib.pyplot as plt
     import os
     import numpy as np
-    
+    out = out[0]
     plot = os.path.abspath('plot_'+os.path.split(ADnorm)[1]+'.png')
     
     data = np.genfromtxt(ADnorm)
@@ -50,7 +50,19 @@ def plot_ADnorm(ADnorm,TR):
     plt.plot(X,data)
     plt.xlabel('Time (s)')
     plt.ylabel('Composite Norm')
-    plt.savefig(plot)
+    
+    if norm_thresh > max(data):
+        plt.axis([0,TR*data.shape[0],0,norm_thresh*1.1])
+        plt.plot(X,np.ones(X.shape)*norm_thresh)
+        for o in out:
+            plt.plot(o*TR*np.ones(2),[0,norm_thresh*1.1],'r-')
+    else:
+        plt.axis([0,TR*data.shape[0],0,max(data)*1.1])
+        plt.plot(X,np.ones(X.shape)*norm_thresh)
+        for o in out:
+            plt.plot(o*TR*np.ones(2),[0,max(data)*1.1],'r-')
+    
+    plt.savefig(plot,bbox_inches='tight')
     plt.close()
     return plot
     
@@ -275,6 +287,7 @@ def plot_motion(motion_parameters):
     fname_t=os.path.abspath('translations.png')
     plt.figure(1,figsize = (8,3))
     plt.plot(np.genfromtxt(motion_parameters)[:,3:])
+    plt.legend(['x','y','z'])
     plt.title("Estimated Translations (mm)")
     plt.savefig(fname_t)
     plt.close()
@@ -283,8 +296,67 @@ def plot_motion(motion_parameters):
     plt.figure(2,figsize = (8,3))
     plt.plot(np.genfromtxt(motion_parameters)[:,:3])
     plt.title("Estimated Rotations (rad)")
+    plt.legend(['roll','pitch','yaw'])
     plt.savefig(fname_r)
     plt.close()
     fname = [fname_t, fname_r]
     return fname
+    
+def plot_ribbon(Brain):
+    import os.path
+    import pylab as pl
+    from nibabel import load
+    from nipy.labs import viz   
+    images = []
+    
+    for brain in Brain:
+        if os.path.split(brain)[1] == 'ribbon.mgz':
+            img = load(brain)
+            data = img.get_data()*100
+            affine = img.get_affine() 
+            viz.plot_anat(anat=data, anat_affine=affine, draw_cross=False, slicer='x', cmap=viz.cm.black_green)
+            
+            x_view = os.path.abspath('x_view.png')
+            y_view = os.path.abspath('y_view.png')
+            z_view = os.path.abspath('z_view.png')
+            
+            pl.savefig(x_view,bbox_inches='tight')
+            
+            viz.plot_anat(anat=data, anat_affine=affine, draw_cross=False, slicer='y', cmap=viz.cm.black_green)
+            pl.savefig(y_view,bbox_inches='tight')
+            
+            viz.plot_anat(anat=data, anat_affine=affine, draw_cross=False, slicer='z', cmap=viz.cm.black_green)
+            pl.savefig(z_view,bbox_inches='tight')
+            
+            images = [x_view, y_view, z_view]
+            pl.close()
+    return images
+    
+def plot_anat(brain):
+    import os.path
+    import pylab as pl
+    from nibabel import load
+    from nipy.labs import viz   
+    
+    img = load(brain)
+    data = img.get_data()
+    affine = img.get_affine() 
+    viz.plot_anat(anat=data, anat_affine=affine, draw_cross=False, slicer='x')
+    
+    x_view = os.path.abspath('x_view.png')
+    y_view = os.path.abspath('y_view.png')
+    z_view = os.path.abspath('z_view.png')
+    
+    pl.savefig(x_view,bbox_inches='tight')
+    
+    viz.plot_anat(anat=data, anat_affine=affine, draw_cross=False, slicer='y')
+    pl.savefig(y_view,bbox_inches='tight')
+    
+    viz.plot_anat(anat=data, anat_affine=affine, draw_cross=False, slicer='z')
+    pl.savefig(z_view,bbox_inches='tight')
+    
+    images = [x_view, y_view, z_view]
+    pl.close()
+    return images
+    
     
