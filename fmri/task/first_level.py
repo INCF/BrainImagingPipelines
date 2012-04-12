@@ -28,8 +28,8 @@ def preproc_datagrabber(name='preproc_datagrabber'):
     datasource.inputs.template ='*'
     datasource.inputs.field_template = dict(noise_components='%s/preproc/noise_components/*/noise_components.txt',
                                             motion_parameters='%s/preproc/motion/*.par',
-                                            highpassed_files='%s/preproc/highpass/fwhm_%d/*.nii.gz',
-                                            outlier_files='%s/preproc/art/*/*_outliers.txt')
+                                            highpassed_files='%s/preproc/highpass/fwhm_%d/*/*.nii.gz',
+                                            outlier_files='%s/preproc/art/*_outliers.txt')
     datasource.inputs.template_args = dict(noise_components=[['subject_id']],
                                            motion_parameters=[['subject_id']],
                                            highpassed_files=[['subject_id','fwhm']],
@@ -64,6 +64,8 @@ def trad_mot(subinfo,files):
 def noise_mot(subinfo,files,num_noise_components):
     noi_reg_names = map(lambda x: 'noise_comp_'+str(x+1),range(num_noise_components))
     noise_regressors = []
+    if not isinstance(files,list):
+        files = [files]
     for j,i in enumerate(files):
         noise_regressors.append([[]]*num_noise_components)
         k = map(lambda x: float(x), filter(lambda y: y!='',open(i,'r').read().replace('\n',' ').split(' ')))
@@ -79,7 +81,7 @@ def noise_mot(subinfo,files,num_noise_components):
 
 # First level modeling
 
-def combine_wkflw(subjects, name='work_dir'):
+def combine_wkflw(c, name='work_dir'):
     
     modelflow = pe.Workflow(name=name)
     modelflow.base_dir = os.path.join(c.working_dir)
@@ -93,7 +95,7 @@ def combine_wkflw(subjects, name='work_dir'):
     modelflow.connect(infosource,'subject_id',preproc,'subject_id')
     preproc.iterables = ('fwhm', c.fwhm)
     
-    def getsubs(subject_id):
+    def getsubs(subject_id,getcontrasts,subjectinfo,fwhm):
         #from config import getcontrasts, get_run_numbers, subjectinfo, fwhm
         subs = [('_subject_id_%s/'%subject_id,''),
                 ('_plot_type_',''),
@@ -108,9 +110,9 @@ def combine_wkflw(subjects, name='work_dir'):
             subs.append(('_highpass%d/'%i, ''))
             subs.append(('_realign%d/'%i, ''))
             subs.append(('_meanfunc2%d/'%i, ''))
-        cons = c.getcontrasts(subject_id)
-        runs = c.get_run_numbers(subject_id)
-        info = c.subjectinfo(subject_id)
+        cons = getcontrasts(subject_id)
+        info = subjectinfo(subject_id)
+        runs = range(len(info))
         for i, run in enumerate(runs):
             subs.append(('_modelestimate%d/'%i, '_run_%d_%02d_'%(i,run)))
             subs.append(('_modelgen%d/'%i, '_run_%d_%02d_'%(i,run)))
@@ -124,14 +126,14 @@ def combine_wkflw(subjects, name='work_dir'):
             subs.append(('pe%d.'%(i+1), 'pe%02d_%s.'%(i+1,name)))
         for i in range(len(info[0].conditions), 256):
             subs.append(('pe%d.'%(i+1), 'others/pe%02d.'%(i+1)))
-        for i in c.fwhm:
+        for i in fwhm:
             subs.append(('_register%d/'%(i),''))
         
         return subs
     
     # create a node to create the subject info
     s = pe.Node(SpecifyModel(),name='s')
-    s.inputs.input_units =                              'secs'
+    s.inputs.input_units =                              c.input_units
     s.inputs.time_repetition =                          c.TR
     s.inputs.high_pass_filter_cutoff =                  c.hpcutoff
     #subjinfo =                                          subjectinfo(subj)
@@ -146,12 +148,15 @@ def combine_wkflw(subjects, name='work_dir'):
                         name='trad_motn')
 
     
-    subjinfo = pe.Node(interface=util.Function(input_names=['subject_id'], output_names=['output'], function = subjectinfo), name='subjectinfo')
+    #subjinfo = pe.Node(interface=util.Function(input_names=['subject_id','get_run_numbers'], output_names=['output'], function = c.subjectinfo), name='subjectinfo')
+    #subjinfo.inputs.get_run_numbers = c.get_run_numbers
+    #modelflow.connect(infosource,'subject_id', 
+    #                  subjinfo,'subject_id' )
+    #modelflow.connect(subjinfo, 'output',
+    #                  trad_motn, 'subinfo')
     
-    modelflow.connect(infosource,'subject_id', 
-                      subjinfo,'subject_id' )
-    modelflow.connect(subjinfo, 'output',
-                      trad_motn, 'subinfo')
+    modelflow.connect(infosource, ('subject_id',c.subjectinfo), trad_motn, 'subinfo')
+    
     # create a node to add the principle components of the noise regressors to 
     # the subject info
     noise_motn = pe.Node(util.Function(input_names=['subinfo',
@@ -167,7 +172,7 @@ def combine_wkflw(subjects, name='work_dir'):
     modelfit.inputs.inputspec.film_threshold =          c.film_threshold
     
     
-    contrasts = pe.Node(util.Function(input_names=['subject_id'], output_names=['contrasts'], function=getcontrasts), name='getcontrasts')
+    contrasts = pe.Node(util.Function(input_names=['subject_id'], output_names=['contrasts'], function=c.getcontrasts), name='getcontrasts')
     
     modelflow.connect(infosource,'subject_id', 
                      contrasts, 'subject_id')
@@ -179,10 +184,10 @@ def combine_wkflw(subjects, name='work_dir'):
     
     # make a data sink
     sinkd = pe.Node(nio.DataSink(), name='sinkd')
-    sinkd.inputs.base_directory = os.path.join(root_dir,'analyses','func')
+    sinkd.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
         
-    modelflow.connect(preproc, 'subject_names.subject_id', sinkd, 'container')
-    modelflow.connect(preproc, ('subject_names.subject_id',getsubs), sinkd, 'substitutions')
+    modelflow.connect(infosource, 'subject_id', sinkd, 'container')
+    modelflow.connect(infosource, ('subject_id',getsubs, c.getcontrasts, c.subjectinfo, c.fwhm), sinkd, 'substitutions')
     
     sinkd.inputs.regexp_substitutions = [('mask/fwhm_%d/_threshold([0-9]*)/.*nii'%x,'mask/fwhm_%d/funcmask.nii'%x) for x in fwhm]
     sinkd.inputs.regexp_substitutions.append(('realigned/fwhm_([0-9])/_copy_geom([0-9]*)/','realigned/'))
@@ -223,8 +228,8 @@ if __name__ == "__main__":
     sys.path.append(path)
     c = __import__(fname.split('.')[0])
     
-    first_level = combine_wkflw(c.subjects)
-    
+    first_level = combine_wkflw(c)
+    #first_level.write_graph()
     if run_on_grid:
         first_level.run(plugin='PBS', plugin_args = c.plugin_args)
     else:

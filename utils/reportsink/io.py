@@ -17,7 +17,7 @@ from nipype.interfaces.base import (TraitedSpec, traits, File, Directory,
                                     OutputMultiPath, DynamicTraitedSpec,
                                     Undefined, BaseInterfaceInputSpec)
 from nipype.utils.filemanip import (copyfile, list_to_filename,
-                                    filename_to_list)
+                                    filename_to_list, save_json)
 from nipype.interfaces.io import IOBase
 import logging
 iflogger = logging.getLogger('interface')
@@ -27,24 +27,29 @@ class ReportSinkInputSpec(DynamicTraitedSpec, BaseInterfaceInputSpec):
     base_directory = Directory(
         desc='Path to the base directory for writing report.')
     
-
+    container = traits.Str(desc = 'Folder within base directory in which to store output')
     _outputs = traits.Dict(traits.Str, value={}, usedefault=True)
+    _outputs_order = []
     remove_dest_dir = traits.Bool(False, usedefault=True,
                                   desc='remove dest directory when copying dirs')
-
+    report_name = traits.Str('Report',usedefault=True, desc='Name of report')
+    json_sink = Directory(desc="place to store json in addition to base_directory")
+    
     def __setattr__(self, key, value):
         if key not in self.copyable_trait_names():
             if not isdefined(value):
                 super(ReportSinkInputSpec, self).__setattr__(key, value)
             self._outputs[key] = value
+            self._outputs_order.append(key)
         else:
             if key in self._outputs:
                 self._outputs[key] = value
+                self._outputs_order.append(key)
             super(ReportSinkInputSpec, self).__setattr__(key, value)
 
 
 class ReportSink(IOBase):
-    """ ReportSink module to write outputs to a pdf
+    """ ReportSink module to write outputs to a pdf and save to json file
 
 This interface allows arbitrary creation of input attributes. The names of 
 these attributes define the Report structure to create for display of images,
@@ -74,7 +79,7 @@ Examples
 """
     input_spec = ReportSinkInputSpec
 
-    def __init__(self, infields=None, **kwargs):
+    def __init__(self, orderfields=None, infields=None, **kwargs):
         """
 Parameters
 ----------
@@ -91,6 +96,9 @@ Indicates the input fields to be dynamically created
                 self.inputs.add_trait(key, traits.Any)
                 self.inputs._outputs[key] = Undefined
                 undefined_traits[key] = Undefined
+        
+        self._orderfields = orderfields
+            
         self.inputs.trait_set(trait_change_notify=False, **undefined_traits)
 
     def _list_outputs(self):
@@ -100,7 +108,10 @@ Indicates the input fields to be dynamically created
         if not isdefined(outdir):
             outdir = '.'
         outdir = os.path.abspath(outdir)
-
+        
+        if isdefined(self.inputs.container):
+            outdir = os.path.join(outdir, self.inputs.container)
+            
         if not os.path.exists(outdir):
             try:
                 os.makedirs(outdir)
@@ -111,10 +122,18 @@ Indicates the input fields to be dynamically created
                     raise(inst)
         
         # Begin Report
-        rep = report(os.path.abspath(os.path.join(outdir,'Report.pdf')),'Report')
+        rep = report(os.path.abspath(os.path.join(outdir,self.inputs.report_name+'.pdf')),self.inputs.report_name)
         
         # Loop through all inputs
-        for key, files in self.inputs._outputs.items():
+        #for key, files in self.inputs._outputs.items():
+        
+        if self._orderfields:
+            order = self._orderfields
+        else:
+            order = self.inputs._outputs_order
+        
+        for key in order:
+            files = self.inputs._outputs[key]
             if not isdefined(files):
                 continue
             iflogger.debug("key: %s files: %s"%(key, str(files)))
@@ -122,7 +141,7 @@ Indicates the input fields to be dynamically created
             tempoutdir = outdir
             
             # Add name of input as a title
-            rep.add_text('<b>%s</b>' % key)
+            rep.add_text('<b>%s</b>' % key.replace('_',' '))
             
             # flattening list
             if isinstance(files, list):
@@ -135,10 +154,21 @@ Indicates the input fields to be dynamically created
                     rep.add_table(thing)
                 else:
                     if thing.endswith('.png') or thing.endswith('.jpg'):
+                        rep.add_text(os.path.split(thing)[1])
                         rep.add_image(thing)
                     else:
                         rep.add_text(thing)
         
         # write the report
         rep.write()
+        # save json
+        save_json(os.path.join(outdir, self.inputs.report_name+'.json'), self.inputs._outputs)
+        if isdefined(self.inputs.json_sink):
+            if not isdefined(self.inputs.container):
+                save_json(os.path.join(self.inputs.json_sink, self.inputs.report_name+'.json'), self.inputs._outputs)
+            else:
+                if not os.path.exists(os.path.join(self.inputs.json_sink,self.inputs.container)):
+                    os.mkdir(os.path.join(self.inputs.json_sink,self.inputs.container))
+                save_json(os.path.join(self.inputs.json_sink,self.inputs.container, self.inputs.report_name+'.json'), self.inputs._outputs)
+        print "json file " , os.path.join(outdir, self.inputs.report_name+'.json')
         return None
