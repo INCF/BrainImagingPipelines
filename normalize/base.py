@@ -2,8 +2,7 @@ import nipype.interfaces.freesurfer as fs
 import nipype.interfaces.ants as ants
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
-from utils import (convert_affine, get_image_dimensions,
-    get_first_element)
+from utils import (convert_affine, get_image_dimensions)
 
 
 def get_struct_norm_workflow(name='normalize_struct'):
