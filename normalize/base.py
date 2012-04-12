@@ -164,7 +164,7 @@ def get_post_struct_norm_workflow(name='normalize_post_struct'):
         (inputspec, warp_images, [(('moving_image', get_image_dimensions),
                                     'dimension')]),
         (inputspec, warp_images, [('template_file', 'reference_image')]),
-        (collect_transforms, warp_images, [(('out', get_first_element),
+        (collect_transforms, warp_images, [('out',
                                     'transformation_series')]),
         (warp_images, outputspec, [('output_image', 'warped_image')])])
 
