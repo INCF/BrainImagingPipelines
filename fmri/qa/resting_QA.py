@@ -41,7 +41,7 @@ def corr_image(resting_image,fwhm):
     corrmat = np.corrcoef(np.squeeze(img.get_data()))
     corrmat[np.isnan(corrmat)] = 0
     corrmat_npz = os.path.abspath('corrmat.npz')
-    np.savez(corrmat_npz,corrmat)
+    np.savez(corrmat_npz,corrmat=corrmat)
     
     br = Brain('fsaverage5', 'lh', 'smoothwm')
 
@@ -62,7 +62,7 @@ def corr_image(resting_image,fwhm):
     
     #br.add_overlay(precuneus[0,1:], min=0.3, sign='pos', name='mean', visible=True)
 
-    br.add_overlay(precuneus[0,1:], min=0.2, name='mean', visible=True)
+    br.add_overlay(precuneus[0,1:], name='mean', visible=True)
     plt.hist(precuneus[0,1:], 128)
     plt.savefig(os.path.abspath("histogram.png"))
     plt.close()
