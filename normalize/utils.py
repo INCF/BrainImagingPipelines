@@ -32,7 +32,6 @@ def get_image_dimensions(images):
     -------
     list : returns dimensions of input image list
     """
-
     import nibabel as nb
 
     if isinstance(images, list):
@@ -42,17 +41,3 @@ def get_image_dimensions(images):
     else:
         dims = len(nb.load(images).get_shape())
     return dims
-
-
-def get_first_element(_list):
-    """Return first element of a list
-
-    Parameters
-    ----------
-    _list : a list
-
-    Returns
-    -------
-    value : first element
-    """
-    return _list[0]
