@@ -764,6 +764,6 @@ def create_first(name='modelfit'):
                      outputspec, 'design_cov')
     return modelfit
     
-#def normalize(name = "normalize"):
+#def smri(name = "smri"):
     
     

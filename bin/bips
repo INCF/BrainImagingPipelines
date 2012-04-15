@@ -5,3 +5,23 @@
 import argparse
 
 
+# modality
+# subtype
+# workflow
+# config
+
+"""
+Examples
+bips -m fmri -t task -w preproc -c config.py
+bips -m fmri -t task -w qa -c config.py
+bips -m fmri -t resting -w qa -c config.py
+
+bips -m dmri -w preproc -c config.py
+bips -m dmri -w track -c config.py
+
+bips -m smri -w recon -c config.py
+bips -m smri -t volume -w normalize -c config.py
+bips -m smri -t volume -w template -c config.py
+bips -m smri -t surface -w template -c config.py
+
+"""

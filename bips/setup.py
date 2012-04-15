@@ -5,9 +5,9 @@ def configuration(parent_package='',top_path=None):
     config = Configuration('bips', parent_package, top_path)
 
     # List all packages to be loaded here
-    config.add_subpackage('dti')
+    config.add_subpackage('dmri')
     config.add_subpackage('fmri')
-    config.add_subpackage('normalize')
+    config.add_subpackage('smri')
     config.add_subpackage('utils')
 
     # List all data directories to be loaded here
