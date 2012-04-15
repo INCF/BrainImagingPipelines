@@ -1,45 +1,31 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
-"""
-A pipeline example that intergrates spm, fsl freesurfer modules to perform a
-comparative volume and surface based first level analysis.
-
-This tutorial uses the nipype-tutorial data and hence should be run from the
-directory containing tutorial data
-
-    python freesurfer_tutorial.py
-
+"""Perform fixed effects analysis on runs processed by preproc.py
 """
 
 import argparse
 import os                                    # system functions
 import sys
-#from nipype.utils.config import config
-#config.enable_debug_mode()
 
-#from config import (subjects, root_dir, getcontrasts, auto_fixedfx, fwhm, run_on_grid, overlaythresh, subjectinfo, test_mode)
-from copy import deepcopy
-from glob import glob
 from nipype.workflows.fmri.fsl.estimate import create_fixed_effects_flow
-
-import numpy as np
 import nipype.interfaces.io as nio           # i/o routines
 import nipype.interfaces.fsl as fsl          # fsl
 import nipype.interfaces.utility as util     # utility
 import nipype.pipeline.engine as pe          # pypeline engine
-import argparse
+
 fsl.FSLCommand.set_default_output_type('NIFTI_GZ')
 
 
-def getinfo(subject_id,getcontrasts,subjectinfo):
+def getinfo(subject_id, getcontrasts, subjectinfo):
     numruns = len(subjectinfo(subject_id))
-    print numruns
+    print numruns  # dbg
     numcon = len(getcontrasts(subject_id))
-    info = dict(copes=[['subject_id', 'fwhm',range(1,numcon+1)]],
-                varcopes=[['subject_id', 'fwhm', range(1,numcon+1)]],
+    info = dict(copes=[['subject_id', 'fwhm', range(1, numcon + 1)]],
+                varcopes=[['subject_id', 'fwhm', range(1, numcon + 1)]],
                 dof_files=[['subject_id', 'fwhm']],
-                mask_file=[['subject_id']]) 
+                mask_file=[['subject_id']])
     return info
+
 
 def num_copes(files):
     if type(files[0]) is list:
@@ -47,54 +33,57 @@ def num_copes(files):
     else:
         return len(files)
 
-def getsubs(subject_id,getcontrasts):
-    
-    subs = [('_subject_id_%s/'%subject_id,''),
+
+def getsubs(subject_id, getcontrasts):
+    subs = [('_subject_id_%s/' % subject_id, ''),
             ('_runs', '/runs'),
             ('_fwhm', 'fwhm')]
     cons = getcontrasts(subject_id)
     for i, con in enumerate(cons):
-        subs.append(('_flameo%d/cope1'%i, 'cope_%s'%(con[0])))
-        subs.append(('_flameo%d/varcope1'%(i), 'varcope_%s'%(con[0])))
-        subs.append(('_flameo%d/tstat1'%(i), 'tstat_%s'%(con[0])))
-        subs.append(('_flameo%d/zstat1'%(i), 'zstat_%s'%(con[0])))
-        subs.append(('_flameo%d/res4d'%(i), 'res4d_%s'%(con[0])))
-        subs.append(('_ztop%d/zstat1_pval'%(i), 'pval_%s'%(con[0])))
-        subs.append(('_slicestats%d/zstat1_overlay.png'%(i),'zstat_overlay%d_%s.png'%(i,con[0])))
+        subs.append(('_flameo%d/cope1' % i, 'cope_%s' % con[0]))
+        subs.append(('_flameo%d/varcope1' % i, 'varcope_%s' % con[0]))
+        subs.append(('_flameo%d/tstat1' % i, 'tstat_%s' % con[0]))
+        subs.append(('_flameo%d/zstat1' % i, 'zstat_%s' % con[0]))
+        subs.append(('_flameo%d/res4d' % i, 'res4d_%s' % con[0]))
+        subs.append(('_ztop%d/zstat1_pval' % i, 'pval_%s' % con[0]))
+        subs.append(('_slicestats%d/zstat1_overlay.png' % i,
+                     'zstat_overlay%d_%s.png' % (i, con[0])))
     return subs
+
 
 def create_overlay_workflow(name='overlay'):
     # Setup overlay workflow
 
     overlay = pe.Workflow(name='overlay')
-    
-    inputspec = pe.Node(interface=util.IdentityInterface(fields=['subject_id',
-                                                                 'fwhm',
-                                                                 'stat_image']),
+
+    inputspec = pe.Node(util.IdentityInterface(fields=['subject_id',
+                                                       'fwhm',
+                                                       'stat_image']),
                         name='inputspec')
-    
+
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
                                                    outfields=['meanfunc']),
                          name='datasource')
-    
-    datasource.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
+
+    datasource.inputs.base_directory = os.path.join(c.sink_dir, 'analyses',
+                                                'func')
     datasource.inputs.template = '*'
     datasource.inputs.sort_filelist = True
     datasource.inputs.field_template = dict(meanfunc='%s/preproc/meanfunc/*.nii.gz')
-    datasource.inputs.template_args = dict(meanfunc = [['subject_id']])
+    datasource.inputs.template_args = dict(meanfunc=[['subject_id']])
 
-    overlaystats = pe.MapNode(interface=fsl.Overlay(), 
+    overlaystats = pe.MapNode(interface=fsl.Overlay(),
                               name="overlaystats",
                               iterfield=['stat_image'])
-    
-    slicestats = pe.MapNode(interface=fsl.Slicer(), 
+
+    slicestats = pe.MapNode(interface=fsl.Slicer(),
                             name="slicestats",
                             iterfield=['in_file'])
-    
+
     slicestats.inputs.all_axial = True
     slicestats.inputs.image_width = 512
-    overlaystats.inputs.show_negative_stats=True
-    overlaystats.inputs.auto_thresh_bg=True
+    overlaystats.inputs.show_negative_stats = True
+    overlaystats.inputs.auto_thresh_bg = True
     overlaystats.inputs.stat_thresh = c.overlaythresh
 
     overlay.connect(inputspec, 'subject_id', datasource, 'subject_id')

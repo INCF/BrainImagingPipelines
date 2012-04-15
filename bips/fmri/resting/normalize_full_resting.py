@@ -1,20 +1,18 @@
 import argparse
 import os
 import sys
-sys.path.insert(0, '../../normalize')
-from base import get_full_norm_workflow
+
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 from nipype.interfaces.io import FreeSurferSource
 import nipype.interfaces.io as nio
 
+from ...normalize.base import get_full_norm_workflow
 
 pickfirst = lambda x: x[0]
 
 
 def func_datagrabber(name="resting_output_datagrabber"):
-    import nipype.pipeline.engine as pe
-    import nipype.interfaces.io as nio
     # create a node to obtain the functional images
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id',
                                                              'fwhm'],

@@ -1,0 +1,7 @@
+#!/usr/bin/env python
+"""Meta routine to configure and run various brain imaging workflows
+"""
+
+import argparse
+
+

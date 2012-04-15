@@ -3,13 +3,10 @@ from nibabel import load
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
 from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
-from config import *
+from example_configs.config import *
 from time import ctime
 from glob import glob
 from PIL import Image
-import reportlab
 import os
 
 
