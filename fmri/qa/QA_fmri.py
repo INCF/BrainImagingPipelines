@@ -411,7 +411,7 @@ if __name__ == "__main__":
     a.base_dir = c.working_dir
     a.write_graph()
     a.inputs.inputspec.config_params = start_config_table()
-    
+    a.config = {'execution' : {'crashdump_dir' : c.crash_dir}}
     if c.run_on_grid:
         a.run(plugin=c.plugin,plugin_args=c.plugin_args)
     else:
