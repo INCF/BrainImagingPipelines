@@ -1,0 +1,32 @@
+#!/usr/bin/env python
+"""Meta routine to configure and run various brain imaging workflows
+"""
+
+import argparse
+
+
+# modality
+# subtype
+# workflow
+# config
+
+"""
+Examples
+bips -m fmri -t task -w preproc -c config.py
+bips -m fmri -t task -w qa -c config.py
+bips -m fmri -t resting -w qa -c config.py
+
+bips -m dmri -w preproc -c config.py
+bips -m dmri -w track -c config.py
+
+bips -m smri -w recon -c config.py
+bips -m smri -t volume -w normalize -c config.py
+bips -m smri -t volume -w template -c config.py
+bips -m smri -t surface -w template -c config.py
+
+alternatively
+bips -i -u uuid # display info about workflow
+bips -u uuid -c config.json # create config for running workflow
+bips -r config.json # run workflow
+
+"""

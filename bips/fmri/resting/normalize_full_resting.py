@@ -1,20 +1,18 @@
 import argparse
 import os
 import sys
-sys.path.insert(0, '../../normalize')
-from base import get_full_norm_workflow
+
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 from nipype.interfaces.io import FreeSurferSource
 import nipype.interfaces.io as nio
 
+from ...smri.base import get_full_norm_workflow
 
 pickfirst = lambda x: x[0]
 
 
 def func_datagrabber(name="resting_output_datagrabber"):
-    import nipype.pipeline.engine as pe
-    import nipype.interfaces.io as nio
     # create a node to obtain the functional images
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id',
                                                              'fwhm'],
@@ -35,7 +33,7 @@ def func_datagrabber(name="resting_output_datagrabber"):
     return datasource
 
 
-def normalize_workflow(name="normalize"):
+def normalize_workflow(name="smri"):
     norm = get_full_norm_workflow()
     datagrab = func_datagrabber()
 
@@ -69,14 +67,14 @@ def normalize_workflow(name="normalize"):
 
     outputspec = norm.get_node('outputspec')
     norm.connect(infosource, 'subject_id', sinkd, 'container')
-    norm.connect(outputspec, 'warped_image', sinkd, 'normalize.warped_image')
-    norm.connect(outputspec, 'warp_field', sinkd, 'normalize.warped_field')
+    norm.connect(outputspec, 'warped_image', sinkd, 'smri.warped_image')
+    norm.connect(outputspec, 'warp_field', sinkd, 'smri.warped_field')
     norm.connect(outputspec, 'affine_transformation',
-                 sinkd, 'normalize.affine_transformation')
-    norm.connect(outputspec, 'inverse_warp', sinkd, 'normalize.inverse_warp')
+                 sinkd, 'smri.affine_transformation')
+    norm.connect(outputspec, 'inverse_warp', sinkd, 'smri.inverse_warp')
     norm.connect(outputspec, 'unwarped_brain',
-                 sinkd, 'normalize.unwarped_brain')
-    norm.connect(outputspec, 'warped_brain', sinkd, 'normalize.warped_brain')
+                 sinkd, 'smri.unwarped_brain')
+    norm.connect(outputspec, 'warped_brain', sinkd, 'smri.warped_brain')
 
     return norm
 

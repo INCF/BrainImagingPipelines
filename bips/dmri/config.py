@@ -7,7 +7,7 @@ import os                                    # system functions
 
 
 dataDir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/data'
-workingdir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1output/workflows/dti'
+workingdir = '/mindhive/gablab/sad/PY_STUDY_DIR/Block/scripts/l1output/workflows/dmri'
 subjects = ['SAD_018']
 
 skeleton_thresh = 0.2
@@ -22,7 +22,7 @@ def get_datasource():
                                                               'bval']),
                          name='datasource')
     datasource.inputs.base_directory = os.path.abspath(dataDir)
-    datasource.inputs.template = os.path.join(dataDir,'%s','dti','%s')
+    datasource.inputs.template = os.path.join(dataDir,'%s','dmri','%s')
     datasource.inputs.template_args = dict(dwi=[['subject_id', 'diffusionseries.nii.gz']],
                                            bvec=[['subject_id', 'bvecs']],
                                            bval=[['subject_id', 'bvals']])

@@ -246,7 +246,7 @@ lowpass_freq = .08
 Normalization
 ^^^^^^^^^^^^^
 
-norm_template : location of template to normalize to
+norm_template : location of template to smri to
 
 """
 
