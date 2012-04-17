@@ -24,4 +24,9 @@ bips -m smri -t volume -w normalize -c config.py
 bips -m smri -t volume -w template -c config.py
 bips -m smri -t surface -w template -c config.py
 
+alternatively
+bips -i -u uuid # display info about workflow
+bips -u uuid -c config.json # create config for running workflow
+bips -r config.json # run workflow
+
 """
