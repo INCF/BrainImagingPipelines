@@ -229,6 +229,7 @@ if __name__ == "__main__":
     c = __import__(fname.split('.')[0])
     
     first_level = combine_wkflw(c)
+    first_level.config = {'execution' : {'crashdump_dir' : c.crash_dir}}
     #first_level.write_graph()
     if run_on_grid:
         first_level.run(plugin='PBS', plugin_args = c.plugin_args)

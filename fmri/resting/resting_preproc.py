@@ -143,7 +143,7 @@ if __name__ == "__main__":
     #realign.inputs.loops = 2
     realign.inputs.speedup = 10
     realign.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
-
+    preprocess.config = {'execution' : {'crashdump_dir' : c.crash_dir}}
     if len(c.subjects) == 1:
         preprocess.write_graph(graph2use='exec',
                                dotfilename='single_subject_exec.dot')

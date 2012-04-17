@@ -143,6 +143,7 @@ if __name__ == "__main__":
     realign.inputs.speedup = 15
     cc = preprocess.get_node('preproc.CompCor')
     cc.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
+    preprocess.config = {'execution' : {'crashdump_dir' : c.crash_dir}}
     if c.run_on_grid:
         preprocess.run(plugin=c.plugin,plugin_args = c.plugin_args)
     else:
