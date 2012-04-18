@@ -1,15 +1,10 @@
 import matplotlib
 matplotlib.use('Agg')
 import os
-import matplotlib.pyplot as plt
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
-import nipype.interfaces.io as nio
 from nipype.interfaces.freesurfer import ApplyVolTransform
 from nipype.workflows.smri.freesurfer.utils import create_get_stats_flow
-from nipype.interfaces import freesurfer as fs
-from nipype.interfaces.io import FreeSurferSource
-from nipype.interfaces import fsl
 
 def art_output(art_file):
     import numpy as np
