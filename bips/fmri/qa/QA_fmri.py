@@ -1,24 +1,19 @@
+import argparse
+import os
+
 import matplotlib
 matplotlib.use('Agg')
-import os
-import matplotlib.pyplot as plt
+
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import nipype.interfaces.io as nio
-from time import ctime
-from glob import glob
 from nipype.interfaces.freesurfer import ApplyVolTransform
-from nipype.workflows.smri.freesurfer.utils import create_get_stats_flow
 from nipype.interfaces import freesurfer as fs
 from nipype.interfaces.io import FreeSurferSource
-from nipype.interfaces import fsl
-#from nipype.utils.config import config
-#config.enable_debug_mode()
-from QA_utils import plot_ADnorm, tsdiffana, tsnr_roi, combine_table, art_output, plot_motion, plot_ribbon, plot_anat
-import sys
-sys.path.insert(0,'../../utils/')
-from reportsink.io import ReportSink
-import argparse
+
+from .QA_utils import (plot_ADnorm, tsdiffana, tsnr_roi, combine_table,
+                       art_output, plot_motion, plot_ribbon, plot_anat)
+from ...utils.reportsink.io import ReportSink
 
 totable = lambda x: [[x]]
 to1table = lambda x: [x]

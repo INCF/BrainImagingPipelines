@@ -1,17 +1,15 @@
 import nipype.interfaces.fsl as fsl         # fsl
 import nipype.algorithms.rapidart as ra     # rapid artifact detection
+from nipype.interfaces.fsl.utils import EPIDeWarp
 from nipype.interfaces.nipy.preprocess import FmriRealign4d
 from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
 from nipype.workflows.fmri.fsl import create_susan_smooth
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 
-from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
+from .bips.workflows.scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
                    getmeanscale, highpass_operand, pickfirst)
-import sys
-sys.path.append('../utils')
 
-from nipype.interfaces.fsl.utils import EPIDeWarp
 
 def create_filter_matrix(motion_params, composite_norm,
                          compcorr_components, art_outliers, selector):
