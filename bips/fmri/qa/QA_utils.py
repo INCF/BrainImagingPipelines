@@ -300,7 +300,7 @@ def plot_motion(motion_parameters):
     plt.savefig(fname_r)
     plt.close()
     fname = [fname_t, fname_r]
-    return fname
+    return fname_t, fname_r
     
 def plot_ribbon(Brain):
     import os.path

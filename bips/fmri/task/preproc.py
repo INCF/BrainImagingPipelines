@@ -13,11 +13,11 @@ from ..utils import get_datasink, get_substitutions
 # -------------------------------------------------------------
 
 
-def prep_workflow(subjects,fieldmap):
+def prep_workflow(c,fieldmap):
     
     infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
                          name='subject_names')
-    infosource.iterables = ('subject_id', subjects)
+    infosource.iterables = ('subject_id', c.subjects)
 
     modelflow = pe.Workflow(name='preproc')
     
@@ -108,21 +108,12 @@ def prep_workflow(subjects,fieldmap):
     modelflow.base_dir = os.path.join(c.working_dir,'work_dir')
     return modelflow
 
-if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser(description="example: \
-                        run resting_preproc.py -c config.py")
-    parser.add_argument('-c','--config',
-                        dest='config',
-                        required=True,
-                        help='location of config file'
-                        )
-    args = parser.parse_args()
-    path, fname = os.path.split(os.path.realpath(args.config))
+def main(config):
+    
+    path, fname = os.path.split(os.path.realpath(config))
     sys.path.append(path)
     c = __import__(fname.split('.')[0])
-
-    preprocess = prep_workflow(c.subjects, c.use_fieldmap)
+    preprocess = prep_workflow(c, c.use_fieldmap)
     realign = preprocess.get_node('preproc.realign')
     realign.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
     realign.inputs.loops = 2
@@ -134,4 +125,17 @@ if __name__ == "__main__":
         preprocess.run(plugin=c.plugin,plugin_args = c.plugin_args)
     else:
         preprocess.run()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="example: \
+                        run resting_preproc.py -c config.py")
+    parser.add_argument('-c','--config',
+                        dest='config',
+                        required=True,
+                        help='location of config file'
+                        )
+    args = parser.parse_args()
+    main(args.config)
+    
     

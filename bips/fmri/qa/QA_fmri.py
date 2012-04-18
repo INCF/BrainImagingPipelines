@@ -255,13 +255,13 @@ def QA_workflow(name='QA'):
     # Define Nodes
     
     plot_m = pe.MapNode(util.Function(input_names=['motion_parameters'],
-                                      output_names=['fname'],
+                                      output_names=['fname_t','fname_r'],
                                       function=plot_motion),
                         name="motion_plots",
                         iterfield=['motion_parameters'])
     
     workflow.connect(datagrabber,'motion_parameters',plot_m,'motion_parameters')
-    workflow.connect(plot_m, 'fname',inputspec,'motion_plots')
+    #workflow.connect(plot_m, 'fname',inputspec,'motion_plots')
     
     tsdiff = pe.MapNode(util.Function(input_names = ['img'], 
                                       output_names = ['out_file'], 
@@ -341,7 +341,8 @@ def QA_workflow(name='QA'):
                                                           'Art_Detect',
                                                           'Mean_Functional',
                                                           'Ribbon',
-                                                          'motion_plots',
+                                                          'motion_plot_translations',
+                                                          'motion_plot_rotations',
                                                           'tsdiffana',
                                                           'ADnorm',
                                                           'TSNR_Images',
@@ -367,7 +368,9 @@ def QA_workflow(name='QA'):
     workflow.connect(inputspec,'in_file',write_rep,'in_file')
     workflow.connect(inputspec,'art_file',art_info,'art_file')
     workflow.connect(art_info,('table',to1table), write_rep,'Art_Detect')
-    workflow.connect(inputspec,'motion_plots',write_rep,'motion_plots')
+    #workflow.connect(inputspec,'motion_plots',write_rep,'motion_plots')
+    workflow.connect(plot_m, 'fname_t',write_rep,'motion_plot_translations')
+    workflow.connect(plot_m, 'fname_r',write_rep,'motion_plot_rotations')
     workflow.connect(inputspec,'in_file',tsdiff,'img')
     workflow.connect(tsdiff,"out_file",write_rep,"tsdiffana")
     workflow.connect(inputspec,('config_params',totable), write_rep,'config_params')

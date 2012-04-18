@@ -12,21 +12,44 @@ import argparse
 
 """
 Examples
-bips -m fmri -t task -w preproc -c config.py
-bips -m fmri -t task -w qa -c config.py
-bips -m fmri -t resting -w qa -c config.py
 
-bips -m dmri -w preproc -c config.py
-bips -m dmri -w track -c config.py
-
-bips -m smri -w recon -c config.py
-bips -m smri -t volume -w normalize -c config.py
-bips -m smri -t volume -w template -c config.py
-bips -m smri -t surface -w template -c config.py
-
-alternatively
 bips -i -u uuid # display info about workflow
 bips -u uuid -c config.json # create config for running workflow
 bips -r config.json # run workflow
 
 """
+
+def main(args):
+    print args.config,args.uuid, args.info
+    
+    
+    
+
+if __name__== "__main__":
+    parser = argparse.ArgumentParser(description="example: \
+                        bips -m fmri -t task -w preproc -c config.py")
+    parser.add_argument('-c','--config',
+                        dest='config',
+                        required=False,
+                        help='location of config file'
+                        )
+    parser.add_argument('-u','--uuid',
+                        dest = 'uuid',
+                        required=False,
+                        help='workflow to run')
+    parser.add_argument('-i','--info',
+                        dest = 'info',
+                        required=False,
+                        help='print detailed info of uuid')
+    parser.add_argument('-I',
+                        dest = 'all_info',
+                        required=False,
+                        help='print information on all bips workflows')
+    parser.add_argument('-r',
+                        dest = 'run',
+                        required=False,
+                        help='run the workflow')
+    
+    args = parser.parse_args()
+    main(args)
+    
