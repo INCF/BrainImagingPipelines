@@ -7,7 +7,7 @@ from nipype.utils.filemanip import load_json, save_json
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import os
-
+import nipype.interfaces.io as nio 
 desc = """
 Task preprocessing workflow
 ===========================
@@ -22,6 +22,7 @@ from workflow1 import config_ui
 r_config = config_ui
 r_config.add_class_trait("highpass_freq", traits.Float())
 r_config.add_class_trait("lowpass_freq", traits.Float())
+r_config.add_class_trait("reg_params", traits.List(traits.Bool()))
 
 # create_workflow
 
@@ -153,13 +154,14 @@ def prep_workflow(c, fieldmap):
     return modelflow
     
 def main(config_file):
-    c = load_json(config)
+    c = load_json(config_file)
     preprocess = prep_workflow(c, c["use_fieldmap"])
     realign = preprocess.get_node('preproc.realign')
     #realign.inputs.loops = 2
     realign.inputs.speedup = 10
     realign.plugin_args = c["plugin_args"]
     preprocess.config = {'execution' : {'crashdump_dir' : c["crash_dir"]}}
+    
     if len(c["subjects"].split(',')) == 1:
         preprocess.write_graph(graph2use='exec',
                                dotfilename='single_subject_exec.dot')
@@ -205,18 +207,13 @@ mwf.inputs.config_view = View(Group(Item(name='working_dir'),
              Group(Item(name='compcor_select'),
              Item(name='num_noise_components'),
              label='CompCor',show_border=True),
+             Group(Item(name='reg_params'),
+             label='Filtering',show_border=True),
              Group(Item(name='fwhm'),
              label='Smoothing',show_border=True),
              Group(Item(name='highpass_freq'),
              Item(name='lowpass_freq'),
              label='Bandpass Filter',show_border=True),
-             Group(Item(name='is_block_design'),
-             Item(name='input_units'),
-             Item(name='interscan_interval'),
-             Item(name='film_threshold'),
-             Item(name='subjectinfo'),
-             Item(name='getcontrasts'),
-             label='First Level',show_border=True),
              buttons = [OKButton, CancelButton],
              resizable=True,
              width=1050)

@@ -89,7 +89,8 @@ class Foo(HasTraits):
     _config = None
     
     save_button = Button("Save")
-    save_as_button = Button("New")
+    new_button = Button("New")
+    save_as_button = Button("Save As")
     load_button = Button("Load")
     run_button = Button("Run")
 
@@ -99,7 +100,8 @@ class Foo(HasTraits):
     view = View(Item('Configuration_File',style='readonly'),
                 HGroup(
                     UItem('save_button', enabled_when='not saved and filename is not ""'),
-                    UItem('save_as_button'),
+                    UItem('save_as_button', enabled_when='not saved and filename is not ""'),
+                    UItem('new_button'),
                     UItem('load_button'),
                     UItem('run_button', enabled_when='saved and filename is not ""')
                 ),
@@ -121,8 +123,18 @@ class Foo(HasTraits):
 
     def _save_button_fired(self):
         self._save_to_file()
-        
+    
     def _save_as_button_fired(self):
+        dialog = FileDialog(action="save as", wildcard=self.file_wildcard)
+        dialog.open()
+        if dialog.return_code == OK:
+            self.filedir = dialog.directory
+            self.filename = dialog.filename
+            self.Configuration_File = os.path.join(dialog.directory, dialog.filename)
+            self._save_to_file()
+            self.saved = True
+                
+    def _new_button_fired(self):
         dialog = FileDialog(action="save as", wildcard=self.file_wildcard)
         dialog.open()
         if dialog.return_code == OK:

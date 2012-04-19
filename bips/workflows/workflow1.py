@@ -276,10 +276,10 @@ def main(config):
     cc.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
     preprocess.config = {'execution' : {'crashdump_dir' : c["crash_dir"]}}
     preprocess.write_graph()
-    """if c["run_on_grid"]:
+    if c["run_on_grid"]:
         preprocess.run(plugin=c["plugin"],plugin_args = c["plugin_args"])
     else:
-        preprocess.run()"""
+        preprocess.run()
 
 mwf.inputs.workflow_main_function = main
 mwf.inputs.config_ui = lambda : config_ui
