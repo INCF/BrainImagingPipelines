@@ -1,9 +1,16 @@
 from nipype.interfaces.base import TraitedSpec, traits
+import os
+from enthought.traits.api import HasTraits, Str, Bool, Button, Instance
+from enthought.traits.ui.api import Handler, View, Item, UItem, HGroup
+from enthought.pyface.api import FileDialog, OK, confirm, YES
+from nipype.utils.filemanip import load_json, save_json
+import sys
+
 
 class MetaWorkflowInputSpec(TraitedSpec):
     version = traits.Constant(1)
     # uuid of workflow
-    uuid = traits.UUID(mandatory=True)
+    uuid = traits.String(mandatory=True)
     # description of workflow
     help = traits.Str(mandatory=True)
     # workflows that should be run prior to this workflow
@@ -11,7 +18,7 @@ class MetaWorkflowInputSpec(TraitedSpec):
     # software necessary to run this workflow
     required_software = traits.List(traits.Str)
     # workflow creation function takes a configuration file as input
-    create_function = traits.Function(mandatory=True)
+    workflow_main_function = traits.Function(mandatory=True)
     # configuration creation function (can take a config file as input)
     config_ui = traits.Function()
     # purl to describe workflow
@@ -22,7 +29,7 @@ class MetaWorkflowInputSpec(TraitedSpec):
     superceded_by = traits.List(traits.UUID)
     # script dir
     script_dir = traits.UUID()
-S
+
 class MetaWorkflow(object):
 
     _input_spec = MetaWorkflowInputSpec
@@ -36,3 +43,114 @@ class MetaWorkflow(object):
     def from_json(self):
         pass
 
+    def create_config(self):
+        f = Foo(self.inputs.config_ui())
+        f.configure_traits()
+        
+    def run(self):
+        self.inputs.workflow_main_function()
+
+class FooHandler(Handler):
+    """Handler for the Foo class.
+    This handler will
+    (1) listen for changes to the 'filename' Trait of the object and
+        update the window title when it changes; and
+    (2) intercept request to close the window, and if the data is not saved,
+        ask the user for confirmation.
+    """
+
+    def object_filename_changed(self, info):
+        filename = info.object.filename
+        if filename is "":
+            filename = "<no file>"
+        info.ui.title = "Editing: " + filename
+
+    def close(self, info, isok):
+        # Return True to indicate that it is OK to close the window.
+        if not info.object.saved:
+            response = confirm(info.ui.control,
+                            "Value is not saved.  Are you sure you want to exit?")
+            return response == YES
+        else:
+            return True
+        
+
+class Foo(HasTraits):
+
+    Configuration_File = Str
+
+    saved = Bool(True)
+
+    filedir = Str
+    filename = Str
+    
+    _config = None
+    
+    save_button = Button("Save")
+    save_as_button = Button("New")
+    load_button = Button("Load")
+
+    # Wildcard pattern to be used in file dialogs.
+    file_wildcard = Str("json file (*.json)|*.json|Data file (*.json)|*.dat|All files|*")
+
+    view = View(Item('Configuration_File',style='readonly'),
+                HGroup(
+                    UItem('save_button', enabled_when='not saved and filename is not ""'),
+                    UItem('save_as_button'),
+                    UItem('load_button')
+                ),
+                resizable=True,
+                width=500,
+                handler=FooHandler(),
+                title="File Dialog")
+    
+    def __init__(self,config_class):
+        self.config_class = config_class
+        
+    #-----------------------------------------------
+    # Trait change handlers
+    #-----------------------------------------------
+
+    def _Configuration_File_changed(self):
+        self.saved = False
+
+    def _save_button_fired(self):
+        self._save_to_file()
+        
+    def _save_as_button_fired(self):
+        dialog = FileDialog(action="save as", wildcard=self.file_wildcard)
+        dialog.open()
+        if dialog.return_code == OK:
+            self.filedir = dialog.directory
+            self.filename = dialog.filename
+            self.Configuration_File = os.path.join(dialog.directory, dialog.filename)
+            self._config = self.config_class()
+            self._config.configure_traits()
+            self._save_to_file()
+            self.saved = False
+            
+    def _load_button_fired(self):
+        dialog = FileDialog(action="open", wildcard=self.file_wildcard)
+        dialog.open()
+        if dialog.return_code == OK:
+            c = self.config_class()
+            self._config = c.set(**load_json(dialog.path))
+            self._config.configure_traits()
+            self.filedir = dialog.directory
+            self.filename = dialog.filename
+            self.Configuration_File = os.path.join(dialog.directory, dialog.filename)
+            self.saved = False
+    
+    
+    #-----------------------------------------------
+    # Private API
+    #-----------------------------------------------
+
+    def _save_to_file(self):
+        """Save `self.Configuration_File` to the file `self.filedir`+`self.filename`."""
+        path = os.path.join(self.filedir, self.filename)
+        #f = open(path, 'w')
+        #f.write(self.value + '\n')
+        #f.close()
+        save_json(filename=path,data=self._config.get())
+        self.saved = True
