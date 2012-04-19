@@ -44,11 +44,11 @@ class MetaWorkflow(object):
         pass
 
     def create_config(self):
-        f = Foo(self.inputs.config_ui())
+        f = Foo(self.inputs.config_ui(),self.inputs.workflow_main_function)
         f.configure_traits()
         
-    def run(self):
-        self.inputs.workflow_main_function()
+    def run(self,configfile):
+        self.inputs.workflow_main_function(configfile)
 
 class FooHandler(Handler):
     """Handler for the Foo class.
@@ -89,6 +89,7 @@ class Foo(HasTraits):
     save_button = Button("Save")
     save_as_button = Button("New")
     load_button = Button("Load")
+    run_button = Button("Run")
 
     # Wildcard pattern to be used in file dialogs.
     file_wildcard = Str("json file (*.json)|*.json|Data file (*.json)|*.dat|All files|*")
@@ -97,16 +98,17 @@ class Foo(HasTraits):
                 HGroup(
                     UItem('save_button', enabled_when='not saved and filename is not ""'),
                     UItem('save_as_button'),
-                    UItem('load_button')
+                    UItem('load_button'),
+                    UItem('run_button', enabled_when='saved and filename is not ""')
                 ),
                 resizable=True,
                 width=500,
                 handler=FooHandler(),
                 title="File Dialog")
     
-    def __init__(self,config_class):
+    def __init__(self,config_class,runfunc):
         self.config_class = config_class
-        
+        self.runfunc = runfunc
     #-----------------------------------------------
     # Trait change handlers
     #-----------------------------------------------
@@ -141,6 +143,8 @@ class Foo(HasTraits):
             self.Configuration_File = os.path.join(dialog.directory, dialog.filename)
             self.saved = False
     
+    def _run_button_fired(self):
+        self.runfunc(self.Configuration_File)
     
     #-----------------------------------------------
     # Private API
