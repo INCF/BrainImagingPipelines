@@ -137,12 +137,12 @@ class config_ui(HasTraits):
                 print "ERROR:", os.path.join(self.field_dir,self.magnitude_template % s), "does NOT exist!"
                 break
             else:
-                print os.path.join(self.base_dir,self.func_template % s), "exists!"
+                print os.path.join(self.base_dir,self.magnitude_template % s), "exists!"
             if not os.path.exists(os.path.join(self.field_dir,self.phase_template % s)):
-                print "ERROR:", os.path.join(self.field_dir,self.magnitude_template % s), "does NOT exist!"
+                print "ERROR:", os.path.join(self.field_dir,self.phase_template % s), "does NOT exist!"
                 break
             else:
-                print os.path.join(self.base_dir,self.func_template % s), "exists!"
+                print os.path.join(self.base_dir,self.phase_template % s), "exists!"
 # run workflow
 
 from scripts.u0a14c5b5899911e1bca80023dfa375f2.base import create_prep, create_prep_fieldmap

@@ -82,7 +82,8 @@ class Foo(HasTraits):
     Configuration_File = Str
 
     saved = Bool(True)
-
+    config_changed = Bool(False)
+    
     filedir = Str
     filename = Str
     
@@ -102,7 +103,7 @@ class Foo(HasTraits):
                     UItem('save_button', enabled_when='not saved and filename is not ""'),
                     UItem('save_as_button', enabled_when='not saved and filename is not ""'),
                     UItem('new_button'),
-                    UItem('load_button'),
+                    UItem('load_button', enabled_when='not config_changed'),
                     UItem('run_button', enabled_when='saved and filename is not ""')
                 ),
                 resizable=True,
@@ -123,7 +124,8 @@ class Foo(HasTraits):
 
     def _save_button_fired(self):
         self._save_to_file()
-    
+        self.config_changed = False
+        
     def _save_as_button_fired(self):
         dialog = FileDialog(action="save as", wildcard=self.file_wildcard)
         dialog.open()
@@ -133,6 +135,7 @@ class Foo(HasTraits):
             self.Configuration_File = os.path.join(dialog.directory, dialog.filename)
             self._save_to_file()
             self.saved = True
+            self.config_changed = False
                 
     def _new_button_fired(self):
         dialog = FileDialog(action="save as", wildcard=self.file_wildcard)
@@ -145,6 +148,7 @@ class Foo(HasTraits):
             self._config.configure_traits(view=self.config_view)
             self._save_to_file()
             self.saved = False
+            self.config_changed = True
             
     def _load_button_fired(self):
         dialog = FileDialog(action="open", wildcard=self.file_wildcard)
@@ -157,7 +161,8 @@ class Foo(HasTraits):
             self.filename = dialog.filename
             self.Configuration_File = os.path.join(dialog.directory, dialog.filename)
             self.saved = False
-    
+            self.config_changed = True
+            
     def _run_button_fired(self):
         self.runfunc(self.Configuration_File)
     
