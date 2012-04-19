@@ -67,7 +67,7 @@ class config_ui(HasTraits):
     z_thresh = traits.Float(3, usedefault=True, desc="z thresh for art")
     
     # Smoothing
-    fwhm = traits.List(traits.Float(), mandatory=True, 
+    fwhm = traits.List([0,5],traits.Float(), mandatory=True, usedefault=True, 
                        desc="Full width at half max. The data will be smoothed at all values \
                              specified in this list.")
                              
@@ -92,75 +92,33 @@ class config_ui(HasTraits):
     #                                    overlaythresh[0] < x < overlaythresh[1] or \
     #                                    -1*overlaythresh[0] > x > -1*overlaythresh[0]")
     is_block_design = Bool(False, usedefault=True, desc="True for block design")
-    subjectinfo = traits.Code("def subjectinfo(subject_id):\n    \
-                                   from nipype.interfaces.base import Bunch \n    \
-                                   output = []\n    \
-                                   runs=2\n    \
-                                   for r in runs:\n        \
-                                       Bunch(conditions=names,\
-                            onsets=deepcopy(onsets),\
-                            durations=deepcopy(durations),\
-                            amplitudes=None,\
-                            tmod=None,\
-                            pmod=None,\
-                            regressor_names=None,\
-                            regressors=None))\n    \
-                            return output")
-    
+    subjectinfo = traits.Code("""def subjectinfo(subject_id):
+    from nipype.interfaces.base import Bunch
+    output = []
+    names = ['cond1','cond2']
+    onsets = [[0,20,40],[10,30,50]]
+    durations = [[10],[10]]
+    runs=2
+    for r in runs:
+        output.insert(r,Bunch(conditions=names,
+        onsets=deepcopy(onsets),
+        durations=deepcopy(durations),
+        amplitudes=None,
+        tmod=None,
+        pmod=None,
+        regressor_names=None,
+        regressors=None)))
+    return output""")
+    getcontrasts = traits.Code("""def getcontrasts(subject_id):
+    con1 = ['cond1_cond2','T', ['cond1','cond2'],[1,-1]]
+    con2 = ['cond2_cond1','T', ['cond1','cond2'],[-1,1]]
+    contrasts = [con1, con2]
+    return contrasts""")
     
     # Buttons
     check_func_datagrabber = Button("Check")
     check_field_datagrabber = Button("Check")
     
-    #View
-    view1 = View(Group(Item(name='working_dir'),
-             Item(name='sink_dir'),
-             Item(name='crash_dir'),
-             Item(name='json_sink'),
-             Item(name='surf_dir'),
-             label='Directories',show_border=True),
-             Group(Item(name='run_on_grid'),
-             Item(name='plugin'),
-             Item(name='plugin_args'),
-             Item(name='test_mode'),
-             label='Execution Options',show_border=True),
-             Group(Item(name='subjects'),
-             Item(name='base_dir'),
-             Item(name='func_template'),
-             Item(name='check_func_datagrabber'),
-             label='Subjects',show_border=True),
-             Group(Item(name='use_fieldmap'),
-             Item(name='field_dir',enabled_when="use_fieldmap"),
-             Item(name='magnitude_template',enabled_when="use_fieldmap"),
-             Item(name='phase_template',enabled_when="use_fieldmap"),
-             Item(name='check_field_datagrabber',enabled_when="use_fieldmap"),
-             Item(name='echospacing',enabled_when="use_fieldmap"),
-             Item(name='TE_diff',enabled_when="use_fieldmap"),
-             Item(name='sigma',enabled_when="use_fieldmap"),
-             label='Fieldmap',show_border=True),
-             Group(Item(name='TR'),
-             Item(name='Interleaved'),
-             Item(name='SliceOrder'),
-             label='Motion Correction',show_border=True),
-             Group(Item(name='norm_thresh'),
-             Item(name='z_thresh'),
-             label='Artifact Detection',show_border=True),
-             Group(Item(name='compcor_select'),
-             Item(name='num_noise_components'),
-             label='CompCor',show_border=True),
-             Group(Item(name='fwhm'),
-             label='Smoothing',show_border=True),
-             Group(Item(name='hpcutoff'),
-             label='Highpass Filter',show_border=True),
-             Group(Item(name='is_block_design'),
-             Item(name='input_units'),
-             Item(name='interscan_interval'),
-             Item(name='film_threshold'),
-             Item(name='subjectinfo'),
-             label='First Level',show_border=True),
-             buttons = [OKButton, CancelButton],
-             resizable=True,
-             width=1050)
     def _check_func_datagrabber_fired(self):
         subs = self.subjects.split(',')
         
@@ -221,6 +179,16 @@ def prep_workflow(c,fieldmap):
         preproc.inputs.inputspec.FM_sigma = c["sigma"]
         
         #datasource_fieldmap = c.create_fieldmap_dataflow()
+        datasource_fieldmap = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
+                                                   outfields=['mag','phase']),
+                         name = "fieldmap_datagrabber")
+        datasource_fieldmap.inputs.base_directory = c["field_dir"]
+        datasource_fieldmap.inputs.template ='*'
+        datasource_fieldmap.inputs.field_template = dict(mag=c["magnitude_template"],
+                                                phase=c["phase_template"])
+        datasource_fieldmap.inputs.template_args = dict(mag=[['subject_id']],
+                                               phase=[['subject_id']])
+        
         
         modelflow.connect(infosource, 'subject_id',
                           datasource_fieldmap, 'subject_id')
@@ -308,10 +276,59 @@ def main(config):
     cc.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
     preprocess.config = {'execution' : {'crashdump_dir' : c["crash_dir"]}}
     preprocess.write_graph()
-    if c["run_on_grid"]:
+    """if c["run_on_grid"]:
         preprocess.run(plugin=c["plugin"],plugin_args = c["plugin_args"])
     else:
-        preprocess.run()
+        preprocess.run()"""
 
 mwf.inputs.workflow_main_function = main
 mwf.inputs.config_ui = lambda : config_ui
+mwf.inputs.config_view = View(Group(Item(name='working_dir'),
+             Item(name='sink_dir'),
+             Item(name='crash_dir'),
+             Item(name='json_sink'),
+             Item(name='surf_dir'),
+             label='Directories',show_border=True),
+             Group(Item(name='run_on_grid'),
+             Item(name='plugin',enabled_when="run_on_grid"),
+             Item(name='plugin_args',enabled_when="run_on_grid"),
+             Item(name='test_mode'),
+             label='Execution Options',show_border=True),
+             Group(Item(name='subjects'),
+             Item(name='base_dir'),
+             Item(name='func_template'),
+             Item(name='check_func_datagrabber'),
+             label='Subjects',show_border=True),
+             Group(Item(name='use_fieldmap'),
+             Item(name='field_dir',enabled_when="use_fieldmap"),
+             Item(name='magnitude_template',enabled_when="use_fieldmap"),
+             Item(name='phase_template',enabled_when="use_fieldmap"),
+             Item(name='check_field_datagrabber',enabled_when="use_fieldmap"),
+             Item(name='echospacing',enabled_when="use_fieldmap"),
+             Item(name='TE_diff',enabled_when="use_fieldmap"),
+             Item(name='sigma',enabled_when="use_fieldmap"),
+             label='Fieldmap',show_border=True),
+             Group(Item(name='TR'),
+             Item(name='Interleaved'),
+             Item(name='SliceOrder'),
+             label='Motion Correction',show_border=True),
+             Group(Item(name='norm_thresh'),
+             Item(name='z_thresh'),
+             label='Artifact Detection',show_border=True),
+             Group(Item(name='compcor_select'),
+             Item(name='num_noise_components'),
+             label='CompCor',show_border=True),
+             Group(Item(name='fwhm'),
+             label='Smoothing',show_border=True),
+             Group(Item(name='hpcutoff'),
+             label='Highpass Filter',show_border=True),
+             Group(Item(name='is_block_design'),
+             Item(name='input_units'),
+             Item(name='interscan_interval'),
+             Item(name='film_threshold'),
+             Item(name='subjectinfo'),
+             Item(name='getcontrasts'),
+             label='First Level',show_border=True),
+             buttons = [OKButton, CancelButton],
+             resizable=True,
+             width=1050)

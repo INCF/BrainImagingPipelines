@@ -21,6 +21,8 @@ class MetaWorkflowInputSpec(TraitedSpec):
     workflow_main_function = traits.Function(mandatory=True)
     # configuration creation function (can take a config file as input)
     config_ui = traits.Function()
+    # config view
+    config_view = traits.Instance(View)
     # purl to describe workflow
     url = traits.Str()
     # keyword tags for the workflow
@@ -44,7 +46,7 @@ class MetaWorkflow(object):
         pass
 
     def create_config(self):
-        f = Foo(self.inputs.config_ui(),self.inputs.workflow_main_function)
+        f = Foo(self.inputs.config_ui(),self.inputs.workflow_main_function,self.inputs.config_view)
         f.configure_traits()
         
     def run(self,configfile):
@@ -106,9 +108,10 @@ class Foo(HasTraits):
                 handler=FooHandler(),
                 title="File Dialog")
     
-    def __init__(self,config_class,runfunc):
+    def __init__(self,config_class,runfunc,config_view):
         self.config_class = config_class
         self.runfunc = runfunc
+        self.config_view = config_view
     #-----------------------------------------------
     # Trait change handlers
     #-----------------------------------------------
@@ -127,7 +130,7 @@ class Foo(HasTraits):
             self.filename = dialog.filename
             self.Configuration_File = os.path.join(dialog.directory, dialog.filename)
             self._config = self.config_class()
-            self._config.configure_traits()
+            self._config.configure_traits(view=self.config_view)
             self._save_to_file()
             self.saved = False
             
@@ -137,7 +140,7 @@ class Foo(HasTraits):
         if dialog.return_code == OK:
             c = self.config_class()
             self._config = c.set(**load_json(dialog.path))
-            self._config.configure_traits()
+            self._config.configure_traits(view=self.config_view)
             self.filedir = dialog.directory
             self.filename = dialog.filename
             self.Configuration_File = os.path.join(dialog.directory, dialog.filename)
