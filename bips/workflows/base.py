@@ -14,7 +14,7 @@ class MetaWorkflowInputSpec(TraitedSpec):
     # description of workflow
     help = traits.Str(mandatory=True)
     # workflows that should be run prior to this workflow
-    dependencies = traits.List(traits.UUID, mandatory=True)
+    dependencies = traits.List(traits.Str(), mandatory=True)
     # software necessary to run this workflow
     required_software = traits.List(traits.Str)
     # workflow creation function takes a configuration file as input
@@ -30,7 +30,7 @@ class MetaWorkflowInputSpec(TraitedSpec):
     # use this workflow instead
     superceded_by = traits.List(traits.UUID)
     # script dir
-    script_dir = traits.UUID()
+    script_dir = traits.Str()
 
 class MetaWorkflow(object):
 

@@ -7,7 +7,7 @@ from nipype.utils.filemanip import load_json, save_json
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import os
-
+import nipype.interfaces.io as nio
 desc = """
 Task preprocessing workflow
 ===========================
@@ -15,6 +15,8 @@ Task preprocessing workflow
 """
 mwf = MetaWorkflow()
 mwf.inputs.uuid = '63fcbb0a-8902-11e1-83d3-0023dfa375f2'
+mwf.tags = ['task','fMRI','preprocessing','fsl','freesurfer','nipy']
+mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
 
 # create gui
 class config_ui(HasTraits):
@@ -148,6 +150,16 @@ class config_ui(HasTraits):
 from scripts.u0a14c5b5899911e1bca80023dfa375f2.base import create_prep, create_prep_fieldmap
 from scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import get_datasink, get_substitutions
 
+def get_dataflow(c):
+    dataflow = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
+                                                   outfields=['func']),
+                         name = "preproc_dataflow")
+    dataflow.inputs.base_directory = c["base_dir"]
+    dataflow.inputs.template ='*'
+    dataflow.inputs.field_template = dict(func=c["func_template"])
+    dataflow.inputs.template_args = dict(func=[['subject_id']])
+    return dataflow
+    
 def prep_workflow(c,fieldmap):
     
     infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
@@ -164,13 +176,7 @@ def prep_workflow(c,fieldmap):
     
     import nipype.interfaces.io as nio 
     # create a node to obtain the functional images
-    dataflow = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
-                                                   outfields=['func']),
-                         name = "preproc_dataflow")
-    dataflow.inputs.base_directory = c["base_dir"]
-    dataflow.inputs.template ='*'
-    dataflow.inputs.field_template = dict(func=c["func_template"])
-    dataflow.inputs.template_args = dict(func=[['subject_id']])
+    dataflow = get_dataflow(c)
 
     if fieldmap:
         preproc = create_prep_fieldmap()
@@ -283,7 +289,8 @@ def main(config):
 
 mwf.inputs.workflow_main_function = main
 mwf.inputs.config_ui = lambda : config_ui
-mwf.inputs.config_view = View(Group(Item(name='working_dir'),
+
+view = View(Group(Item(name='working_dir'),
              Item(name='sink_dir'),
              Item(name='crash_dir'),
              Item(name='json_sink'),
@@ -332,3 +339,5 @@ mwf.inputs.config_view = View(Group(Item(name='working_dir'),
              buttons = [OKButton, CancelButton],
              resizable=True,
              width=1050)
+             
+mwf.inputs.config_view = view

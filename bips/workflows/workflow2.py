@@ -9,15 +9,16 @@ import nipype.interfaces.utility as util
 import os
 import nipype.interfaces.io as nio 
 desc = """
-Task preprocessing workflow
-===========================
+Resting State preprocessing workflow
+====================================
 
 """
 mwf = MetaWorkflow()
 mwf.inputs.uuid = 'a_uuid'
+mwf.tags = ['resting-state','fMRI','preprocessing','fsl','freesurfer','nipy']
 
 # create_gui
-from workflow1 import config_ui
+from workflow1 import config_ui, get_dataflow
 
 r_config = config_ui
 r_config.add_class_trait("highpass_freq", traits.Float())
@@ -43,13 +44,7 @@ def prep_workflow(c, fieldmap):
 
     # generate datagrabber
     
-    dataflow = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
-                                                   outfields=['func']),
-                         name = "resting_preproc_dataflow")
-    dataflow.inputs.base_directory = c["base_dir"]
-    dataflow.inputs.template ='*'
-    dataflow.inputs.field_template = dict(func=c["func_template"])
-    dataflow.inputs.template_args = dict(func=[['subject_id']])
+    dataflow = get_dataflow(c)
     
     modelflow.connect(infosource, 'subject_id',
                       dataflow, 'subject_id')
@@ -172,7 +167,8 @@ def main(config_file):
         
 mwf.inputs.workflow_main_function = main
 mwf.inputs.config_ui = lambda : r_config
-mwf.inputs.config_view = View(Group(Item(name='working_dir'),
+
+view = View(Group(Item(name='working_dir'),
              Item(name='sink_dir'),
              Item(name='crash_dir'),
              Item(name='json_sink'),
@@ -217,3 +213,5 @@ mwf.inputs.config_view = View(Group(Item(name='working_dir'),
              buttons = [OKButton, CancelButton],
              resizable=True,
              width=1050)
+             
+mwf.inputs.config_view = view
