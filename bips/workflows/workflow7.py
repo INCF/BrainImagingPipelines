@@ -14,7 +14,7 @@ from .scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import tsnr_roi, \
                                                                get_coords
 from .workflow1 import config_ui
 from traitsui.menu import OKButton, CancelButton
-from enthought.traits.ui.api import View, Item, Group
+from traitsui.api import View, Item, Group
 
 desc = """
 fMRI First Level QA workflow

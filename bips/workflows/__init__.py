@@ -7,4 +7,4 @@ import workflow6
 import workflow7
 
 
-from .base import list_workflows
+from .base import list_workflows, configure_workflow, run_workflow

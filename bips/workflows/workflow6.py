@@ -1,13 +1,24 @@
-from .base import MetaWorkflow, load_json, register_workflow
+import os
+
+"""
+NOTE
+This sort of configuration should not be happening here
+"""
+#import nipype.interfaces.matlab as mlab
+#mlab.MatlabCommand.set_default_matlab_cmd("matlab -nodesktop -nosplash")
+#mlab.MatlabCommand.set_default_paths('/software/spm8_4290')
+
+from base import MetaWorkflow, load_json
+
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 from nipype.interfaces.nipy import FmriRealign4d
 import nipype.interfaces.fsl as fsl
 import nipype.interfaces.spm as spm
-from bips.utils.reportsink.io import ReportSink
-import os
-from nipype import config
-config.set('execution', 'remove_unnecessary_outputs', 'false')
+
+from .base import MetaWorkflow, load_json, register_workflow
+from ..utils.reportsink.io import ReportSink
+
 from workflow2 import r_config, view
 from workflow1 import get_dataflow
 

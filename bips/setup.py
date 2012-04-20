@@ -6,6 +6,7 @@ def configuration(parent_package='',top_path=None):
 
     # List all packages to be loaded here
     config.add_subpackage('workflows')
+    config.add_subpackage('utils')
 
     # List all data directories to be loaded here
     return config

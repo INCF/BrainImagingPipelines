@@ -25,8 +25,8 @@ from nipype.interfaces.io import FreeSurferSource
 from scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import (plot_ADnorm, tsdiffana, tsnr_roi, combine_table,
                        art_output, plot_motion, plot_ribbon, plot_anat,
                        overlay_new, overlay_dB)
-                       
-from bips.utils.reportsink.io import ReportSink
+
+from ..utils.reportsink.io import ReportSink
 
 totable = lambda x: [[x]]
 to1table = lambda x: [x]

@@ -7,7 +7,7 @@ from pyface.api import FileDialog, OK, confirm, YES
 from traits.api import HasTraits, HasStrictTraits, Str, Bool, Button, Instance
 from traitsui.api import Handler, View, Item, UItem, HGroup
 
-_workflowlist = []
+_workflow = {}
 
 def _decode_list(data):
     rv = []
@@ -207,13 +207,27 @@ class Foo(HasTraits):
         save_json(filename=path,data=self._config.get())
         self.saved = True
 
+
 def register_workflow(wf):
-    _workflowlist.append(wf)
+    _workflow[wf.uuid] = dict(object = wf)
+
 
 def list_workflows():
-    for wf in _workflowlist:
-        print('%s %s' % (wf.uuid,
-                         wf.help.split('\n')[1]))
+    for wf, value in sorted(_workflow.items()):
+        print('%s %s' % (wf,
+                         value['object'].help.split('\n')[1]))
+
+
+def configure_workflow(uuid):
+    wf = _workflow[uuid]['object']
+    wf.create_config()
+
+
+def run_workflow(configfile):
+    config = load_json(configfile)
+    wf = _workflow[config[uuid]]['object']
+    wf.run(configfile)
+
 
 def query_workflows(query_str):
     pass

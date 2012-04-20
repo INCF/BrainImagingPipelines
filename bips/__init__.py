@@ -2,7 +2,7 @@
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 import os
 
-from workflows import list_workflows
+from workflows import list_workflows, configure_workflow, run_workflow
 
 from info import (LONG_DESCRIPTION as __doc__,
                   URL as __url__,

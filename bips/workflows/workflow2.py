@@ -1,6 +1,6 @@
 from .base import MetaWorkflow, load_json, register_workflow
-import enthought.traits.api as traits
-from enthought.traits.ui.api import View, Item, Group
+import traits.api as traits
+from traitsui.api import View, Item, Group
 from traitsui.menu import OKButton, CancelButton
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
