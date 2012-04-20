@@ -7,7 +7,7 @@ from nipype.workflows.fmri.fsl import create_susan_smooth
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 
-from .bips.workflows.scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
+from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
                    getmeanscale, highpass_operand, pickfirst)
 
 
