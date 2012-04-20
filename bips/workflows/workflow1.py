@@ -115,7 +115,12 @@ class config_ui(HasTraits):
     con2 = ['cond2_cond1','T', ['cond1','cond2'],[-1,1]]
     contrasts = [con1, con2]
     return contrasts""")
-    
+
+    # First-level QA
+    fx = traits.Bool()
+    thr = traits.Float()
+    csize = traits.Int()
+
     # Buttons
     check_func_datagrabber = Button("Check")
     check_field_datagrabber = Button("Check")

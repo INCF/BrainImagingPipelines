@@ -483,7 +483,7 @@ def create_prep_fieldmap(name='preproc'):
                     
                     
 def create_rest_prep(name='preproc',fieldmap=False):
-    """Rewiring of base fMRI workflow to add resting state preprocessing 
+    """Rewiring of base fMRI workflow to add resting state preprocessing
     
     components.
     
