@@ -354,4 +354,98 @@ def plot_anat(brain):
     pl.close()
     return images
     
+def overlay_dB(stat_image,background_image,threshold,dB):
+    import os.path
+    import pylab as pl
+    from nibabel import load
+    from nipy.labs import viz
+    from pylab import colorbar, gca, axes
+    import numpy as np
+    # Second example, with a given anatomical image slicing in the Z
+    # direction
+    
+    fnames = [os.path.abspath('z_view.png'),
+             os.path.abspath('x_view.png'),
+             os.path.abspath('y_view.png')]
+            
+    formatter='%.2f'
+    img = load(stat_image)
+    data, affine = img.get_data(), img.get_affine()
+    if dB:
+        data[data > 1] = 20*np.log10(np.asarray(data[data > 1]))
+
+    anat_img = load(background_image)
+    anat = anat_img.get_data()
+    anat_affine = anat_img.get_affine()
+
+    viz.plot_map(data, affine, anat=anat, anat_affine=anat_affine,
+                 slicer='z', threshold=threshold, cmap=viz.cm._cm.hot)
+    cb = colorbar(gca().get_images()[1], cax=axes([0.3, 0.00, 0.4, 0.07]),
+                         orientation='horizontal', format=formatter)
+    cb.set_ticks([cb._values.min(), cb._values.max()])
+    pl.savefig(fnames[0],bbox_inches='tight')
+
+    viz.plot_map(data, affine, anat=anat, anat_affine=anat_affine,
+                 slicer='x', threshold=threshold, cmap=viz.cm._cm.hot)
+    cb = colorbar(gca().get_images()[1], cax=axes([0.3, -0.06, 0.4, 0.07]), 
+                         orientation='horizontal', format=formatter)
+    cb.set_ticks([cb._values.min(), cb._values.max()])
+    pl.savefig(fnames[1],bbox_inches='tight')
+
+    viz.plot_map(data, affine, anat=anat, anat_affine=anat_affine,
+                 slicer='y', threshold=threshold, cmap=viz.cm._cm.hot)
+    cb = colorbar(gca().get_images()[1], cax=axes([0.3, -0.08, 0.4, 0.07]), 
+                         orientation='horizontal', format=formatter)
+    cb.set_ticks([cb._values.min(), cb._values.max()])
+    pl.savefig(fnames[2],bbox_inches='tight')
+    
+    return fnames
+
+
+def overlay_new(stat_image,background_image,threshold):
+    import os.path
+    import pylab as pl
+    from nibabel import load
+    from nipy.labs import viz
+    from pylab import colorbar, gca, axes
+    import numpy as np
+    # Second example, with a given anatomical image slicing in the Z
+    # direction
+    
+    fnames = [os.path.abspath('z_view.png'),
+             os.path.abspath('x_view.png'),
+             os.path.abspath('y_view.png')]
+            
+    formatter='%.2f'
+    img = load(stat_image)
+    data, affine = img.get_data(), img.get_affine()
+   
+    
+    anat_img = load(background_image)
+    anat = anat_img.get_data()
+    anat_affine = anat_img.get_affine()
+    anat = np.ones(anat.shape) - anat
+    
+    viz.plot_map(data, affine, anat=anat, anat_affine=anat_affine,
+                 slicer='z', threshold=threshold, cmap=viz.cm._cm.hot)
+    cb = colorbar(gca().get_images()[1], cax=axes([0.3, 0.00, 0.4, 0.07]),
+                         orientation='horizontal', format=formatter)
+    cb.set_ticks([cb._values.min(), cb._values.max()])
+    pl.savefig(fnames[0],bbox_inches='tight')
+
+    viz.plot_map(data, affine, anat=anat, anat_affine=anat_affine,
+                 slicer='x', threshold=threshold, cmap=viz.cm._cm.hot)
+    cb = colorbar(gca().get_images()[1], cax=axes([0.3, -0.06, 0.4, 0.07]), 
+                         orientation='horizontal', format=formatter)
+    cb.set_ticks([cb._values.min(), cb._values.max()])
+    pl.savefig(fnames[1],bbox_inches='tight')
+
+    viz.plot_map(data, affine, anat=anat, anat_affine=anat_affine,
+                 slicer='y', threshold=threshold, cmap=viz.cm._cm.hot)
+    cb = colorbar(gca().get_images()[1], cax=axes([0.3, -0.08, 0.4, 0.07]), 
+                         orientation='horizontal', format=formatter)
+    cb.set_ticks([cb._values.min(), cb._values.max()])
+    pl.savefig(fnames[2],bbox_inches='tight')
+    
+    return fnames
     

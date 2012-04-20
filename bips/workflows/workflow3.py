@@ -14,7 +14,7 @@ Task fMRI Quality Assurance workflow
 
 """
 mwf = MetaWorkflow()
-mwf.inputs.uuid = 'another_uuid'
+mwf.inputs.uuid = '5dd866fe8af611e1b9d5001e4fb1404c'
 mwf.tags = ['task','fMRI','preprocessing','QA']
 mwf.dependencies = ['63fcbb0a-8902-11e1-83d3-0023dfa375f2']
 
@@ -314,6 +314,7 @@ def QA_workflow(c,name='QA'):
     
     workflow.write_graph()
     return workflow
+
     
 def main(config_file):
     

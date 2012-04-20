@@ -14,7 +14,7 @@ Resting State preprocessing workflow
 
 """
 mwf = MetaWorkflow()
-mwf.inputs.uuid = 'a_uuid'
+mwf.inputs.uuid = '7757e3168af611e1b9d5001e4fb1404c'
 mwf.tags = ['resting-state','fMRI','preprocessing','fsl','freesurfer','nipy']
 
 # create_gui
