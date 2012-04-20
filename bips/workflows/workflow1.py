@@ -2,7 +2,7 @@ import os
 
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
-from traitsui.api import Handler, View, Item, UItem, HGroup, Group
+from traitsui.api import View, Item, Group
 from traitsui.menu import OKButton, CancelButton
 
 import nipype.pipeline.engine as pe

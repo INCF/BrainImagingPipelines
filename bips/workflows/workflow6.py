@@ -1,18 +1,11 @@
-import nipype.interfaces.matlab as mlab
-mlab.MatlabCommand.set_default_matlab_cmd("matlab -nodesktop -nosplash")
-mlab.MatlabCommand.set_default_paths('/software/spm8_4290')
-from base import MetaWorkflow, load_json
+from .base import MetaWorkflow, load_json, register_workflow
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 from nipype.interfaces.nipy import FmriRealign4d
 import nipype.interfaces.fsl as fsl
 import nipype.interfaces.spm as spm
-import sys
-sys.path.append('../../utils')
 from bips.utils.reportsink.io import ReportSink
 import os
-import matplotlib
-matplotlib.use('Agg')
 from nipype import config
 config.set('execution', 'remove_unnecessary_outputs', 'false')
 from workflow2 import r_config, view
@@ -20,16 +13,16 @@ from workflow1 import get_dataflow
 
 
 desc = """
-Resting State correlation QA workflow
+Compare Realignment Nodes workflow
 =====================================
 
 """
 mwf = MetaWorkflow()
-mwf.inputs.uuid = '79755b1e8b1a11e1a2ae001e4fb1404c'
+mwf.uuid = '79755b1e8b1a11e1a2ae001e4fb1404c'
 mwf.tags = ['motion_correction', 'test', 'nipy', 'fsl', 'spm']
-mwf.inputs.config_ui = lambda : r_config
-mwf.inputs.config_view = view
-
+mwf.config_ui = lambda : r_config
+mwf.config_view = view
+mwf.help = desc
 
 def plot_trans(nipy1,nipy2,fsl,spm):
     import matplotlib.pyplot as plt
@@ -87,7 +80,10 @@ def corr_mat(nipy1,nipy2,fsl,spm):
     return fname
 
 def compare_workflow(c, name='compare_realignments'):
-    
+    import nipype.interfaces.matlab as mlab
+    mlab.MatlabCommand.set_default_matlab_cmd("matlab -nodesktop -nosplash")
+    mlab.MatlabCommand.set_default_paths('/software/spm8_4290')
+
     workflow =pe.Workflow(name=name)
     
     infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
@@ -164,4 +160,5 @@ def main(config):
     else:
         compare.run()
 
-mwf.inputs.workflow_main_function = main
+mwf.workflow_main_function = main
+register_workflow(mwf)

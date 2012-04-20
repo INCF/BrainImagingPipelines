@@ -1,8 +1,4 @@
-from base import MetaWorkflow, load_json
-from enthought.traits.api import HasTraits, Directory, Bool, Button
-import enthought.traits.api as traits
-from enthought.traits.ui.api import Handler, View, Item, UItem, HGroup, Group
-from traitsui.menu import OKButton, CancelButton
+from .base import MetaWorkflow, load_json, register_workflow
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import os
@@ -13,10 +9,10 @@ Task fMRI Quality Assurance workflow
 
 """
 mwf = MetaWorkflow()
-mwf.inputs.uuid = '5dd866fe8af611e1b9d5001e4fb1404c'
+mwf.uuid = '5dd866fe8af611e1b9d5001e4fb1404c'
 mwf.tags = ['task','fMRI','preprocessing','QA']
 mwf.dependencies = ['63fcbb0a-8902-11e1-83d3-0023dfa375f2']
-
+mwf.help = desc
 # config_ui
 from workflow1 import config_ui, view, get_dataflow
 
@@ -329,6 +325,8 @@ def main(config_file):
     else:
         a.run()
 
-mwf.inputs.workflow_main_function = main        
-mwf.inputs.config_ui = lambda : config_ui
-mwf.inputs.config_view = view
+mwf.workflow_main_function = main
+mwf.config_ui = lambda : config_ui
+mwf.config_view = view
+
+register_workflow(mwf)

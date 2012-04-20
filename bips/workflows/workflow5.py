@@ -3,7 +3,7 @@ import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import nipype.interfaces.io as nio
 from bips.utils.reportsink.io import ReportSink
-from base import MetaWorkflow, load_json
+from .base import MetaWorkflow, load_json, register_workflow
 from scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import corr_image, vol2surf
 from workflow2 import r_config, view
 desc = """
@@ -12,12 +12,12 @@ Resting State correlation QA workflow
 
 """
 mwf = MetaWorkflow()
-mwf.inputs.uuid = '62aff7328b0a11e1be5d001e4fb1404c'
+mwf.uuid = '62aff7328b0a11e1be5d001e4fb1404c'
 mwf.tags = ['resting','fMRI','QA','correlation']
 mwf.dependencies = ['7757e3168af611e1b9d5001e4fb1404c']
-mwf.inputs.config_ui = lambda : r_config
-mwf.inputs.config_view = view
-
+mwf.config_ui = lambda : r_config
+mwf.config_view = view
+mwf.help = desc
 # Define Workflow
 
 addtitle = lambda x: "Resting_State_Correlations_fwhm%s"%str(x)
@@ -171,7 +171,8 @@ def main(config):
             a.run()
 
 
-mwf.inputs.workflow_main_function = main
+mwf.workflow_main_function = main
+register_workflow(mwf)
 
 """    
 --mov input volume path (or --src)

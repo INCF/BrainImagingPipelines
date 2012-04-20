@@ -1,7 +1,5 @@
-from base import MetaWorkflow, load_json
-from enthought.traits.api import HasTraits, Directory, Bool, Button
-import enthought.traits.api as traits
-from enthought.traits.ui.api import Handler, View, Item, UItem, HGroup, Group
+from .base import MetaWorkflow, load_json, register_workflow
+from enthought.traits.ui.api import View, Item, Group
 from traitsui.menu import OKButton, CancelButton
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
@@ -17,9 +15,9 @@ DataSink
 """
 
 mwf = MetaWorkflow()
-mwf.inputs.uuid = '4ba509108afb11e18b5e001e4fb1404c'
+mwf.uuid = '4ba509108afb11e18b5e001e4fb1404c'
 mwf.tags = ['TEST','Freesurfer']
-
+mwf.help = desc
 # Define Config
 from workflow1 import config_ui
 
@@ -75,9 +73,9 @@ def main(config):
     else:
         wk.run()
     
-mwf.inputs.workflow_main_function = main        
-mwf.inputs.config_ui = lambda : config_ui
-mwf.inputs.config_view = View(Group(Item(name='working_dir'),
+mwf.workflow_main_function = main
+mwf.config_ui = lambda : config_ui
+mwf.config_view = View(Group(Item(name='working_dir'),
              Item(name='sink_dir'),
              Item(name='crash_dir'),
              Item(name='surf_dir'),
@@ -93,3 +91,4 @@ mwf.inputs.config_view = View(Group(Item(name='working_dir'),
              resizable=True,
              width=1050)
     
+register_workflow(mwf)

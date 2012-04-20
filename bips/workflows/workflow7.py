@@ -1,20 +1,18 @@
-import matplotlib
-matplotlib.use('Agg')
 import os
 from nipype.interfaces import fsl
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import nipype.interfaces.io as nio
-from base import MetaWorkflow, load_json
+from .base import MetaWorkflow, load_json, register_workflow
 from nipype.interfaces.io import FreeSurferSource
-from scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import pickfirst
-from scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import tsnr_roi, \
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import pickfirst
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import tsnr_roi, \
                                                                make_surface_plots, \
                                                                write_report, \
                                                                show_slices, \
                                                                get_labels,\
                                                                get_coords
-from workflow1 import config_ui
+from .workflow1 import config_ui
 from traitsui.menu import OKButton, CancelButton
 from enthought.traits.ui.api import View, Item, Group
 
@@ -24,10 +22,11 @@ fMRI First Level QA workflow
 
 """
 mwf = MetaWorkflow()
-mwf.inputs.uuid = '9ecc82228b1d11e1b99a001e4fb1404c'
+mwf.uuid = '9ecc82228b1d11e1b99a001e4fb1404c'
 mwf.tags = ['QA','first-level','activation','constrast images']
-mwf.inputs.config_ui = lambda : config_ui
-mwf.inputs.config_view = View(Group(Item(name='working_dir'),
+mwf.config_ui = lambda : config_ui
+mwf.help = desc
+mwf.config_view = View(Group(Item(name='working_dir'),
     Item(name='sink_dir'),
     Item(name='crash_dir'),
     Item(name='json_sink'),
@@ -378,4 +377,5 @@ def main(config):
         else:
             workflow.run()
         
-mwf.inputs.workflow_main_function = main
+mwf.workflow_main_function = main
+register_workflow(mwf)
