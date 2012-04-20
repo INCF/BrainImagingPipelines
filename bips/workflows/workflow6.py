@@ -25,7 +25,7 @@ Resting State correlation QA workflow
 
 """
 mwf = MetaWorkflow()
-mwf.inputs.uuid = 'put uuid'
+mwf.inputs.uuid = '79755b1e8b1a11e1a2ae001e4fb1404c'
 mwf.tags = ['motion_correction', 'test', 'nipy', 'fsl', 'spm']
 mwf.inputs.config_ui = lambda : r_config
 mwf.inputs.config_view = view
