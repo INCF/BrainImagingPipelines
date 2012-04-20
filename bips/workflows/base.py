@@ -1,10 +1,13 @@
-from nipype.interfaces.base import TraitedSpec, traits
-import os
-from enthought.traits.api import HasTraits, Str, Bool, Button, Instance
-from enthought.traits.ui.api import Handler, View, Item, UItem, HGroup
-from enthought.pyface.api import FileDialog, OK, confirm, YES
-from nipype.utils.filemanip import save_json
 import json
+import os
+
+from nipype.utils.filemanip import save_json
+from nipype.interfaces.base import TraitedSpec, traits
+from pyface.api import FileDialog, OK, confirm, YES
+from traits.api import HasTraits, HasStrictTraits, Str, Bool, Button, Instance
+from traitsui.api import Handler, View, Item, UItem, HGroup
+
+_workflowlist = []
 
 def _decode_list(data):
     rv = []
@@ -37,8 +40,7 @@ def load_json(s):
     obj = json.load(a, object_hook=_decode_dict)
     return obj
 
-
-class MetaWorkflowInputSpec(TraitedSpec):
+class MetaWorkflow(HasStrictTraits):
     version = traits.Constant(1)
     # uuid of workflow
     uuid = traits.String(mandatory=True)
@@ -63,13 +65,6 @@ class MetaWorkflowInputSpec(TraitedSpec):
     # script dir
     script_dir = traits.Str()
 
-class MetaWorkflow(object):
-
-    _input_spec = MetaWorkflowInputSpec
-
-    def __init__(self):
-        self.inputs = self._input_spec()
-
     def to_json(self):
         pass
 
@@ -77,11 +72,13 @@ class MetaWorkflow(object):
         pass
 
     def create_config(self):
-        f = Foo(self.inputs.config_ui(),self.inputs.workflow_main_function,self.inputs.config_view)
+        f = Foo(self.config_ui(),
+                self.workflow_main_function,
+                self.config_view)
         f.configure_traits()
         
     def run(self,configfile):
-        self.inputs.workflow_main_function(configfile)
+        self.workflow_main_function(configfile)
 
 class FooHandler(Handler):
     """Handler for the Foo class.
@@ -209,3 +206,14 @@ class Foo(HasTraits):
         #f.close()
         save_json(filename=path,data=self._config.get())
         self.saved = True
+
+def register_workflow(wf):
+    _workflowlist.append(wf)
+
+def list_workflows():
+    for wf in _workflowlist:
+        print('%s %s' % (wf.uuid,
+                         wf.help.split('\n')[1]))
+
+def query_workflows(query_str):
+    pass

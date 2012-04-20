@@ -1,19 +1,23 @@
-from base import MetaWorkflow, load_json
-from enthought.traits.api import HasTraits, Directory, Bool, Button
-import enthought.traits.api as traits
-from enthought.traits.ui.api import Handler, View, Item, UItem, HGroup, Group
+import os
+
+from traits.api import HasTraits, Directory, Bool, Button
+import traits.api as traits
+from traitsui.api import Handler, View, Item, UItem, HGroup, Group
 from traitsui.menu import OKButton, CancelButton
+
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
-import os
 import nipype.interfaces.io as nio
-desc = """
+
+from .base import MetaWorkflow, load_json, register_workflow
+
+mwf = MetaWorkflow()
+mwf.help = """
 Task preprocessing workflow
 ===========================
 
 """
-mwf = MetaWorkflow()
-mwf.inputs.uuid = '63fcbb0a-8902-11e1-83d3-0023dfa375f2'
+mwf.uuid = '63fcbb0a-8902-11e1-83d3-0023dfa375f2'
 mwf.tags = ['task','fMRI','preprocessing','fsl','freesurfer','nipy']
 mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
 
@@ -286,9 +290,6 @@ def main(config):
     else:
         preprocess.run()
 
-mwf.inputs.workflow_main_function = main
-mwf.inputs.config_ui = lambda : config_ui
-
 view = View(Group(Item(name='working_dir'),
              Item(name='sink_dir'),
              Item(name='crash_dir'),
@@ -338,5 +339,9 @@ view = View(Group(Item(name='working_dir'),
              buttons = [OKButton, CancelButton],
              resizable=True,
              width=1050)
-             
-mwf.inputs.config_view = view
+
+mwf.workflow_main_function = main
+mwf.config_ui = lambda : config_ui
+mwf.config_view = view
+
+register_workflow(mwf)
