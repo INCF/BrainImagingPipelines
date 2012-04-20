@@ -24,7 +24,7 @@ mwf.inputs.uuid = '4ba509108afb11e18b5e001e4fb1404c'
 mwf.tags = ['TEST','Freesurfer']
 
 # Define Config
-from workflow1 import config_ui, view, get_dataflow
+from workflow1 import config_ui
 
 # Define workflow
 import nipype.interfaces.freesurfer as fs
@@ -91,9 +91,6 @@ mwf.inputs.config_view = View(Group(Item(name='working_dir'),
              Item(name='test_mode'),
              label='Execution Options',show_border=True),
              Group(Item(name='subjects'),
-             Item(name='base_dir'),
-             Item(name='func_template'),
-             Item(name='check_func_datagrabber'),
              label='Subjects',show_border=True),
              buttons = [OKButton, CancelButton],
              resizable=True,
