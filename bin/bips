@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 """Meta routine to configure and run various brain imaging workflows
+
+Example
+-------
+
+List all workflows::
+
+  bips -l
 """
 
 import argparse
@@ -20,14 +27,13 @@ bips -r config.json # run workflow
 """
 
 def main(args):
+    if args.all_info:
+        from bips.workflows import list_workflows
+        list_workflows()
     print args.config,args.uuid, args.info
-    
-    
-    
 
 if __name__== "__main__":
-    parser = argparse.ArgumentParser(description="example: \
-                        bips -m fmri -t task -w preproc -c config.py")
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('-c','--config',
                         dest='config',
                         required=False,
@@ -43,6 +49,8 @@ if __name__== "__main__":
                         help='print detailed info of uuid')
     parser.add_argument('-I',
                         dest = 'all_info',
+                        default=False,
+                        action='store_true',
                         required=False,
                         help='print information on all bips workflows')
     parser.add_argument('-r',
