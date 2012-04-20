@@ -1,20 +1,22 @@
-from base import MetaWorkflow, load_json
-from enthought.traits.api import HasTraits, Directory, Bool, Button
+from .base import MetaWorkflow, load_json, register_workflow
 import enthought.traits.api as traits
-from enthought.traits.ui.api import Handler, View, Item, UItem, HGroup, Group
+from enthought.traits.ui.api import View, Item, Group
 from traitsui.menu import OKButton, CancelButton
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import os
-import nipype.interfaces.io as nio 
-desc = """
+import nipype.interfaces.io as nio
+
+mwf = MetaWorkflow()
+mwf.help = """
 Resting State preprocessing workflow
 ====================================
 
 """
-mwf = MetaWorkflow()
-mwf.inputs.uuid = '7757e3168af611e1b9d5001e4fb1404c'
+
+mwf.uuid = '7757e3168af611e1b9d5001e4fb1404c'
 mwf.tags = ['resting-state','fMRI','preprocessing','fsl','freesurfer','nipy']
+mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
 
 # create_gui
 from workflow1 import config_ui, get_dataflow
@@ -164,8 +166,8 @@ def main(config_file):
     else:
         preprocess.run()
         
-mwf.inputs.workflow_main_function = main
-mwf.inputs.config_ui = lambda : r_config
+mwf.workflow_main_function = main
+mwf.config_ui = lambda : r_config
 
 view = View(Group(Item(name='working_dir'),
              Item(name='sink_dir'),
@@ -213,4 +215,5 @@ view = View(Group(Item(name='working_dir'),
              resizable=True,
              width=1050)
              
-mwf.inputs.config_view = view
+mwf.config_view = view
+register_workflow(mwf)
