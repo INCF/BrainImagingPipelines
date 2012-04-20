@@ -448,4 +448,68 @@ def overlay_new(stat_image,background_image,threshold):
     pl.savefig(fnames[2],bbox_inches='tight')
     
     return fnames
-    
+
+def corr_image(resting_image,fwhm):
+    """This function makes correlation image on brain surface"""
+    import numpy as np
+    import nibabel as nb
+    import matplotlib.pyplot as plt
+    from surfer import Brain, Surface
+    import os
+
+    img = nb.load(resting_image)
+    corrmat = np.corrcoef(np.squeeze(img.get_data()))
+    corrmat[np.isnan(corrmat)] = 0
+    corrmat_npz = os.path.abspath('corrmat.npz')
+    np.savez(corrmat_npz,corrmat=corrmat)
+
+    br = Brain('fsaverage5', 'lh', 'smoothwm')
+
+    #br.add_overlay(corrmat[0,:], min=0.2, name=0, visible=True)
+    values = nb.freesurfer.read_annot('/software/Freesurfer/5.1.0/subjects/fsaverage5/label/lh.aparc.annot')
+
+    #br.add_overlay(np.mean(corrmat[values[0]==5,:], axis=0), min=0.8, name='mean', visible=True)
+
+
+    data = img.get_data()
+
+    data = np.squeeze(img.get_data())
+
+    #
+    precuneus_signal = np.mean(data[values[0]==np.nonzero(np.array(values[2])=='precuneus')[0][0],:], axis=0)
+    precuneus = np.corrcoef(precuneus_signal, data)
+    #precuneus.shape
+
+    #br.add_overlay(precuneus[0,1:], min=0.3, sign='pos', name='mean', visible=True)
+
+    br.add_overlay(precuneus[0,1:], name='mean', visible=True)
+    plt.hist(precuneus[0,1:], 128)
+    plt.savefig(os.path.abspath("histogram.png"))
+    plt.close()
+
+    corr_image = os.path.abspath("corr_image%s.png"%fwhm)
+    br.save_montage(corr_image)
+    ims = br.save_imageset(prefix=os.path.abspath('fwhm_%s'%str(fwhm)),views=['medial','lateral','caudal','rostral','dorsal','ventral'])
+    br.close()
+    print ims
+    #precuneus[np.isnan(precuneus)] = 0
+    #plt.hist(precuneus[0,1:])
+
+    roitable = [['Region','Mean Correlation']]
+    for i, roi in enumerate(np.unique(values[2])):
+        roitable.append([roi,np.mean(precuneus[values[0]==np.nonzero(np.array(values[2])==roi)[0][0]])])
+
+        #images = [corr_image]+ims+[os.path.abspath("histogram.png"), roitable]
+    roitable=[roitable]
+    histogram = os.path.abspath("histogram.png")
+
+    return corr_image, ims, roitable, histogram, corrmat_npz
+
+def vol2surf(input_volume,ref_volume,reg_file,trg,hemi):
+    import os
+    out_file = os.path.abspath("surface.nii")
+    os.system("mri_vol2surf --mov %s --ref %s --reg %s --trgsubject %s \
+              --hemi %s --out_type nii --out %s --interp trilinear \
+              --projfrac 0.5" % (input_volume, ref_volume, reg_file,
+                                 trg, hemi, out_file))
+    return out_file

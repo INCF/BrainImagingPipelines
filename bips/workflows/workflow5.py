@@ -3,11 +3,14 @@ import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import nipype.interfaces.io as nio
 from bips.utils.reportsink.io import ReportSink
-from base import MetaWorkflow
+from base import MetaWorkflow, load_json
 from scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import corr_image, vol2surf
 from workflow2 import r_config, view
-from nipype.utils.filemanip import load_json
+desc = """
+Resting State correlation QA workflow
+=====================================
 
+"""
 mwf = MetaWorkflow()
 mwf.inputs.uuid = '62aff7328b0a11e1be5d001e4fb1404c'
 mwf.tags = ['resting','fMRI','QA','correlation']

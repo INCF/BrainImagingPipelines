@@ -1,12 +1,10 @@
-from base import MetaWorkflow
+from base import MetaWorkflow, load_json
 from enthought.traits.api import HasTraits, Directory, Bool, Button
 import enthought.traits.api as traits
 from enthought.traits.ui.api import Handler, View, Item, UItem, HGroup, Group
 from traitsui.menu import OKButton, CancelButton
-from nipype.utils.filemanip import load_json, save_json
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
-import os
 import nipype.interfaces.io as nio
 desc = """
 Test Freesurfer workflow
@@ -17,7 +15,6 @@ Convert brainmask.mgz to brainmask.nii.gz
 Convert brainmask.nii.gz to brainmask.mgz
 DataSink 
 """
-
 
 mwf = MetaWorkflow()
 mwf.inputs.uuid = '4ba509108afb11e18b5e001e4fb1404c'
