@@ -36,8 +36,11 @@ def _decode_dict(data):
     return rv
 
 def load_json(s):
-    a = file(s)
-    obj = json.load(a, object_hook=_decode_dict)
+    obj = None
+    with open(s) as fp:
+        obj = json.load(fp, object_hook=_decode_dict)
+    if obj is None:
+        raise Exception('could not read json file')
     return obj
 
 class MetaWorkflow(HasStrictTraits):
@@ -53,7 +56,7 @@ class MetaWorkflow(HasStrictTraits):
     # workflow creation function takes a configuration file as input
     workflow_main_function = traits.Function(mandatory=True)
     # configuration creation function (can take a config file as input)
-    config_ui = traits.Function()
+    config_ui = traits.Function
     # config view
     config_view = traits.Instance(View)
     # purl to describe workflow
@@ -183,7 +186,12 @@ class Foo(HasTraits):
         dialog.open()
         if dialog.return_code == OK:
             c = self.config_class()
-            self._config = c.set(**load_json(dialog.path))
+            for item, val in load_json(dialog.path).items():
+                try:
+                    setattr(c, item, val)
+                except:
+                    print('Could not set: %s to %s' % (item, str(val)))
+            self._config = c
             self._config.configure_traits(view=self.config_view)
             self.filedir = dialog.directory
             self.filename = dialog.filename

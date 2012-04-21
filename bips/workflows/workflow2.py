@@ -1,6 +1,6 @@
 from .base import MetaWorkflow, load_json, register_workflow
 import traits.api as traits
-from traitsui.api import View, Item, Group
+from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
 from traitsui.menu import OKButton, CancelButton
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
@@ -19,12 +19,17 @@ mwf.tags = ['resting-state','fMRI','preprocessing','fsl','freesurfer','nipy']
 mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
 
 # create_gui
-from workflow1 import config_ui, get_dataflow
+from workflow1 import config as baseconfig
+from workflow1 import get_dataflow, has_traitsui
 
-r_config = config_ui
-r_config.add_class_trait("highpass_freq", traits.Float())
-r_config.add_class_trait("lowpass_freq", traits.Float())
-r_config.add_class_trait("reg_params", traits.List(traits.Bool()))
+class config(baseconfig):
+    highpass_freq = traits.Float()
+    lowpass_freq = traits.Float()
+    reg_params = traits.BaseTuple(traits.Bool, traits.Bool, traits.Bool,
+                                  traits.Bool, traits.Bool)
+
+
+config.uuid = mwf.uuid
 
 # create_workflow
 
@@ -41,7 +46,7 @@ def prep_workflow(c, fieldmap):
 
     infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
                          name='subject_names')
-    infosource.iterables = ('subject_id', c["subjects"].split(','))
+    infosource.iterables = ('subject_id', c.subjects)
 
     # generate datagrabber
     
@@ -54,22 +59,22 @@ def prep_workflow(c, fieldmap):
     preproc = create_rest_prep(fieldmap=fieldmap)
     
     # make a data sink
-    sinkd = get_datasink(c["sink_dir"], c["fwhm"])
+    sinkd = get_datasink(c.sink_dir, c.fwhm)
     
     if fieldmap:
         datasource_fieldmap = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
                                                    outfields=['mag','phase']),
                          name = "fieldmap_datagrabber")
-        datasource_fieldmap.inputs.base_directory = c["field_dir"]
+        datasource_fieldmap.inputs.base_directory = c.field_dir
         datasource_fieldmap.inputs.template ='*'
-        datasource_fieldmap.inputs.field_template = dict(mag=c["magnitude_template"],
-                                                phase=c["phase_template"])
+        datasource_fieldmap.inputs.field_template = dict(mag=c.magnitude_template,
+                                                phase=c.phase_template)
         datasource_fieldmap.inputs.template_args = dict(mag=[['subject_id']],
-                                               phase=[['subject_id']])
+                                                        phase=[['subject_id']])
                                                
-        preproc.inputs.inputspec.FM_Echo_spacing = c["echospacing"]
-        preproc.inputs.inputspec.FM_TEdiff = c["TE_diff"]
-        preproc.inputs.inputspec.FM_sigma = c["sigma"]
+        preproc.inputs.inputspec.FM_Echo_spacing = c.echospacing
+        preproc.inputs.inputspec.FM_TEdiff = c.TE_diff
+        preproc.inputs.inputspec.FM_sigma = c.sigma
         modelflow.connect(infosource, 'subject_id',
                           datasource_fieldmap, 'subject_id')
         modelflow.connect(datasource_fieldmap,'mag',
@@ -85,21 +90,23 @@ def prep_workflow(c, fieldmap):
                           sinkd, 'preproc.mean')
 
     # inputs
-    preproc.inputs.fwhm_input.fwhm = c["fwhm"]
-    preproc.inputs.inputspec.num_noise_components = c["num_noise_components"]
-    preproc.crash_dir = c["crash_dir"]
+    preproc.inputs.inputspec.num_noise_components = c.num_noise_components
+    preproc.crash_dir = c.crash_dir
     modelflow.connect(infosource, 'subject_id', preproc, 'inputspec.fssubject_id')
-    preproc.inputs.inputspec.fssubject_dir = c["surf_dir"]
-    preproc.get_node('fwhm_input').iterables = ('fwhm',c["fwhm"])
-    preproc.inputs.inputspec.ad_normthresh = c["norm_thresh"]
-    preproc.inputs.inputspec.ad_zthresh = c["z_thresh"]
-    preproc.inputs.inputspec.tr = c["TR"]
-    preproc.inputs.inputspec.interleaved = c["Interleaved"]
-    preproc.inputs.inputspec.sliceorder = c["SliceOrder"]
-    preproc.inputs.inputspec.compcor_select = c["compcor_select"]
-    preproc.inputs.inputspec.highpass_sigma = 1/(2*c["TR"]*c["highpass_freq"])
-    preproc.inputs.inputspec.lowpass_sigma = 1/(2*c["TR"]*c["lowpass_freq"])
-    preproc.inputs.inputspec.reg_params = c["reg_params"]
+    preproc.inputs.inputspec.fssubject_dir = c.surf_dir
+    preproc.get_node('fwhm_input').iterables = ('fwhm', c.fwhm)
+    preproc.inputs.inputspec.ad_normthresh = c.norm_thresh
+    preproc.inputs.inputspec.ad_zthresh = c.z_thresh
+    preproc.inputs.inputspec.tr = c.TR
+    preproc.inputs.inputspec.interleaved = c.Interleaved
+    preproc.inputs.inputspec.sliceorder = c.SliceOrder
+    preproc.inputs.inputspec.compcor_select = c.compcor_select
+    if c.highpass_freq == -1:
+        preproc.inputs.inputspec.highpass_sigma = c.highpass_freq
+    else:
+        preproc.inputs.inputspec.highpass_sigma = 1/(2*c.TR*c.highpass_freq)
+    preproc.inputs.inputspec.lowpass_sigma = 1/(2*c.TR*c.lowpass_freq)
+    preproc.inputs.inputspec.reg_params = c.reg_params
 
     
     modelflow.connect(infosource, 'subject_id', sinkd, 'container')
@@ -146,74 +153,85 @@ def prep_workflow(c, fieldmap):
     modelflow.connect(preproc, 'outputspec.bandpassed_file',
                       sinkd, 'preproc.output.@bandpassed')
 
-    modelflow.base_dir = os.path.join(c["working_dir"],'work_dir')
+    modelflow.base_dir = os.path.join(c.working_dir, 'work_dir')
     return modelflow
     
 def main(config_file):
-    c = load_json(config_file)
-    preprocess = prep_workflow(c, c["use_fieldmap"])
+    c = config()
+    for item, val in load_json(config_file).items():
+        try:
+            setattr(c, item, val)
+        except:
+            print('Could not set: %s to %s' % (item, str(val)))
+    preprocess = prep_workflow(c, c.use_fieldmap)
     realign = preprocess.get_node('preproc.realign')
     #realign.inputs.loops = 2
     realign.inputs.speedup = 10
-    realign.plugin_args = c["plugin_args"]
-    preprocess.config = {'execution' : {'crashdump_dir' : c["crash_dir"]}}
+    realign.plugin_args = c.plugin_args
+    preprocess.config = {'execution': {'crashdump_dir': c.crash_dir}}
     
-    if len(c["subjects"].split(',')) == 1:
+    if len(c.subjects) == 1:
         preprocess.write_graph(graph2use='exec',
                                dotfilename='single_subject_exec.dot')
-    if c["run_on_grid"]:
-        preprocess.run(plugin=c["plugin"], plugin_args = c["plugin_args"])
+    if c.run_using_plugin:
+        preprocess.run(plugin=c.plugin, plugin_args = c.plugin_args)
     else:
         preprocess.run()
         
 mwf.workflow_main_function = main
-mwf.config_ui = lambda : r_config
+mwf.config_ui = lambda: config
 
-view = View(Group(Item(name='working_dir'),
-             Item(name='sink_dir'),
-             Item(name='crash_dir'),
-             Item(name='json_sink'),
-             Item(name='surf_dir'),
-             label='Directories',show_border=True),
-             Group(Item(name='run_on_grid'),
-             Item(name='plugin',enabled_when="run_on_grid"),
-             Item(name='plugin_args',enabled_when="run_on_grid"),
-             Item(name='test_mode'),
-             label='Execution Options',show_border=True),
-             Group(Item(name='subjects'),
-             Item(name='base_dir'),
-             Item(name='func_template'),
-             Item(name='check_func_datagrabber'),
-             label='Subjects',show_border=True),
-             Group(Item(name='use_fieldmap'),
-             Item(name='field_dir',enabled_when="use_fieldmap"),
-             Item(name='magnitude_template',enabled_when="use_fieldmap"),
-             Item(name='phase_template',enabled_when="use_fieldmap"),
-             Item(name='check_field_datagrabber',enabled_when="use_fieldmap"),
-             Item(name='echospacing',enabled_when="use_fieldmap"),
-             Item(name='TE_diff',enabled_when="use_fieldmap"),
-             Item(name='sigma',enabled_when="use_fieldmap"),
-             label='Fieldmap',show_border=True),
-             Group(Item(name='TR'),
-             Item(name='Interleaved'),
-             Item(name='SliceOrder'),
-             label='Motion Correction',show_border=True),
-             Group(Item(name='norm_thresh'),
-             Item(name='z_thresh'),
-             label='Artifact Detection',show_border=True),
-             Group(Item(name='compcor_select'),
-             Item(name='num_noise_components'),
-             label='CompCor',show_border=True),
-             Group(Item(name='reg_params'),
-             label='Filtering',show_border=True),
-             Group(Item(name='fwhm'),
-             label='Smoothing',show_border=True),
-             Group(Item(name='highpass_freq'),
-             Item(name='lowpass_freq'),
-             label='Bandpass Filter',show_border=True),
-             buttons = [OKButton, CancelButton],
-             resizable=True,
-             width=1050)
-             
-mwf.config_view = view
+def create_view():
+    view = View(Group(Item(name='working_dir'),
+                      Item(name='sink_dir'),
+                      Item(name='crash_dir'),
+                      Item(name='json_sink'),
+                      Item(name='surf_dir'),
+                      label='Directories', show_border=True),
+                Group(Item(name='run_using_plugin'),
+                      Item(name='plugin', enabled_when="run_using_plugin"),
+                      Item(name='plugin_args', enabled_when="run_using_plugin"),
+                      Item(name='test_mode'),
+                      label='Execution Options', show_border=True),
+                Group(Item(name='subjects', editor=CSVListEditor()),
+                      Item(name='base_dir', ),
+                      Item(name='func_template'),
+                      Item(name='check_func_datagrabber'),
+                      label='Subjects', show_border=True),
+                Group(Item(name='use_fieldmap'),
+                      Item(name='field_dir', enabled_when="use_fieldmap"),
+                      Item(name='magnitude_template',
+                           enabled_when="use_fieldmap"),
+                      Item(name='phase_template', enabled_when="use_fieldmap"),
+                      Item(name='check_field_datagrabber',
+                           enabled_when="use_fieldmap"),
+                      Item(name='echospacing',enabled_when="use_fieldmap"),
+                      Item(name='TE_diff',enabled_when="use_fieldmap"),
+                      Item(name='sigma',enabled_when="use_fieldmap"),
+                      label='Fieldmap',show_border=True),
+                Group(Item(name='TR'),
+                      Item(name='do_slicetiming'),
+                      Item(name='Interleaved'),
+                      Item(name='SliceOrder'),
+                      label='Motion Correction', show_border=True),
+                Group(Item(name='norm_thresh'),
+                      Item(name='z_thresh'),
+                      label='Artifact Detection',show_border=True),
+                Group(Item(name='compcor_select'),
+                      Item(name='num_noise_components'),
+                      label='CompCor',show_border=True),
+                Group(Item(name='reg_params'),
+                      label='Nuisance Filtering',show_border=True),
+                Group(Item(name='fwhm', editor=CSVListEditor()),
+                      label='Smoothing',show_border=True),
+                Group(Item(name='highpass_freq'),
+                      Item(name='lowpass_freq'),
+                      label='Bandpass Filter',show_border=True),
+                buttons = [OKButton, CancelButton],
+                resizable=True,
+                width=1050)
+    return view
+
+if has_traitsui:
+    mwf.config_view = create_view()
 register_workflow(mwf)

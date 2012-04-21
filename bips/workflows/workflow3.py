@@ -5,7 +5,7 @@ import os
 
 desc = """
 Task fMRI Quality Assurance workflow
-=======================================
+====================================
 
 """
 mwf = MetaWorkflow()
@@ -14,7 +14,7 @@ mwf.tags = ['task','fMRI','preprocessing','QA']
 mwf.dependencies = ['63fcbb0a-8902-11e1-83d3-0023dfa375f2']
 mwf.help = desc
 # config_ui
-from workflow1 import config_ui, view, get_dataflow
+from workflow1 import config_ui, create_view, get_dataflow, has_traitsui
 
 # define workflow
 import nipype.interfaces.io as nio
@@ -22,9 +22,16 @@ from nipype.interfaces.freesurfer import ApplyVolTransform
 from nipype.interfaces import freesurfer as fs
 from nipype.interfaces.io import FreeSurferSource
 
-from scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import (plot_ADnorm, tsdiffana, tsnr_roi, combine_table,
-                       art_output, plot_motion, plot_ribbon, plot_anat,
-                       overlay_new, overlay_dB)
+from scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import (plot_ADnorm,
+                                                                tsdiffana,
+                                                                tsnr_roi,
+                                                                combine_table,
+                                                                art_output,
+                                                                plot_motion,
+                                                                plot_ribbon,
+                                                                plot_anat,
+                                                                overlay_new,
+                                                                overlay_dB)
 
 from ..utils.reportsink.io import ReportSink
 
@@ -327,6 +334,7 @@ def main(config_file):
 
 mwf.workflow_main_function = main
 mwf.config_ui = lambda : config_ui
-mwf.config_view = view
+if has_traitsui:
+    mwf.config_view = create_view()
 
 register_workflow(mwf)

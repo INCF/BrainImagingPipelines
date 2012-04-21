@@ -19,7 +19,7 @@ import nipype.interfaces.spm as spm
 from .base import MetaWorkflow, load_json, register_workflow
 from ..utils.reportsink.io import ReportSink
 
-from workflow2 import r_config, view
+from workflow2 import r_config, create_view
 from workflow1 import get_dataflow
 
 
@@ -32,7 +32,7 @@ mwf = MetaWorkflow()
 mwf.uuid = '79755b1e8b1a11e1a2ae001e4fb1404c'
 mwf.tags = ['motion_correction', 'test', 'nipy', 'fsl', 'spm']
 mwf.config_ui = lambda : r_config
-mwf.config_view = view
+mwf.config_view = create_view()
 mwf.help = desc
 
 def plot_trans(nipy1,nipy2,fsl,spm):

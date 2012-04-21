@@ -5,7 +5,7 @@ import nipype.interfaces.io as nio
 from bips.utils.reportsink.io import ReportSink
 from .base import MetaWorkflow, load_json, register_workflow
 from scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import corr_image, vol2surf
-from workflow2 import r_config, view
+from workflow2 import r_config, create_view
 desc = """
 Resting State correlation QA workflow
 =====================================
@@ -16,7 +16,7 @@ mwf.uuid = '62aff7328b0a11e1be5d001e4fb1404c'
 mwf.tags = ['resting','fMRI','QA','correlation']
 mwf.dependencies = ['7757e3168af611e1b9d5001e4fb1404c']
 mwf.config_ui = lambda : r_config
-mwf.config_view = view
+mwf.config_view = create_view()
 mwf.help = desc
 # Define Workflow
 
