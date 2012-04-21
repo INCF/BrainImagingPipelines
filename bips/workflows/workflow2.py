@@ -157,7 +157,7 @@ def prep_workflow(c, fieldmap):
     modelflow.connect(preproc, 'outputspec.bandpassed_file',
                       sinkd, 'preproc.output.@bandpassed')
 
-    modelflow.base_dir = os.path.join(c.working_dir, 'work_dir')
+    modelflow.base_dir = os.path.abspath(c.working_dir)
     return modelflow
     
 def main(config_file):
@@ -181,9 +181,6 @@ def main(config_file):
         preprocess.run(plugin=c.plugin, plugin_args = c.plugin_args)
     else:
         preprocess.run()
-        
-mwf.workflow_main_function = main
-mwf.config_ui = lambda: config
 
 def create_view():
     view = View(Group(Item(name='working_dir'),
@@ -236,6 +233,8 @@ def create_view():
                 width=1050)
     return view
 
+mwf.workflow_main_function = main
+mwf.config_ui = lambda: config
 if has_traitsui:
     mwf.config_view = create_view()
 register_workflow(mwf)
