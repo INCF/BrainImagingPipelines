@@ -355,7 +355,7 @@ def get_regexp_substitutions(subject_id, use_fieldmap):
 
 def get_datasink(root_dir, fwhm):
     sinkd = pe.Node(nio.DataSink(), name='sinkd')
-    sinkd.inputs.base_directory = os.path.join(root_dir, 'analyses', 'func')
+    sinkd.inputs.base_directory = os.path.join(root_dir)
     return sinkd
 
 
@@ -510,7 +510,7 @@ def z_image(image,outliers):
     final_image = nib.Nifti1Image(z2, aff)
     final_image.to_filename(z_img2)
 
-    if arts.size > 0:
+    if arts.size:
         data_mask = np.delete(data, arts, axis=3)
         z = (data_mask - np.mean(data_mask, axis=3)[:,:,:,None])/np.std(data_mask,axis=3)[:,:,:,None]
     else:
