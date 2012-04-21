@@ -6,6 +6,7 @@ import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import os
 import nipype.interfaces.io as nio
+import numpy as np
 
 mwf = MetaWorkflow()
 mwf.help = """
@@ -101,11 +102,14 @@ def prep_workflow(c, fieldmap):
     preproc.inputs.inputspec.interleaved = c.Interleaved
     preproc.inputs.inputspec.sliceorder = c.SliceOrder
     preproc.inputs.inputspec.compcor_select = c.compcor_select
-    if c.highpass_freq == -1:
-        preproc.inputs.inputspec.highpass_sigma = c.highpass_freq
+    if c.highpass_freq < 0:
+        preproc.inputs.inputspec.highpass_sigma = -1
     else:
         preproc.inputs.inputspec.highpass_sigma = 1/(2*c.TR*c.highpass_freq)
-    preproc.inputs.inputspec.lowpass_sigma = 1/(2*c.TR*c.lowpass_freq)
+    if c.lowpass_freq < 0:
+        preproc.inputs.inputspec.lowpass_sigma = -1
+    else:
+        preproc.inputs.inputspec.lowpass_sigma = 1/(2*c.TR*c.lowpass_freq)
     preproc.inputs.inputspec.reg_params = c.reg_params
 
     
