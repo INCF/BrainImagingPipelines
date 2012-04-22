@@ -27,36 +27,41 @@ bips -r config.json # run workflow
 """
 
 def main(args):
-    if args.all_info:
-        from bips.workflows import list_workflows
+    from bips.workflows import (list_workflows, configure_workflow,
+                                run_workflow, display_workflow_info)
+    if args.list:
         list_workflows()
-    print args.config,args.uuid, args.info
+
+    if args.info:
+        display_workflow_info(args.info)
+
+    if args.config:
+        configure_workflow(args.config)
+
+    if args.run:
+        run_workflow(args.run)
 
 if __name__== "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('-c','--config',
                         dest='config',
-                        required=False,
-                        help='location of config file'
+                        metavar='UUID',
+                        help='create configuration file'
                         )
-    parser.add_argument('-u','--uuid',
-                        dest = 'uuid',
-                        required=False,
-                        help='workflow to run')
     parser.add_argument('-i','--info',
                         dest = 'info',
-                        required=False,
+                        metavar='UUID',
                         help='print detailed info of uuid')
-    parser.add_argument('-I',
-                        dest = 'all_info',
+    parser.add_argument('-l', '--list',
+                        dest = 'list',
                         default=False,
                         action='store_true',
-                        required=False,
                         help='print information on all bips workflows')
-    parser.add_argument('-r',
+    parser.add_argument('-r', '--run',
                         dest = 'run',
-                        required=False,
-                        help='run the workflow')
+                        metavar='CONFIGFILE',
+                        help='run the workflow in the config file')
     
     args = parser.parse_args()
     main(args)
