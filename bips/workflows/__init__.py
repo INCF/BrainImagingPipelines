@@ -8,4 +8,5 @@ import workflow2
 import workflow8
 
 
-from .base import list_workflows, configure_workflow, run_workflow
+from .base import (list_workflows, configure_workflow, run_workflow,
+                   display_workflow_info)

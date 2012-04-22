@@ -58,7 +58,7 @@ class MetaWorkflow(HasStrictTraits):
     # configuration creation function (can take a config file as input)
     config_ui = traits.Function
     # config view
-    config_view = traits.Instance(View)
+    config_view = traits.Function
     # purl to describe workflow
     url = traits.Str()
     # keyword tags for the workflow
@@ -176,7 +176,7 @@ class Foo(HasTraits):
             self.filename = dialog.filename
             self.Configuration_File = os.path.join(dialog.directory, dialog.filename)
             self._config = self.config_class()
-            self._config.configure_traits(view=self.config_view)
+            self._config.configure_traits(view=self.config_view())
             self._save_to_file()
             self.saved = False
             self.config_changed = True
@@ -192,7 +192,7 @@ class Foo(HasTraits):
                 except:
                     print('Could not set: %s to %s' % (item, str(val)))
             self._config = c
-            self._config.configure_traits(view=self.config_view)
+            self._config.configure_traits(view=self.config_view())
             self.filedir = dialog.directory
             self.filename = dialog.filename
             self.Configuration_File = os.path.join(dialog.directory, dialog.filename)
@@ -220,6 +220,17 @@ def register_workflow(wf):
     _workflow[wf.uuid] = dict(object = wf)
 
 
+def get_workflow(uuid):
+    if uuid in _workflow:
+        return _workflow[uuid]['object']
+    wf_found = [key for key in _workflow if key.startswith(uuid)]
+    if not len(wf_found):
+        raise ValueError('No workflow with uuid %s found' % uuid)
+    if len(wf_found) > 1:
+        raise Exception('Multiple workflows found with partial uuid %s' % uuid)
+    return get_workflow(wf_found[0])
+
+
 def list_workflows():
     for wf, value in sorted(_workflow.items()):
         print('%s %s' % (wf,
@@ -227,14 +238,20 @@ def list_workflows():
 
 
 def configure_workflow(uuid):
-    wf = _workflow[uuid]['object']
+    wf = get_workflow(uuid)
     wf.create_config()
 
 
 def run_workflow(configfile):
     config = load_json(configfile)
-    wf = _workflow[config['uuid']]['object']
+    wf = get_workflow(config['uuid'])
     wf.run(configfile)
+
+
+def display_workflow_info(uuid):
+    wf = get_workflow(uuid)
+    import pprint
+    pprint.pprint(wf.get())
 
 
 def query_workflows(query_str):
