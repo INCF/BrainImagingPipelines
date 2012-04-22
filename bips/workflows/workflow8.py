@@ -121,7 +121,7 @@ def create_view():
                 width=1050)
     return view
 
-mwf.config_view = create_view()
+mwf.config_view = create_view
 
 
 def create_correlation_matrix(infile):
@@ -179,6 +179,7 @@ def create_workflow(c):
 
     datasink = pe.Node(nio.DataSink(), name='sinker')
     datasink.inputs.base_directory = c.sink_dir
+    datasink.inputs.regexp_substitutions = [('_subject_id.*smooth_surf', 'surffwhm')]
     workflow.connect(inputnode, 'subject_id', datasink, 'container')
     workflow.connect(corrmat, 'corrmatfile', datasink, '@corrmat')
     return workflow

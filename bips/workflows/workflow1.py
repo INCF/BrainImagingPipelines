@@ -331,6 +331,6 @@ def create_view():
 mwf.workflow_main_function = main
 mwf.config_ui = lambda: config
 if has_traitsui:
-    mwf.config_view = create_view()
+    mwf.config_view = create_view
 
 register_workflow(mwf)
