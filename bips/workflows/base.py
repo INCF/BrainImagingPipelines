@@ -233,7 +233,7 @@ def configure_workflow(uuid):
 
 def run_workflow(configfile):
     config = load_json(configfile)
-    wf = _workflow[config[uuid]]['object']
+    wf = _workflow[config['uuid']]['object']
     wf.run(configfile)
 
 
