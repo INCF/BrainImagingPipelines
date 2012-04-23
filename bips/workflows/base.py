@@ -212,18 +212,21 @@ class Foo(HasTraits):
     def _py_button_fired(self):
         f = open(os.path.join(self.filedir,
             os.path.split(self.Configuration_File)[1].split('.json')[0]+'.py'),'w')
+        f.write("from bips.workflows.base import get_config\n\n")
+        f.write("uuid = \'%s\' \n\n" % self._config.uuid)
+        f.write("c = get_config(uuid)\n\n")
         for key, item in self._config.class_traits().iteritems():
             try:
-                if key in self._config.editable_traits():
+                if key in self._config.editable_traits() and not key=='uuid':
                     f.write("\"\"\"%s : %s\"\"\"\n\n"% (key, item.desc))
                     if 'Directory' in str(item.trait_type) \
                     or 'Str' in str(item.trait_type) \
                     or "Enum" in str(item.trait_type):
-                        f.write("%s = \'%s\'\n\n"% (key, self._config.trait_get([key])[key]))
+                        f.write("c.%s = \'%s\'\n\n"% (key, self._config.trait_get([key])[key]))
                     elif 'Code' in str(item.trait_type):
-                        f.write("%s = \"\"\" %s \"\"\" \n\n"% (key, self._config.trait_get([key])[key]))
+                        f.write("c.%s = \"\"\" %s \"\"\" \n\n"% (key, self._config.trait_get([key])[key]))
                     else:
-                        f.write("%s = %s\n\n"% (key, self._config.trait_get([key])[key]))
+                        f.write("c.%s = %s\n\n"% (key, self._config.trait_get([key])[key]))
             except:
                 print "could not write %s" %key
         f.close()
@@ -256,6 +259,9 @@ def get_workflow(uuid):
         raise Exception('Multiple workflows found with partial uuid %s' % uuid)
     return get_workflow(wf_found[0])
 
+def get_config(uuid):
+    wf = get_workflow(uuid)
+    return wf.config_ui()
 
 def list_workflows():
     for wf, value in sorted(_workflow.items()):
