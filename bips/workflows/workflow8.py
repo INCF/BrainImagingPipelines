@@ -78,6 +78,11 @@ class config(HasTraits):
     projection_stem = traits.Str('-projfrac-avg 0 1 0.1',
                                  desc='how to project data onto the surface')
 
+    # Saving output
+    out_type = traits.Enum('mat', 'hdf5', desc='mat or hdf5')
+    hdf5_package = traits.Enum('h5py', 'pytables',
+                               desc='which hdf5 package to use')
+
     # Atlas mapping
     #surface_atlas = ??
 
@@ -123,6 +128,9 @@ def create_view():
                       Item(name='surface_fwhm', editor=CSVListEditor()),
                       Item(name='projection_stem'),
                       label='Smoothing', show_border=True),
+                Group(Item(name='out_type'),
+                      Item(name='hdf5_package'),
+                      label='Output', show_border=True),
                 buttons=[OKButton, CancelButton],
                 resizable=True,
                 width=1050)
@@ -131,18 +139,37 @@ def create_view():
 mwf.config_view = create_view
 
 
-def create_correlation_matrix(infile):
+def create_correlation_matrix(infile, out_type, package):
     import os
     import numpy as np
     import scipy.io as sio
     import nibabel as nb
     from nipype.utils.filemanip import split_filename
-    _, name, _ = split_filename(infile)
-    matfile = os.path.abspath(name + '.mat')
     img = nb.load(infile)
     corrmat = np.corrcoef(np.squeeze(img.get_data()))
-    sio.savemat(matfile, {'corrmat': corrmat})
-    return matfile
+    _, name, _ = split_filename(infile)
+    if 'mat' in out_type:
+        matfile = os.path.abspath(name + '.mat')
+        sio.savemat(matfile, {'corrmat': corrmat})
+        output = matfile
+    elif 'hdf5' in out_type:
+        hdf5file = os.path.abspath(name + '.hf5')
+        if package == 'h5py':
+            import h5py
+            f = h5py.File(hdf5file, 'w')
+            dset = f.create_dataset('corrmat', data=corrmat, compression=5)
+            f.close()
+        else:
+            from tables import openFile, Float64Atom, Filters
+            h5file = openFile(hdf5file, 'w')
+            arr = h5file.createCArray(h5file.root, 'corrmat', Float64Atom(),
+                                      corrmat.shape, filters=Filters(complevel=5))
+            arr[:] = corrmat
+            h5file.close()
+        output = hdf5file
+    else:
+        raise Exception('Unknown output type')
+    return output
 
 
 def create_workflow(c):
@@ -178,11 +205,13 @@ def create_workflow(c):
     workflow.connect(datasource, 'ref_file', vol2surf, 'reference_file')
 
     # create correlation matrix
-    corrmat = pe.Node(util.Function(input_names=['infile'],
+    corrmat = pe.Node(util.Function(input_names=['infile', 'out_type',
+                                                 'package'],
                                     output_names=['corrmatfile'],
                                     function=create_correlation_matrix),
                       name='correlation_matrix')
-    corrmat.overwrite = True
+    corrmat.inputs.out_type = c.out_type
+    corrmat.inputs.package = c.hdf5_package
     workflow.connect(vol2surf, 'out_file', corrmat, 'infile')
 
     datasink = pe.Node(nio.DataSink(), name='sinker')
