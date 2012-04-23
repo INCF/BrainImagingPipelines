@@ -1,3 +1,4 @@
+from glob import glob
 import os
 
 import nipype.pipeline.engine as pe
@@ -15,7 +16,8 @@ try:
 except:
     has_traitsui = False
 
-from .base import MetaWorkflow, load_json, register_workflow
+from .base import MetaWorkflow, load_config, register_workflow
+
 
 desc = """
 Map resting timeseries to surface correlations
@@ -29,15 +31,16 @@ mwf.tags = ['surface', 'resting', 'correlation']
 
 
 def check_path(path):
-    if not os.path.exists(path):
+    fl = glob(path)
+    if not len(fl):
         print "ERROR:", path, "does NOT exist!"
     else:
-        print path, "exists!"
+        print "Exists:", fl
 
 
 # create gui
 class config(HasTraits):
-    uuid = traits.Str(mwf.uuid)
+    uuid = traits.Str(desc="UUID")
 
     # Directories
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
@@ -89,8 +92,12 @@ class config(HasTraits):
                 check_path(os.path.join(self.base_dir, template % s))
             check_path(os.path.join(self.surf_dir, s))
 
+def create_config():
+    c = config()
+    c.uuid = mwf.uuid
+    return c
 
-mwf.config_ui = lambda: config
+mwf.config_ui = create_config
 mwf.help = desc
 
 
@@ -175,6 +182,7 @@ def create_workflow(c):
                                     output_names=['corrmatfile'],
                                     function=create_correlation_matrix),
                       name='correlation_matrix')
+    corrmat.overwrite = True
     workflow.connect(vol2surf, 'out_file', corrmat, 'infile')
 
     datasink = pe.Node(nio.DataSink(), name='sinker')
@@ -186,12 +194,7 @@ def create_workflow(c):
 
 
 def main(config_file):
-    c = config()
-    for item, val in load_json(config_file).items():
-        try:
-            setattr(c, item, val)
-        except:
-            print('Could not set: %s to %s' % (item, str(val)))
+    c = load_config(config_file, create_config)
     workflow = create_workflow(c)
     workflow.base_dir = c.working_dir
     workflow.config = {'execution': {'crashdump_dir': c.crash_dir}}

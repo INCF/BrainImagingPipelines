@@ -10,12 +10,11 @@ try:
 except:
     has_traitsui = False
 
-from nipype.interfaces.base import TraitedSpec
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import nipype.interfaces.io as nio
 
-from .base import MetaWorkflow, load_json, register_workflow
+from .base import MetaWorkflow, load_config, register_workflow
 
 mwf = MetaWorkflow()
 mwf.help = """
@@ -29,7 +28,7 @@ mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
 
 # create gui
 class config(HasTraits):
-    uuid = traits.Str(mwf.uuid)
+    uuid = traits.Str(desc="UUID")
 
     # Directories
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
@@ -126,6 +125,11 @@ class config(HasTraits):
                 break
             else:
                 print os.path.join(self.base_dir,self.phase_template % s), "exists!"
+
+def create_config():
+    c = config()
+    c.uuid = mwf.uuid
+    return c
 
 # create workflow
 
@@ -258,18 +262,13 @@ def prep_workflow(c, fieldmap):
     modelflow.base_dir = os.path.join(c.working_dir, 'work_dir')
     return modelflow
 
-def main(config):
-    c = config()
-    for item, val in load_json(config).items():
-        try:
-            setattr(c, item, val)
-        except:
-            print('Could not set: %s to %s' % (item, str(val)))
+def main(configfile):
+    c = load_config(configfile, create_config)
     preprocess = prep_workflow(c, c.use_fieldmap)
     realign = preprocess.get_node('preproc.realign')
     realign.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
-    realign.inputs.loops = 2
-    realign.inputs.speedup = 15
+    #realign.inputs.loops = 2
+    realign.inputs.speedup = 5
     realign.inputs.time_interp = c.do_slicetiming
     cc = preprocess.get_node('preproc.CompCor')
     cc.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
@@ -329,7 +328,7 @@ def create_view():
     return view
 
 mwf.workflow_main_function = main
-mwf.config_ui = lambda: config
+mwf.config_ui = create_config
 if has_traitsui:
     mwf.config_view = create_view
 

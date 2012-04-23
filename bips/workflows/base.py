@@ -43,6 +43,17 @@ def load_json(s):
         raise Exception('could not read json file')
     return obj
 
+def load_config(configfile, config_class):
+    c = config_class()
+    for item, val in load_json(configfile).items():
+        if item == 'uuid':
+            continue
+        try:
+            setattr(c, item, val)
+        except:
+            print('Could not set: %s to %s' % (item, str(val)))
+    return c
+
 class MetaWorkflow(HasStrictTraits):
     version = traits.Constant(1)
     # uuid of workflow
@@ -50,7 +61,7 @@ class MetaWorkflow(HasStrictTraits):
     # description of workflow
     help = traits.Str(mandatory=True)
     # workflows that should be run prior to this workflow
-    dependencies = traits.List(traits.Str(), mandatory=True)
+    uses_outputs_of = traits.List(traits.Str(), mandatory=True)
     # software necessary to run this workflow
     required_software = traits.List(traits.Str)
     # workflow creation function takes a configuration file as input
@@ -64,7 +75,7 @@ class MetaWorkflow(HasStrictTraits):
     # keyword tags for the workflow
     tags = traits.List(traits.Str)
     # use this workflow instead
-    superceded_by = traits.List(traits.UUID)
+    supercedes = traits.List(traits.UUID)
     # script dir
     script_dir = traits.Str()
 
@@ -75,7 +86,7 @@ class MetaWorkflow(HasStrictTraits):
         pass
 
     def create_config(self):
-        f = Foo(self.config_ui(),
+        f = Foo(self.config_ui,
                 self.workflow_main_function,
                 self.config_view)
         f.configure_traits()
@@ -185,13 +196,7 @@ class Foo(HasTraits):
         dialog = FileDialog(action="open", wildcard=self.file_wildcard)
         dialog.open()
         if dialog.return_code == OK:
-            c = self.config_class()
-            for item, val in load_json(dialog.path).items():
-                try:
-                    setattr(c, item, val)
-                except:
-                    print('Could not set: %s to %s' % (item, str(val)))
-            self._config = c
+            self._config = load_config(dialog.path, self.config_class)
             self._config.configure_traits(view=self.config_view())
             self.filedir = dialog.directory
             self.filename = dialog.filename

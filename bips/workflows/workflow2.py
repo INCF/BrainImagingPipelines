@@ -1,12 +1,13 @@
-from .base import MetaWorkflow, load_json, register_workflow
+import os
+
 import traits.api as traits
 from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
 from traitsui.menu import OKButton, CancelButton
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
-import os
 import nipype.interfaces.io as nio
-import numpy as np
+
+from .base import MetaWorkflow, load_config, register_workflow
 
 mwf = MetaWorkflow()
 mwf.help = """
@@ -29,8 +30,10 @@ class config(baseconfig):
     reg_params = traits.BaseTuple(traits.Bool, traits.Bool, traits.Bool,
                                   traits.Bool, traits.Bool)
 
-
-config.uuid = mwf.uuid
+def create_config():
+    c = config()
+    c.uuid = mwf.uuid
+    return c
 
 # create_workflow
 
@@ -161,16 +164,11 @@ def prep_workflow(c, fieldmap):
     return modelflow
     
 def main(config_file):
-    c = config()
-    for item, val in load_json(config_file).items():
-        try:
-            setattr(c, item, val)
-        except:
-            print('Could not set: %s to %s' % (item, str(val)))
+    c = load_config(config_file, create_config)
     preprocess = prep_workflow(c, c.use_fieldmap)
     realign = preprocess.get_node('preproc.realign')
     #realign.inputs.loops = 2
-    realign.inputs.speedup = 10
+    realign.inputs.speedup = 5
     realign.plugin_args = c.plugin_args
     preprocess.config = {'execution': {'crashdump_dir': c.crash_dir}}
     
@@ -183,7 +181,9 @@ def main(config_file):
         preprocess.run()
 
 def create_view():
-    view = View(Group(Item(name='working_dir'),
+    view = View(Group(Item(name='uuid', style='readonly'),
+                      label='Description', show_border=True),
+                Group(Item(name='working_dir'),
                       Item(name='sink_dir'),
                       Item(name='crash_dir'),
                       Item(name='json_sink'),
@@ -234,7 +234,7 @@ def create_view():
     return view
 
 mwf.workflow_main_function = main
-mwf.config_ui = lambda: config
+mwf.config_ui = create_config
 if has_traitsui:
     mwf.config_view = create_view
 register_workflow(mwf)
