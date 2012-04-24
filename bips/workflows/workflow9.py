@@ -21,7 +21,7 @@ class config(HasTraits):
 
     # Directories
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
-    base_dir = Directory(exists=True, desc='Base directory of data. (Should be subject-independent)')
+    base_dir = Directory(mandatory=True, desc='Base directory of data. (Should be subject-independent)')
     sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
     crash_dir = Directory(mandatory=False, desc="Location to store crash files")
     surf_dir = Directory(mandatory=True, desc="Freesurfer subjects directory")
@@ -46,7 +46,7 @@ class config(HasTraits):
     fsl_mat_template = traits.String('%s/preproc/bbreg/*.mat')
 
     #Normalization
-    norm_template = traits.File(exists=True, desc='Template to warp to')
+    norm_template = traits.File(mandatory=True,desc='Template to warp to')
 
     # Advanced Options
     use_advanced_options = traits.Bool()
