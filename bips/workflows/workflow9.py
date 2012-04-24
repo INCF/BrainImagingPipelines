@@ -8,12 +8,6 @@ from .scripts.ua780b1988e1c11e1baf80019b9f22493.base import get_full_norm_workfl
 from .base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
-has_traitsui = True
-try:
-    from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
-    from traitsui.menu import OKButton, CancelButton
-except:
-    has_traitsui = False
 
 
 class config(HasTraits):
@@ -62,6 +56,8 @@ def create_config():
     return c
 
 def create_view():
+    from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
+    from traitsui.menu import OKButton, CancelButton
     view = View(Group(Item(name='working_dir'),
                       Item(name='sink_dir'),
                       Item(name='crash_dir'),
