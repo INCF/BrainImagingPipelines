@@ -2,6 +2,8 @@
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 import os
 
+from workflows import list_workflows, configure_workflow, run_workflow
+
 from info import (LONG_DESCRIPTION as __doc__,
                   URL as __url__,
                   STATUS as __status__,
@@ -44,8 +46,10 @@ def _test_local_install():
 _test_local_install()
 
 # Set up package information function
-from pkg_info import get_pkg_info as _get_pkg_info
-get_info = lambda: _get_pkg_info(os.path.dirname(__file__))
+def get_info():
+    from pkg_info import get_pkg_info
+    print "calling get info"
+    get_pkg_info(os.path.dirname(__file__))
 
 # Cleanup namespace
 del _test_local_install

@@ -6,8 +6,8 @@ import nipype.interfaces.utility as util    # utility
 import nipype.pipeline.engine as pe         # pypeline engine
 import os
 
-from ..base import create_rest_prep
-from ..utils import get_datasink, get_substitutions, get_regexp_substitutions
+from ..bips.workflows.scripts.u0a14c5b5899911e1bca80023dfa375f2.base import create_rest_prep
+from ..bips.workflows.scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import get_datasink, get_substitutions, get_regexp_substitutions
 
 # Preprocessing
 # -------------------------------------------------------------

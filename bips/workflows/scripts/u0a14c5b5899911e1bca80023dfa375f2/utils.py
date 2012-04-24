@@ -355,7 +355,7 @@ def get_regexp_substitutions(subject_id, use_fieldmap):
 
 def get_datasink(root_dir, fwhm):
     sinkd = pe.Node(nio.DataSink(), name='sinkd')
-    sinkd.inputs.base_directory = os.path.join(root_dir, 'analyses', 'func')
+    sinkd.inputs.base_directory = os.path.join(root_dir)
     return sinkd
 
 
@@ -485,9 +485,7 @@ def z_image(image,outliers):
     File : z-image
     """
     import numpy as np
-    import math
     import nibabel as nib
-    from scipy.stats.mstats import zscore
     from nipype.utils.filemanip import split_filename
     import os
     if isinstance(image,list):
@@ -506,18 +504,19 @@ def z_image(image,outliers):
     arts = try_import(outliers)
     img = nib.load(image)
     data, aff = np.asarray(img.get_data()), img.get_affine()
-    weights = np.zeros(data.shape, dtype=bool)
-    for a in arts:
-        weights[:, :, :, a] = True
-    data_mask = np.ma.array(data, mask=weights)
-    z = (data_mask - np.mean(data_mask, axis=3)[:,:,:,None])/np.std(data_mask,axis=3)[:,:,:,None]
-    final_image = nib.Nifti1Image(z, aff)
-    final_image.to_filename(z_img)
 
     z_img2 = os.path.abspath('z_' + split_filename(image)[1] + '.nii.gz')
     z2 = (data - np.mean(data, axis=3)[:,:,:,None])/np.std(data,axis=3)[:,:,:,None]
     final_image = nib.Nifti1Image(z2, aff)
     final_image.to_filename(z_img2)
+
+    if arts.size:
+        data_mask = np.delete(data, arts, axis=3)
+        z = (data_mask - np.mean(data_mask, axis=3)[:,:,:,None])/np.std(data_mask,axis=3)[:,:,:,None]
+    else:
+        z = z2
+    final_image = nib.Nifti1Image(z, aff)
+    final_image.to_filename(z_img)
 
     z_img = [z_img, z_img2]
     return z_img

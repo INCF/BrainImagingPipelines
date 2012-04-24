@@ -1,22 +1,39 @@
-import nipype.interfaces.matlab as mlab
-mlab.MatlabCommand.set_default_matlab_cmd("matlab -nodesktop -nosplash")
-mlab.MatlabCommand.set_default_paths('/software/spm8_4290')
+import os
+
+"""
+NOTE
+This sort of configuration should not be happening here
+"""
+#import nipype.interfaces.matlab as mlab
+#mlab.MatlabCommand.set_default_matlab_cmd("matlab -nodesktop -nosplash")
+#mlab.MatlabCommand.set_default_paths('/software/spm8_4290')
+
+from base import MetaWorkflow, load_json
 
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
-import nipype.interfaces.io as nio
-import argparse
 from nipype.interfaces.nipy import FmriRealign4d
 import nipype.interfaces.fsl as fsl
 import nipype.interfaces.spm as spm
-import sys
-sys.path.append('../../utils')
-from reportsink.io import ReportSink
-import os
-import matplotlib
-matplotlib.use('Agg')
-from nipype import config
-config.set('execution', 'remove_unnecessary_outputs', 'false')
+
+from .base import MetaWorkflow, load_json, register_workflow
+from ..utils.reportsink.io import ReportSink
+
+from workflow2 import r_config, create_view
+from workflow1 import get_dataflow
+
+
+desc = """
+Compare Realignment Nodes workflow
+=====================================
+
+"""
+mwf = MetaWorkflow()
+mwf.uuid = '79755b1e8b1a11e1a2ae001e4fb1404c'
+mwf.tags = ['motion_correction', 'test', 'nipy', 'fsl', 'spm']
+mwf.config_ui = lambda : r_config
+mwf.config_view = create_view()
+mwf.help = desc
 
 def plot_trans(nipy1,nipy2,fsl,spm):
     import matplotlib.pyplot as plt
@@ -73,26 +90,29 @@ def corr_mat(nipy1,nipy2,fsl,spm):
     plt.close()
     return fname
 
-def compare_workflow(name='compare_realignments'):
-    
+def compare_workflow(c, name='compare_realignments'):
+    import nipype.interfaces.matlab as mlab
+    mlab.MatlabCommand.set_default_matlab_cmd("matlab -nodesktop -nosplash")
+    mlab.MatlabCommand.set_default_paths('/software/spm8_4290')
+
     workflow =pe.Workflow(name=name)
     
     infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
                          name='subject_names')
-    infosource.iterables = ('subject_id', c.subjects)
+    infosource.iterables = ('subject_id', c["subjects"].split(','))
     
-    datagrabber = c.create_dataflow()
+    datagrabber = get_dataflow(c)
     workflow.connect(infosource, 'subject_id', datagrabber, 'subject_id')
     
     realign_nipy = pe.Node(interface=FmriRealign4d(), name='realign_nipy')
-    realign_nipy.inputs.tr = c.TR
-    realign_nipy.inputs.slice_order = c.SliceOrder
-    realign_nipy.inputs.interleaved = c.Interleaved
+    realign_nipy.inputs.tr = c["TR"]
+    realign_nipy.inputs.slice_order = c["SliceOrder"]
+    realign_nipy.inputs.interleaved = c["Interleaved"]
     
     realign_nipy_no_t = pe.Node(interface=FmriRealign4d(time_interp=False), name='realign_nipy_no_t')
-    realign_nipy_no_t.inputs.tr = c.TR
-    realign_nipy_no_t.inputs.slice_order = c.SliceOrder
-    realign_nipy_no_t.inputs.interleaved = c.Interleaved
+    realign_nipy_no_t.inputs.tr = c["TR"]
+    realign_nipy_no_t.inputs.slice_order = c["SliceOrder"]
+    realign_nipy_no_t.inputs.interleaved = c["Interleaved"]
     
     
     realign_mflirt = pe.MapNode(interface=fsl.MCFLIRT(save_plots=True), name='mcflirt', iterfield=['in_file'])
@@ -100,8 +120,8 @@ def compare_workflow(name='compare_realignments'):
     realign_spm = pe.MapNode(interface=spm.Realign(), name='spm', iterfield=['in_files'])
     
     report = pe.Node(interface=ReportSink(orderfields=['Introduction','Translations','Rotations','Correlation_Matrix']), name='write_report')
-    report.inputs.Introduction = 'Comparing realignment nodes for subject %s'%c.subjects[0]
-    report.inputs.base_directory= os.path.join(c.sink_dir,'analyses','func')
+    report.inputs.Introduction = 'Comparing realignment nodes'
+    report.inputs.base_directory= os.path.join(c["sink_dir"],'analyses','func')
     report.inputs.report_name = 'Comparing_Motion'
     
     rot = pe.MapNode(util.Function(input_names=['nipy1','nipy2','fsl','spm'],output_names=['fname'],function=plot_rot),name='plot_rot',
@@ -140,23 +160,16 @@ def compare_workflow(name='compare_realignments'):
     
     return workflow
 
-if __name__ == "__main__":
+def main(config):
 
-    parser = argparse.ArgumentParser(description="example: \
-                        run resting_preproc.py -c config.py")
-    parser.add_argument('-c','--config',
-                        dest='config',
-                        required=True,
-                        help='location of config file'
-                        )
-    args = parser.parse_args()
-    path, fname = os.path.split(os.path.realpath(args.config))
-    sys.path.append(path)
-    c = __import__(fname.split('.')[0])
+    c = load_json(config)
     
-    compare = compare_workflow()
-    compare.base_dir = c.working_dir
-    if c.run_on_grid:
-        compare.run(plugin=c.plugin, plugin_args=c.plugin_args['qsub_args']+'-X')
+    compare = compare_workflow(c)
+    compare.base_dir = c["working_dir"]
+    if c["run_on_grid"]:
+        compare.run(plugin=c["plugin"], plugin_args=c["plugin_args"])
     else:
         compare.run()
+
+mwf.workflow_main_function = main
+register_workflow(mwf)

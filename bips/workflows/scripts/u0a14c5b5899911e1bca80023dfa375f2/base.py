@@ -1,5 +1,6 @@
 import nipype.interfaces.fsl as fsl         # fsl
 import nipype.algorithms.rapidart as ra     # rapid artifact detection
+from nipype.interfaces.fsl.utils import EPIDeWarp
 from nipype.interfaces.nipy.preprocess import FmriRealign4d
 from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
 from nipype.workflows.fmri.fsl import create_susan_smooth
@@ -8,10 +9,7 @@ import nipype.interfaces.utility as util
 
 from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
                    getmeanscale, highpass_operand, pickfirst)
-import sys
-sys.path.append('../utils')
 
-from nipype.interfaces.fsl.utils import EPIDeWarp
 
 def create_filter_matrix(motion_params, composite_norm,
                          compcorr_components, art_outliers, selector):
@@ -485,7 +483,7 @@ def create_prep_fieldmap(name='preproc'):
                     
                     
 def create_rest_prep(name='preproc',fieldmap=False):
-    """Rewiring of base fMRI workflow to add resting state preprocessing 
+    """Rewiring of base fMRI workflow to add resting state preprocessing
     
     components.
     
