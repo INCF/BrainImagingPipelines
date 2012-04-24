@@ -4,7 +4,7 @@ import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 from nipype.interfaces.io import FreeSurferSource
 import nipype.interfaces.io as nio
-from .scripts.a780b1988e1c11e1baf80019b9f22493.base import get_full_norm_workflow
+from .scripts.ua780b1988e1c11e1baf80019b9f22493.base import get_full_norm_workflow
 from .base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
@@ -33,7 +33,9 @@ class config(HasTraits):
                          desc="plugin to use, if run_using_plugin=True")
     plugin_args = traits.Dict({"qsub_args": "-q many"},
                                                       usedefault=True, desc='Plugin arguments.')
-
+    test_mode = Bool(False, mandatory=False, usedefault=True,
+                     desc='Affects whether where and if the workflow keeps its \
+                            intermediary files. True to keep intermediary files. ')
     # Subjects
     subjects = traits.List(traits.Str, mandatory=True, usedefault=True,
                           desc="Subject id's. Note: These MUST match the subject id's in the \
