@@ -97,6 +97,10 @@ class config(HasTraits):
     # Highpass Filter
     hpcutoff = traits.Float(128., desc="highpass cutoff", usedefault=True)
 
+    # Advanced Options
+    use_advanced_options = traits.Bool()
+    advanced_script = traits.Code()
+
     # Buttons
     check_func_datagrabber = Button("Check")
     check_field_datagrabber = Button("Check")
@@ -273,7 +277,10 @@ def main(configfile):
     cc = preprocess.get_node('preproc.CompCor')
     cc.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
     preprocess.config = {'execution': {'crashdump_dir': c.crash_dir}}
-    preprocess.write_graph()
+
+    if c.use_advanced_options:
+        exec c.advanced_script
+
     if c.run_using_plugin:
         preprocess.run(plugin=c.plugin, plugin_args = c.plugin_args)
     else:
@@ -322,6 +329,9 @@ def create_view():
                       label='Smoothing',show_border=True),
                 Group(Item(name='hpcutoff'),
                       label='Highpass Filter',show_border=True),
+                Group(Item(name='use_advanced_options'),
+                    Item(name='advanced_script',enabled_when='use_advanced_options'),
+                    label='Advanced',show_border=True),
                 buttons = [OKButton, CancelButton],
                 resizable=True,
                 width=1050)

@@ -82,6 +82,9 @@ class config(HasTraits):
     out_type = traits.Enum('mat', 'hdf5', desc='mat or hdf5')
     hdf5_package = traits.Enum('h5py', 'pytables',
                                desc='which hdf5 package to use')
+    # Advanced Options
+    use_advanced_options = traits.Bool()
+    advanced_script = traits.Code()
 
     # Atlas mapping
     #surface_atlas = ??
@@ -131,6 +134,9 @@ def create_view():
                 Group(Item(name='out_type'),
                       Item(name='hdf5_package'),
                       label='Output', show_border=True),
+                Group(Item(name='use_advanced_options'),
+                    Item(name='advanced_script',enabled_when='use_advanced_options'),
+                    label='Advanced',show_border=True),
                 buttons=[OKButton, CancelButton],
                 resizable=True,
                 width=1050)
@@ -227,6 +233,8 @@ def main(config_file):
     workflow = create_workflow(c)
     workflow.base_dir = c.working_dir
     workflow.config = {'execution': {'crashdump_dir': c.crash_dir}}
+    if c.use_advanced_options:
+        exec c.advanced_script
     if c.run_using_plugin:
         workflow.run(plugin=c.plugin, plugin_args=c.plugin_args)
     else:

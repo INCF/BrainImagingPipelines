@@ -175,6 +175,9 @@ def main(config_file):
     if len(c.subjects) == 1:
         preprocess.write_graph(graph2use='exec',
                                dotfilename='single_subject_exec.dot')
+    if c.use_advanced_options:
+        exec c.advanced_script
+
     if c.run_using_plugin:
         preprocess.run(plugin=c.plugin, plugin_args = c.plugin_args)
     else:
@@ -228,6 +231,9 @@ def create_view():
                 Group(Item(name='highpass_freq'),
                       Item(name='lowpass_freq'),
                       label='Bandpass Filter',show_border=True),
+                Group(Item(name='use_advanced_options'),
+                    Item(name='advanced_script',enabled_when='use_advanced_options'),
+                    label='Advanced',show_border=True),
                 buttons = [OKButton, CancelButton],
                 resizable=True,
                 width=1050)

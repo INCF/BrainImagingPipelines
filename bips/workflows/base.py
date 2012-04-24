@@ -2,9 +2,9 @@ import json
 import os
 
 from nipype.utils.filemanip import save_json
-from nipype.interfaces.base import TraitedSpec, traits
+from nipype.interfaces.base import  traits
 from pyface.api import FileDialog, OK, confirm, YES
-from traits.api import HasTraits, HasStrictTraits, Str, Bool, Button, Instance
+from traits.api import HasTraits, HasStrictTraits, Str, Bool, Button
 from traitsui.api import Handler, View, Item, UItem, HGroup
 
 _workflow = {}
@@ -136,6 +136,7 @@ class Foo(HasTraits):
     save_as_button = Button("Save As")
     load_button = Button("Load")
     run_button = Button("Run")
+    py_button = Button("Save to Python script")
 
     # Wildcard pattern to be used in file dialogs.
     file_wildcard = Str("json file (*.json)|*.json|Data file (*.json)|*.dat|All files|*")
@@ -146,10 +147,11 @@ class Foo(HasTraits):
                     UItem('save_as_button', enabled_when='not saved and filename is not ""'),
                     UItem('new_button'),
                     UItem('load_button', enabled_when='not config_changed'),
-                    UItem('run_button', enabled_when='saved and filename is not ""')
+                    UItem('run_button', enabled_when='saved and filename is not ""'),
+                    UItem('py_button', enabled_when='saved and filename is not ""')
                 ),
                 resizable=True,
-                width=500,
+                width=600,
                 handler=FooHandler(),
                 title="File Dialog")
     
@@ -206,7 +208,29 @@ class Foo(HasTraits):
             
     def _run_button_fired(self):
         self.runfunc(self.Configuration_File)
-    
+
+    def _py_button_fired(self):
+        f = open(os.path.join(self.filedir,
+            os.path.split(self.Configuration_File)[1].split('.json')[0]+'.py'),'w')
+        f.write("from bips.workflows.base import get_config\n\n")
+        f.write("uuid = \'%s\' \n\n" % self._config.uuid)
+        f.write("c = get_config(uuid)\n\n")
+        for key, item in self._config.class_traits().iteritems():
+            try:
+                if key in self._config.editable_traits() and not key=='uuid':
+                    f.write("\"\"\"%s : %s\"\"\"\n\n"% (key, item.desc))
+                    if 'Directory' in str(item.trait_type) \
+                    or 'Str' in str(item.trait_type) \
+                    or "Enum" in str(item.trait_type):
+                        f.write("c.%s = \'%s\'\n\n"% (key, self._config.trait_get([key])[key]))
+                    elif 'Code' in str(item.trait_type):
+                        f.write("c.%s = \"\"\" %s \"\"\" \n\n"% (key, self._config.trait_get([key])[key]))
+                    else:
+                        f.write("c.%s = %s\n\n"% (key, self._config.trait_get([key])[key]))
+            except:
+                print "could not write %s" %key
+        f.close()
+
     #-----------------------------------------------
     # Private API
     #-----------------------------------------------
@@ -235,6 +259,9 @@ def get_workflow(uuid):
         raise Exception('Multiple workflows found with partial uuid %s' % uuid)
     return get_workflow(wf_found[0])
 
+def get_config(uuid):
+    wf = get_workflow(uuid)
+    return wf.config_ui()
 
 def list_workflows():
     for wf, value in sorted(_workflow.items()):
