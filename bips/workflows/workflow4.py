@@ -1,9 +1,15 @@
-from .base import MetaWorkflow, load_json, register_workflow
-from traitsui.api import View, Item, Group
-from traitsui.menu import OKButton, CancelButton
+from .base import MetaWorkflow, load_config, register_workflow
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import nipype.interfaces.io as nio
+
+has_traitsui = True
+try:
+    from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
+    from traitsui.menu import OKButton, CancelButton
+except:
+    has_traitsui = False
+
 desc = """
 Test Freesurfer workflow
 =======================================
@@ -19,7 +25,36 @@ mwf.uuid = '4ba509108afb11e18b5e001e4fb1404c'
 mwf.tags = ['TEST','Freesurfer']
 mwf.help = desc
 # Define Config
-from workflow1 import config_ui
+from .workflow1 import config
+
+def create_config():
+    c = config()
+    c.uuid = mwf.uuid
+    return c
+
+mwf.config_ui = create_config
+
+def create_view():
+    view = View(Group(Item(name='working_dir'),
+        Item(name='sink_dir'),
+        Item(name='crash_dir'),
+        Item(name='surf_dir'),
+        label='Directories',show_border=True),
+        Group(Item(name='run_using_plugin'),
+            Item(name='plugin',enabled_when="run_on_grid"),
+            Item(name='plugin_args',enabled_when="run_on_grid"),
+            Item(name='test_mode'),
+            label='Execution Options',show_border=True),
+        Group(Item(name='subjects'),
+            label='Subjects',show_border=True),
+        buttons = [OKButton, CancelButton],
+        resizable=True,
+        width=1050)
+    return view
+
+if has_traitsui:
+    mwf.config_view = create_view
+
 
 # Define workflow
 import nipype.interfaces.freesurfer as fs
@@ -57,38 +92,21 @@ def test_fs(name='test_fs'):
     return workflow
     
 def main(config):
-    c = load_json(config)
+    c = load_config(config,create_config)
     wk = test_fs()
-    wk.base_dir = c["working_dir"]
-    wk.inputs.inputspec.subject_id = c["subjects"].split(',')[0]
-    wk.inputs.inputspec.sd = c["surf_dir"]
+    wk.base_dir = c.working_dir
+    wk.inputs.inputspec.subject_id = c.subjects[0]
+    wk.inputs.inputspec.sd = c.surf_dir
     sinker = pe.Node(nio.DataSink(), name='sinker')
-    sinker.inputs.base_directory = c["sink_dir"]
-    sinker.inputs.container = c["subjects"].split(',')[0]
+    sinker.inputs.base_directory = c.sink_dir
+    sinker.inputs.container = c.subjects[0]
     out = wk.get_node('outputspec')
     wk.connect(out, 'outfile', sinker, 'test_fs.result')
-    wk.config = {'execution' : {'crashdump_dir' : c["crash_dir"]}}
-    if c["run_on_grid"]:
-        wk.run(plugin=c["plugin"],plugin_args=c["plugin_args"])
+    wk.config = {'execution' : {'crashdump_dir' : c.crash_dir}}
+    if c.run_using_plugin:
+        wk.run(plugin=c.plugin,plugin_args=c.plugin_args)
     else:
         wk.run()
     
 mwf.workflow_main_function = main
-mwf.config_ui = lambda : config_ui
-mwf.config_view = View(Group(Item(name='working_dir'),
-             Item(name='sink_dir'),
-             Item(name='crash_dir'),
-             Item(name='surf_dir'),
-             label='Directories',show_border=True),
-             Group(Item(name='run_on_grid'),
-             Item(name='plugin',enabled_when="run_on_grid"),
-             Item(name='plugin_args',enabled_when="run_on_grid"),
-             Item(name='test_mode'),
-             label='Execution Options',show_border=True),
-             Group(Item(name='subjects'),
-             label='Subjects',show_border=True),
-             buttons = [OKButton, CancelButton],
-             resizable=True,
-             width=1050)
-    
 register_workflow(mwf)
