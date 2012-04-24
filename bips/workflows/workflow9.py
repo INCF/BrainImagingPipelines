@@ -44,7 +44,7 @@ class config(HasTraits):
     fsl_mat_template = traits.String('%s/preproc/bbreg/*.mat')
 
     #Normalization
-    norm_template = traits.File(mandatory=True exists=True, desc='Template to warp to')
+    norm_template = traits.File(mandatory=True, exists=True, desc='Template to warp to')
 
     # Advanced Options
     use_advanced_options = traits.Bool()
