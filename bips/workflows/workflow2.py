@@ -31,6 +31,7 @@ class config(baseconfig):
 def create_config():
     c = config()
     c.uuid = mwf.uuid
+    c.desc = mwf.help
     return c
 
 # create_workflow
@@ -191,6 +192,7 @@ def create_view():
     from traitsui.api import View, Item, Group, CSVListEditor
     from traitsui.menu import OKButton, CancelButton
     view = View(Group(Item(name='uuid', style='readonly'),
+                      Item(name='desc', style='readonly'),
                       label='Description', show_border=True),
                 Group(Item(name='working_dir'),
                       Item(name='sink_dir'),

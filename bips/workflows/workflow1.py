@@ -23,7 +23,7 @@ mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
 # create gui
 class config(HasTraits):
     uuid = traits.Str(desc="UUID")
-
+    desc = traits.Str(desc='Workflow description')
     # Directories
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
     base_dir = Directory(exists=True, desc='Base directory of data. (Should be subject-independent)')
@@ -126,6 +126,7 @@ class config(HasTraits):
 def create_config():
     c = config()
     c.uuid = mwf.uuid
+    c.desc = mwf.help
     return c
 
 # create workflow
@@ -287,7 +288,10 @@ def main(configfile):
 def create_view():
     from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
     from traitsui.menu import OKButton, CancelButton
-    view = View(Group(Item(name='working_dir'),
+    view = View(Group(Item(name='uuid', style='readonly'),
+                      Item(name='desc', style='readonly'),
+                      label='Description', show_border=True),
+                Group(Item(name='working_dir'),
                       Item(name='sink_dir'),
                       Item(name='crash_dir'),
                       Item(name='json_sink'),
