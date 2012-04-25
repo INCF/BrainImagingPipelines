@@ -3,12 +3,6 @@ import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import nipype.interfaces.io as nio
 
-has_traitsui = True
-try:
-    from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
-    from traitsui.menu import OKButton, CancelButton
-except:
-    has_traitsui = False
 
 desc = """
 Test Freesurfer workflow
@@ -35,25 +29,26 @@ def create_config():
 mwf.config_ui = create_config
 
 def create_view():
+    from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
+    from traitsui.menu import OKButton, CancelButton
     view = View(Group(Item(name='working_dir'),
-        Item(name='sink_dir'),
-        Item(name='crash_dir'),
-        Item(name='surf_dir'),
-        label='Directories',show_border=True),
-        Group(Item(name='run_using_plugin'),
-            Item(name='plugin',enabled_when="run_on_grid"),
-            Item(name='plugin_args',enabled_when="run_on_grid"),
-            Item(name='test_mode'),
-            label='Execution Options',show_border=True),
-        Group(Item(name='subjects'),
-            label='Subjects',show_border=True),
-        buttons = [OKButton, CancelButton],
-        resizable=True,
-        width=1050)
+            Item(name='sink_dir'),
+            Item(name='crash_dir'),
+            Item(name='surf_dir'),
+            label='Directories',show_border=True),
+            Group(Item(name='run_using_plugin'),
+                Item(name='plugin',enabled_when="run_on_grid"),
+                Item(name='plugin_args',enabled_when="run_on_grid"),
+                Item(name='test_mode'),
+                label='Execution Options',show_border=True),
+            Group(Item(name='subjects'),
+                label='Subjects',show_border=True),
+            buttons = [OKButton, CancelButton],
+            resizable=True,
+            width=1050)
     return view
 
-if has_traitsui:
-    mwf.config_view = create_view
+mwf.config_view = create_view
 
 
 # Define workflow
