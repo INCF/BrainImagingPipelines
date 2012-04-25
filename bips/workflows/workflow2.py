@@ -1,8 +1,6 @@
 import os
 
 import traits.api as traits
-from traitsui.api import View, Item, Group, CSVListEditor
-from traitsui.menu import OKButton, CancelButton
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import nipype.interfaces.io as nio
@@ -22,7 +20,7 @@ mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
 
 # create_gui
 from workflow1 import config as baseconfig
-from workflow1 import get_dataflow, has_traitsui
+from workflow1 import get_dataflow
 
 class config(baseconfig):
     highpass_freq = traits.Float()
@@ -184,6 +182,8 @@ def main(config_file):
         preprocess.run()
 
 def create_view():
+    from traitsui.api import View, Item, Group, CSVListEditor
+    from traitsui.menu import OKButton, CancelButton
     view = View(Group(Item(name='uuid', style='readonly'),
                       label='Description', show_border=True),
                 Group(Item(name='working_dir'),
@@ -241,6 +241,5 @@ def create_view():
 
 mwf.workflow_main_function = main
 mwf.config_ui = create_config
-if has_traitsui:
-    mwf.config_view = create_view
+mwf.config_view = create_view
 register_workflow(mwf)

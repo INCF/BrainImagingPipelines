@@ -9,13 +9,6 @@ from nipype.interfaces.freesurfer import SampleToSurface
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
 
-has_traitsui = True
-try:
-    from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
-    from traitsui.menu import OKButton, CancelButton
-except:
-    has_traitsui = False
-
 from .base import MetaWorkflow, load_config, register_workflow
 
 
@@ -110,6 +103,8 @@ mwf.help = desc
 
 
 def create_view():
+    from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
+    from traitsui.menu import OKButton, CancelButton
     view = View(Group(Item(name='working_dir'),
                       Item(name='sink_dir'),
                       Item(name='crash_dir'),
@@ -132,7 +127,8 @@ def create_view():
                       Item(name='projection_stem'),
                       label='Smoothing', show_border=True),
                 Group(Item(name='out_type'),
-                      Item(name='hdf5_package'),
+                      Item(name='hdf5_package',
+                           enabled_when="out_type is 'hdf5'"),
                       label='Output', show_border=True),
                 Group(Item(name='use_advanced_options'),
                     Item(name='advanced_script',enabled_when='use_advanced_options'),

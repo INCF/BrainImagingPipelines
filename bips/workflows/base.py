@@ -2,10 +2,8 @@ import json
 import os
 
 from nipype.utils.filemanip import save_json
-from nipype.interfaces.base import  traits
-from pyface.api import FileDialog, OK, confirm, YES
-from traits.api import HasTraits, HasStrictTraits, Str, Bool, Button
-from traitsui.api import Handler, View, Item, UItem, HGroup
+from nipype.interfaces.base import traits
+from traits.api import (HasTraits, HasStrictTraits, Str, Bool, Button, File)
 
 _workflow = {}
 
@@ -79,58 +77,42 @@ class MetaWorkflow(HasStrictTraits):
     # script dir
     script_dir = traits.Str()
 
-    def to_json(self):
-        pass
+def OpenFileDialog(action, wildcard, self):
+    from pyface.api import FileDialog, OK
+    doaction = action
+    if action == "new":
+        doaction = "save as"
+    dialog = FileDialog(action=doaction, wildcard=wildcard)
+    dialog.open()
+    if dialog.return_code == OK:
+        self.Configuration_File = os.path.join(dialog.directory, dialog.filename)
+        if action == "open":
+            self._config = load_config(dialog.path, self.config_class)
+            self._config.configure_traits(view=self.config_view())
+            self.saved = False
+            self.config_changed = True
+        if action == "new":
+            self._config = self.config_class()
+            self._config.configure_traits(view=self.config_view())
+            self._save_to_file()
+            self.saved = False
+            self.config_changed = True
+        if action == "save as":
+            self._save_to_file()
+            self.saved = True
+            self.config_changed = False
 
-    def from_json(self):
-        pass
-
-    def create_config(self):
-        f = Foo(self.config_ui,
-                self.workflow_main_function,
-                self.config_view)
-        f.configure_traits()
-        
-    def run(self,configfile):
-        self.workflow_main_function(configfile)
-
-class FooHandler(Handler):
-    """Handler for the Foo class.
-    This handler will
-    (1) listen for changes to the 'filename' Trait of the object and
-        update the window title when it changes; and
-    (2) intercept request to close the window, and if the data is not saved,
-        ask the user for confirmation.
-    """
-
-    def object_filename_changed(self, info):
-        filename = info.object.filename
-        if filename is "":
-            filename = "<no file>"
-        info.ui.title = "Editing: " + filename
-
-    def close(self, info, isok):
-        # Return True to indicate that it is OK to close the window.
-        if not info.object.saved:
-            response = confirm(info.ui.control,
-                            "Value is not saved.  Are you sure you want to exit?")
-            return response == YES
-        else:
-            return True
-        
-
-class Foo(HasTraits):
-
+class ConfigUI(HasTraits):
     Configuration_File = Str
 
     saved = Bool(True)
     config_changed = Bool(False)
-    
+
     filedir = Str
     filename = Str
-    
+
     _config = None
-    
+
     save_button = Button("Save")
     new_button = Button("New")
     save_as_button = Button("Save As")
@@ -139,26 +121,8 @@ class Foo(HasTraits):
     py_button = Button("Save to Python script")
 
     # Wildcard pattern to be used in file dialogs.
-    file_wildcard = Str("json file (*.json)|*.json|Data file (*.json)|*.dat|All files|*")
-
-    view = View(Item('Configuration_File',style='readonly'),
-                HGroup(
-                    UItem('save_button', enabled_when='not saved and filename is not ""'),
-                    UItem('save_as_button', enabled_when='not saved and filename is not ""'),
-                    UItem('new_button'),
-                    UItem('load_button', enabled_when='not config_changed'),
-                    UItem('run_button', enabled_when='saved and filename is not ""'),
-                    UItem('py_button', enabled_when='saved and filename is not ""')
-                ),
-                resizable=True,
-                width=600,
-                handler=FooHandler(),
-                title="File Dialog")
-    
-    def __init__(self,config_class,runfunc,config_view):
-        self.config_class = config_class
-        self.runfunc = runfunc
-        self.config_view = config_view
+    file_wildcard = Str(("json file (*.json)|*.json|Data file (*.json)"
+                         "|*.dat|All files|*"))
     #-----------------------------------------------
     # Trait change handlers
     #-----------------------------------------------
@@ -169,49 +133,25 @@ class Foo(HasTraits):
     def _save_button_fired(self):
         self._save_to_file()
         self.config_changed = False
-        
+
     def _save_as_button_fired(self):
-        dialog = FileDialog(action="save as", wildcard=self.file_wildcard)
-        dialog.open()
-        if dialog.return_code == OK:
-            self.filedir = dialog.directory
-            self.filename = dialog.filename
-            self.Configuration_File = os.path.join(dialog.directory, dialog.filename)
-            self._save_to_file()
-            self.saved = True
-            self.config_changed = False
-                
+        OpenFileDialog(action="save as", wildcard=self.file_wildcard,
+                       self=self)
+
     def _new_button_fired(self):
-        dialog = FileDialog(action="save as", wildcard=self.file_wildcard)
-        dialog.open()
-        if dialog.return_code == OK:
-            self.filedir = dialog.directory
-            self.filename = dialog.filename
-            self.Configuration_File = os.path.join(dialog.directory, dialog.filename)
-            self._config = self.config_class()
-            self._config.configure_traits(view=self.config_view())
-            self._save_to_file()
-            self.saved = False
-            self.config_changed = True
-            
+        OpenFileDialog(action="new", wildcard=self.file_wildcard,
+                       self=self)
+
     def _load_button_fired(self):
-        dialog = FileDialog(action="open", wildcard=self.file_wildcard)
-        dialog.open()
-        if dialog.return_code == OK:
-            self._config = load_config(dialog.path, self.config_class)
-            self._config.configure_traits(view=self.config_view())
-            self.filedir = dialog.directory
-            self.filename = dialog.filename
-            self.Configuration_File = os.path.join(dialog.directory, dialog.filename)
-            self.saved = False
-            self.config_changed = True
-            
+        OpenFileDialog(action="open", wildcard=self.file_wildcard,
+                       self=self)
+
     def _run_button_fired(self):
-        self.runfunc(self.Configuration_File)
+        run_workflow(self.Configuration_File)
 
     def _py_button_fired(self):
         f = open(os.path.join(self.filedir,
-            os.path.split(self.Configuration_File)[1].split('.json')[0]+'.py'),'w')
+                              os.path.split(self.Configuration_File)[1].split('.json')[0]+'.py'),'w')
         f.write("from bips.workflows.base import get_config\n\n")
         f.write("uuid = \'%s\' \n\n" % self._config.uuid)
         f.write("c = get_config(uuid)\n\n")
@@ -219,8 +159,8 @@ class Foo(HasTraits):
             try:
                 if key in self._config.editable_traits() and not key=='uuid':
                     f.write("\"\"\"%s : %s\"\"\"\n\n"% (key, item.desc))
-                    if 'Directory' in str(item.trait_type) \
-                    or 'Str' in str(item.trait_type) \
+                    if 'Directory' in str(item.trait_type)\
+                       or 'Str' in str(item.trait_type)\
                     or "Enum" in str(item.trait_type):
                         f.write("c.%s = \'%s\'\n\n"% (key, self._config.trait_get([key])[key]))
                     elif 'Code' in str(item.trait_type):
@@ -243,6 +183,52 @@ class Foo(HasTraits):
         #f.close()
         save_json(filename=path,data=self._config.get())
         self.saved = True
+
+def create_bips_config(workflow):
+    from pyface.api import confirm, YES
+    from traitsui.api import Handler, View, Item, UItem, HGroup
+    config = ConfigUI()
+    class FooHandler(Handler):
+        """Handler for the Foo class.
+        This handler will
+        (1) listen for changes to the 'filename' Trait of the object and
+            update the window title when it changes; and
+        (2) intercept request to close the window, and if the data is not saved,
+            ask the user for confirmation.
+        """
+
+        def object_filename_changed(self, info):
+            filename = info.object.Configuration_File
+            if filename is "":
+                filename = "<no file>"
+            info.ui.title = "Editing: " + filename
+
+        def close(self, info, isok):
+            # Return True to indicate that it is OK to close the window.
+            if not info.object.saved:
+                response = confirm(info.ui.control,
+                                   "Value is not saved.  Are you sure you want to exit?")
+                return response == YES
+            else:
+                return True
+    view = View(Item('Configuration_File',style='readonly'),
+                HGroup(
+                    UItem('save_button', enabled_when='not saved and filename is not ""'),
+                    UItem('save_as_button', enabled_when='not saved and filename is not ""'),
+                    UItem('new_button'),
+                    UItem('load_button', enabled_when='not config_changed'),
+                    UItem('run_button', enabled_when='saved and filename is not ""'),
+                    UItem('py_button', enabled_when='saved and filename is not ""')
+                ),
+                resizable=True,
+                width=600,
+                handler=FooHandler(),
+                title="File Dialog")
+    config.config_class = workflow.config_ui
+    config.runfunc = workflow.workflow_main_function
+    config.config_view = workflow.config_view
+    config.configure_traits(view=view)
+
 
 
 def register_workflow(wf):
@@ -271,7 +257,7 @@ def list_workflows():
 
 def configure_workflow(uuid):
     wf = get_workflow(uuid)
-    wf.create_config()
+    create_bips_config(wf)
 
 
 def run_workflow(configfile):

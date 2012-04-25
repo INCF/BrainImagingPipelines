@@ -3,12 +3,6 @@ import os
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
 
-has_traitsui = True
-try:
-    from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
-    from traitsui.menu import OKButton, CancelButton
-except:
-    has_traitsui = False
 
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
@@ -287,6 +281,8 @@ def main(configfile):
         preprocess.run()
 
 def create_view():
+    from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
+    from traitsui.menu import OKButton, CancelButton
     view = View(Group(Item(name='working_dir'),
                       Item(name='sink_dir'),
                       Item(name='crash_dir'),
@@ -339,7 +335,6 @@ def create_view():
 
 mwf.workflow_main_function = main
 mwf.config_ui = create_config
-if has_traitsui:
-    mwf.config_view = create_view
+mwf.config_view = create_view
 
 register_workflow(mwf)
