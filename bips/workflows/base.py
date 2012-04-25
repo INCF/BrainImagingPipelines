@@ -77,8 +77,6 @@ class MetaWorkflow(HasStrictTraits):
     # script dir
     script_dir = traits.Str()
 
-    def run(self, config):
-        self.workflow_main_function(config)
 
 def OpenFileDialog(action, wildcard, self):
     from pyface.api import FileDialog, OK
@@ -268,7 +266,7 @@ def configure_workflow(uuid):
 def run_workflow(configfile):
     config = load_json(configfile)
     wf = get_workflow(config['uuid'])
-    wf.run(configfile)
+    wf.workflow_main_function(configfile)
 
 
 def display_workflow_info(uuid):
