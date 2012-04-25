@@ -102,6 +102,7 @@ def prep_workflow(c, fieldmap):
     modelflow.connect(infosource, 'subject_id', preproc, 'inputspec.fssubject_id')
     preproc.inputs.inputspec.fssubject_dir = c.surf_dir
     preproc.get_node('fwhm_input').iterables = ('fwhm', c.fwhm)
+    preproc.get_node('take_mean_art').get_node('strict_artifact_detect').inputs.save_plot = False
     preproc.inputs.inputspec.ad_normthresh = c.norm_thresh
     preproc.inputs.inputspec.ad_zthresh = c.z_thresh
     preproc.inputs.inputspec.tr = c.TR

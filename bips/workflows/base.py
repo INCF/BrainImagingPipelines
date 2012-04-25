@@ -44,7 +44,7 @@ def load_json(s):
 def load_config(configfile, config_class):
     c = config_class()
     for item, val in load_json(configfile).items():
-        if item == 'uuid':
+        if item == 'uuid' or item == 'desc':
             continue
         try:
             setattr(c, item, val)
