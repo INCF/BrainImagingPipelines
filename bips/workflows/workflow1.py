@@ -142,6 +142,7 @@ def get_dataflow(c):
                          name = "preproc_dataflow")
     dataflow.inputs.base_directory = c.base_dir
     dataflow.inputs.template ='*'
+    dataflow.inputs.sort_filelist = True
     dataflow.inputs.field_template = dict(func=c.func_template)
     dataflow.inputs.template_args = dict(func=[['subject_id']])
     return dataflow
@@ -150,7 +151,10 @@ def prep_workflow(c, fieldmap):
     
     infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
                          name='subject_names')
-    infosource.iterables = ('subject_id', c.subjects)
+    if not c.test_mode:
+        infosource.iterables = ('subject_id', c.subjects)
+    else:
+        infosource.iterables = ('subject_id', c.subjects[:1])
 
     modelflow = pe.Workflow(name='preproc')
     
@@ -176,6 +180,7 @@ def prep_workflow(c, fieldmap):
                                                                  'phase']),
                                       name = "fieldmap_datagrabber")
         datasource_fieldmap.inputs.base_directory = c.field_dir
+        datasource_fieldmap.inputs.sort_filelist = True
         datasource_fieldmap.inputs.template ='*'
         datasource_fieldmap.inputs.field_template = dict(mag=c.magnitude_template,
                                                          phase=c.phase_template)

@@ -48,7 +48,10 @@ def prep_workflow(c, fieldmap):
 
     infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
                          name='subject_names')
-    infosource.iterables = ('subject_id', c.subjects)
+    if not c.test_mode:
+        infosource.iterables = ('subject_id', c.subjects)
+    else:
+        infosource.iterables = ('subject_id', c.subjects[:1])
 
     # generate datagrabber
     
@@ -69,6 +72,7 @@ def prep_workflow(c, fieldmap):
                          name = "fieldmap_datagrabber")
         datasource_fieldmap.inputs.base_directory = c.field_dir
         datasource_fieldmap.inputs.template ='*'
+        datasource_fieldmap.inputs.sort_filelist = True
         datasource_fieldmap.inputs.field_template = dict(mag=c.magnitude_template,
                                                 phase=c.phase_template)
         datasource_fieldmap.inputs.template_args = dict(mag=[['subject_id']],
