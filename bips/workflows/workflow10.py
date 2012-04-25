@@ -12,7 +12,7 @@ import traits.api as traits
 # Define MetaWorkflow
 
 mwf = MetaWorkflow()
-mwf.uuid = ''
+mwf.uuid = '8efdb2a08f1711e1b160001e4fb1404c'
 mwf.help="""
  First-Level Workflow
  ====================
@@ -24,7 +24,7 @@ mwf.tags=['fMRI','First Level']
 
 class config(HasTraits):
     uuid = traits.Str(desc="UUID")
-
+    desc = traits.Str(desc="Workflow Description")
     # Directories
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
     sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
@@ -58,6 +58,16 @@ class config(HasTraits):
     interscan_interval = traits.Float()
     film_threshold = traits.Float()
 
+    # preprocessing info
+    preproc_config = traits.File(desc="preproc config file")
+
+def create_config():
+    c = config()
+    c.uuid = mwf.uuid
+    c.desc = mwf.help
+    return c
+
+mwf.config_ui = create_config
 
 def preproc_datagrabber(name='preproc_datagrabber'):
     # create a node to obtain the preproc files
@@ -124,7 +134,7 @@ def noise_mot(subinfo,files,num_noise_components):
 
 # First level modeling
 
-def combine_wkflw(c, name='work_dir'):
+def combine_wkflw(c,prep_c, name='work_dir'):
     
     modelflow = pe.Workflow(name=name)
     modelflow.base_dir = os.path.join(c.working_dir)
@@ -133,10 +143,14 @@ def combine_wkflw(c, name='work_dir'):
     
     infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
                          name='subject_names')
-    infosource.iterables = ('subject_id', c.subjects)
-    
+
+    if c.test_mode:
+        infosource.iterables = ('subject_id', [c.subjects[0]])
+    else:
+        infosource.iterables = ('subject_id', c.subjects)
+
     modelflow.connect(infosource,'subject_id',preproc,'subject_id')
-    preproc.iterables = ('fwhm', c.fwhm)
+    preproc.iterables = ('fwhm', prep_c.fwhm)
     
     def getsubs(subject_id,getcontrasts,subjectinfo,fwhm):
         #from config import getcontrasts, get_run_numbers, subjectinfo, fwhm
@@ -177,8 +191,8 @@ def combine_wkflw(c, name='work_dir'):
     # create a node to create the subject info
     s = pe.Node(SpecifyModel(),name='s')
     s.inputs.input_units =                              c.input_units
-    s.inputs.time_repetition =                          c.TR
-    s.inputs.high_pass_filter_cutoff =                  c.hpcutoff
+    s.inputs.time_repetition =                          prep_c.TR
+    s.inputs.high_pass_filter_cutoff =                  prep_c.hpcutoff
     #subjinfo =                                          subjectinfo(subj)
     
     
@@ -223,14 +237,14 @@ def combine_wkflw(c, name='work_dir'):
     
     modelfit.inputs.inputspec.bases =                   {'dgamma':{'derivs': False}}
     modelfit.inputs.inputspec.model_serial_correlations = True
-    noise_motn.inputs.num_noise_components =           c.num_noise_components
+    noise_motn.inputs.num_noise_components =           prep_c.num_noise_components
     
     # make a data sink
     sinkd = pe.Node(nio.DataSink(), name='sinkd')
-    sinkd.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
+    sinkd.inputs.base_directory = os.path.join(c.sink_dir)
         
     modelflow.connect(infosource, 'subject_id', sinkd, 'container')
-    modelflow.connect(infosource, ('subject_id',getsubs, c.getcontrasts, c.subjectinfo, c.fwhm), sinkd, 'substitutions')
+    modelflow.connect(infosource, ('subject_id',getsubs, c.getcontrasts, c.subjectinfo, prep_c.fwhm), sinkd, 'substitutions')
     
     sinkd.inputs.regexp_substitutions = [('mask/fwhm_%d/_threshold([0-9]*)/.*nii'%x,'mask/fwhm_%d/funcmask.nii'%x) for x in fwhm]
     sinkd.inputs.regexp_substitutions.append(('realigned/fwhm_([0-9])/_copy_geom([0-9]*)/','realigned/'))
@@ -260,11 +274,50 @@ def combine_wkflw(c, name='work_dir'):
 def main(config_file):
 
     c = load_config(config_file, create_config)
-    
-    first_level = combine_wkflw(c)
+    from .workflow1 import create_config as prep_config
+    prep_c = load_config(c.prep_config, prep_config)
+
+    first_level = combine_wkflw(c, prep_c)
     first_level.config = {'execution' : {'crashdump_dir' : c.crash_dir}}
-    #first_level.write_graph()
-    if c.run_on_grid:
-        first_level.run(plugin=c.plugn, plugin_args = c.plugin_args)
+    first_level.base_dir = c.base_dir
+
+    if c.test_mode:
+        first_level.write_graph()
+
+    if c.run_using_plugin:
+        first_level.run(plugin=c.plugin, plugin_args = c.plugin_args)
     else:
         first_level.run()
+
+def create_view():
+    from traitsui.api import View, Item, Group, CSVListEditor
+    from traitsui.menu import OKButton, CancelButton
+    view = View(Group(Item(name='uuid', style='readonly'),
+        Item(name='desc', style='readonly'),
+        label='Description', show_border=True),
+        Group(Item(name='working_dir'),
+            Item(name='sink_dir'),
+            Item(name='crash_dir'),
+            Item(name='json_sink'),
+            label='Directories', show_border=True),
+        Group(Item(name='run_using_plugin'),
+            Item(name='plugin', enabled_when="run_using_plugin"),
+            Item(name='plugin_args', enabled_when="run_using_plugin"),
+            Item(name='test_mode'),
+            label='Execution Options', show_border=True),
+        Group(Item(name='subjects', editor=CSVListEditor()),
+            label='Subjects', show_border=True),
+        Group(Item(name='interscan_interval'),
+              Item(name='film_threshold'),
+              Item(name='subjectinfo'),
+              Item(name='contrasts'),
+            label = 'First Level'),
+        Group(Item(name='preproc_config'),
+            label = 'Preprocessing Info'),
+        buttons = [OKButton, CancelButton],
+        resizable=True,
+        width=1050)
+    return view
+
+mwf.config_view = create_view
+register_workflow(mwf)
