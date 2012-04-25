@@ -77,6 +77,9 @@ class MetaWorkflow(HasStrictTraits):
     # script dir
     script_dir = traits.Str()
 
+    def run(self, config):
+        self.workflow_main_function(config)
+
 def OpenFileDialog(action, wildcard, self):
     from pyface.api import FileDialog, OK
     doaction = action
