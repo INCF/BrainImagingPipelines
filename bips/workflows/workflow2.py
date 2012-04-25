@@ -104,8 +104,10 @@ def prep_workflow(c, fieldmap):
     preproc.inputs.inputspec.ad_normthresh = c.norm_thresh
     preproc.inputs.inputspec.ad_zthresh = c.z_thresh
     preproc.inputs.inputspec.tr = c.TR
-    preproc.inputs.inputspec.interleaved = c.Interleaved
-    preproc.inputs.inputspec.sliceorder = c.SliceOrder
+    if c.do_slicetiming:
+        preproc.inputs.inputspec.sliceorder = c.SliceOrder
+        preproc.inputs.inputspec.interleaved = False # NOTE: This should be removed later
+
     preproc.inputs.inputspec.compcor_select = c.compcor_select
     if c.highpass_freq < 0:
         preproc.inputs.inputspec.highpass_sigma = -1
@@ -219,7 +221,6 @@ def create_view():
                       label='Fieldmap',show_border=True),
                 Group(Item(name='TR'),
                       Item(name='do_slicetiming'),
-                      Item(name='Interleaved'),
                       Item(name='SliceOrder',editor=CSVListEditor()),
                       label='Motion Correction', show_border=True),
                 Group(Item(name='norm_thresh'),
