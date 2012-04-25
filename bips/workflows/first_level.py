@@ -1,20 +1,63 @@
 # Import Stuff
-import nipype.interfaces.fsl as fsl         # fsl
 import nipype.interfaces.utility as util    # utility
 import nipype.pipeline.engine as pe         # pypeline engine
-import nipype.algorithms.rapidart as ra     # rapid artifact detection
 import nipype.interfaces.io as nio          # input/output
 from nipype.algorithms.modelgen import SpecifyModel
-from nipype.algorithms.misc import TSNR
-from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
-from nipype.interfaces.base import Bunch
-from textmake import *
-import sys
-sys.path.insert(0,'..')
-from base import create_first
-from utils import pickfirst
-from preproc import prep_workflow
-import argparse
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.base import create_first
+import os
+from .base import MetaWorkflow, load_config, register_workflow
+from traits.api import HasTraits, Directory, Bool, Button
+import traits.api as traits
+
+# Define MetaWorkflow
+
+mwf = MetaWorkflow()
+mwf.uuid = ''
+mwf.help="""
+ First-Level Workflow
+ ====================
+
+ """
+mwf.tags=['fMRI','First Level']
+
+# Define Config
+
+class config(HasTraits):
+    uuid = traits.Str(desc="UUID")
+
+    # Directories
+    working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
+    sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
+    crash_dir = Directory(mandatory=False, desc="Location to store crash files")
+    json_sink = Directory(mandatory=False, desc= "Location to store json_files")
+    surf_dir = Directory(mandatory=True, desc= "Freesurfer subjects directory")
+
+    # Execution
+
+    run_using_plugin = Bool(False, usedefault=True, desc="True to run pipeline with plugin, False to run serially")
+    plugin = traits.Enum("PBS", "MultiProc", "SGE", "Condor",
+        usedefault=True,
+        desc="plugin to use, if run_using_plugin=True")
+    plugin_args = traits.Dict({"qsub_args": "-q many"},
+        usedefault=True, desc='Plugin arguments.')
+    test_mode = Bool(False, mandatory=False, usedefault=True,
+        desc='Affects whether where and if the workflow keeps its \
+                            intermediary files. True to keep intermediary files. ')
+
+    # Subjects
+
+    subjects= traits.List(traits.Str, mandatory=True, usedefault=True,
+        desc="Subject id's. Note: These MUST match the subject id's in the \
+                                Freesurfer directory. For simplicity, the subject id's should \
+                                also match with the location of individual functional files.")
+
+    # First Level
+
+    subjectinfo = traits.Code()
+    contrasts = traits.Code()
+    interscan_interval = traits.Float()
+    film_threshold = traits.Float()
+
 
 def preproc_datagrabber(name='preproc_datagrabber'):
     # create a node to obtain the preproc files
@@ -214,24 +257,14 @@ def combine_wkflw(c, name='work_dir'):
     modelflow.connect(modelfit, 'outputspec.design_file',           sinkd,      'modelfit.design.@matrix')
     return modelflow
     
-if __name__ == "__main__":
-    
-    parser = argparse.ArgumentParser(description="example: \
-                        run resting_preproc.py -c config.py")
-    parser.add_argument('-c','--config',
-                        dest='config',
-                        required=True,
-                        help='location of config file'
-                        )
-    args = parser.parse_args()
-    path, fname = os.path.split(os.path.realpath(args.config))
-    sys.path.append(path)
-    c = __import__(fname.split('.')[0])
+def main(config_file):
+
+    c = load_config(config_file, create_config)
     
     first_level = combine_wkflw(c)
     first_level.config = {'execution' : {'crashdump_dir' : c.crash_dir}}
     #first_level.write_graph()
-    if run_on_grid:
-        first_level.run(plugin='PBS', plugin_args = c.plugin_args)
+    if c.run_on_grid:
+        first_level.run(plugin=c.plugn, plugin_args = c.plugin_args)
     else:
         first_level.run()
