@@ -85,6 +85,8 @@ def OpenFileDialog(action, wildcard, self):
     dialog = FileDialog(action=doaction, wildcard=wildcard)
     dialog.open()
     if dialog.return_code == OK:
+        self.filedir = dialog.directory
+        self.filename = dialog.filename
         self.Configuration_File = os.path.join(dialog.directory, dialog.filename)
         if action == "open":
             self._config = load_config(dialog.path, self.config_class)
