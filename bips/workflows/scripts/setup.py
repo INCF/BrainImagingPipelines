@@ -6,6 +6,7 @@ def configuration(parent_package='',top_path=None):
 
     # List all packages to be loaded here
     config.add_subpackage('u0a14c5b5899911e1bca80023dfa375f2')
+    config.add_subpackage('ua780b1988e1c11e1baf80019b9f22493')
 
     # List all data directories to be loaded here
     return config
