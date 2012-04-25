@@ -1,7 +1,7 @@
 import os
 
 import traits.api as traits
-from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
+from traitsui.api import View, Item, Group, CSVListEditor
 from traitsui.menu import OKButton, CancelButton
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
@@ -216,7 +216,7 @@ def create_view():
                 Group(Item(name='TR'),
                       Item(name='do_slicetiming'),
                       Item(name='Interleaved'),
-                      Item(name='SliceOrder'),
+                      Item(name='SliceOrder',editor=CSVListEditor()),
                       label='Motion Correction', show_border=True),
                 Group(Item(name='norm_thresh'),
                       Item(name='z_thresh'),

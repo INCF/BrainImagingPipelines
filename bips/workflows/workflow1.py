@@ -74,7 +74,7 @@ class config(HasTraits):
     
     Interleaved = Bool(mandatory=True,desc='True for Interleaved')
     do_slicetiming = Bool(True, usedefault=True, desc="Perform slice timing correction")
-    SliceOrder = traits.String("ascending", usedefault=True)
+    SliceOrder = traits.List(traits.Int)
     TR = traits.Float(mandatory=True, desc = "TR of functional")    
     
     # Artifact Detection
@@ -317,7 +317,7 @@ def create_view():
                 Group(Item(name='TR'),
                       Item(name='do_slicetiming'),
                       Item(name='Interleaved'),
-                      Item(name='SliceOrder'),
+                      Item(name='SliceOrder', editor=CSVListEditor()),
                       label='Motion Correction', show_border=True),
                 Group(Item(name='norm_thresh'),
                       Item(name='z_thresh'),
