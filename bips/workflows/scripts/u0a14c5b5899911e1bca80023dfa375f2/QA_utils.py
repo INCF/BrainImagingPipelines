@@ -481,7 +481,7 @@ def corr_image(resting_image,fwhm):
 
     #br.add_overlay(precuneus[0,1:], min=0.3, sign='pos', name='mean', visible=True)
 
-    br.add_overlay(precuneus[0,1:], name='mean', visible=True)
+    br.add_overlay(precuneus[0,1:], min=0.2, name='mean', visible=True)
     plt.hist(precuneus[0,1:], 128)
     plt.savefig(os.path.abspath("histogram.png"))
     plt.close()
