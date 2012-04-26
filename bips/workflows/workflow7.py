@@ -15,8 +15,8 @@ from .scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import tsnr_roi, \
 import traits.api as traits
 
 desc = """
-fMRI First Level QA workflow
-=====================================
+fMRI First Level or FixedFx QA workflow
+=======================================
 
 """
 mwf = MetaWorkflow()
@@ -31,6 +31,7 @@ class config(baseconfig):
     cluster_size = traits.Int
     is_fixed_fx = traits.Bool
     first_level_config = traits.File
+    fx_config = traits.File
     is_block_design = traits.Bool
 
 def create_config():
@@ -58,6 +59,7 @@ def create_view():
         Group(Item(name='subjects', editor=CSVListEditor()),
             label='Subjects', show_border=True),
         Group(Item(name='first_level_config'),
+              Item(name='fx_config', enabled_when='is_fixed_fx'),
               Item(name='is_fixed_fx'),
             label = 'First Level Info'),
         Group(Item('threshold'),
@@ -217,14 +219,14 @@ def get_fx_data(c, name='fixedfx_datagrab'):
                                            des_mat_cov = [['subject_id','fwhm']])
     return datasource
     
-def combine_report(c, first_c, prep_c, thr=2.326,csize=30,fx=False):
+def combine_report(c, first_c, prep_c, fx_c=None, thr=2.326,csize=30,fx=False):
 
     if not fx:
         workflow = pe.Workflow(name='first_level_report')
         dataflow = get_data(first_c)
     else:
         workflow = pe.Workflow(name='fixedfx_report')
-        dataflow =  get_fx_data(first_c)
+        dataflow =  get_fx_data(fx_c)
     
     infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
                          name='subject_names')
@@ -370,8 +372,13 @@ def main(config_file):
     first_c = load_config(c.first_level_config, first_config)
     from .workflow1 import create_config as prep_config
     prep_c = load_config(first_c.preproc_config, prep_config)
+    if c.is_fixed_fx:
+        from .workflow11 import create_config as fx_config
+        fx_c = load_config(c.fx_config, fx_config)
+    else:
+        fx_c=None
 
-    workflow = combine_report(c,first_c, prep_c, fx=c.is_fixed_fx,csize=c.cluster_size,thr=c.threshold)
+    workflow = combine_report(c,first_c, prep_c, fx_c=fx_c, fx=c.is_fixed_fx,csize=c.cluster_size,thr=c.threshold)
     workflow.base_dir = c.working_dir
 
     if c.test_mode:
