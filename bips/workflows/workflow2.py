@@ -143,6 +143,8 @@ def prep_workflow(c, fieldmap):
                       sinkd, 'preproc.art')
     modelflow.connect(preproc, 'outputspec.outlier_stat_files',
                       sinkd, 'preproc.art.@stats')
+    modelflow.connect(preproc, 'outputspec.intensity_files',
+                      sinkd, 'preproc.art.@intensity')
     modelflow.connect(preproc, 'outputspec.combined_motion',
                       sinkd, 'preproc.art.@norm')
     modelflow.connect(preproc, 'outputspec.reg_file',

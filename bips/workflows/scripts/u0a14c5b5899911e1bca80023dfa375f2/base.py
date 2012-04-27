@@ -356,7 +356,8 @@ def create_prep(name='preproc'):
                 'FM_unwarped_epi',
                 'FM_unwarped_mean',
                 'vsm_file',
-                'bandpassed_file']),
+                'bandpassed_file',
+                'intensity_files']),
                         name='outputspec')
 
     # make output connection
@@ -372,6 +373,8 @@ def create_prep(name='preproc'):
                     outputnode, 'combined_motion')
     preproc.connect(ad, 'outlier_files',
                     outputnode, 'outlier_files')
+    preproc.connect(ad, 'intensity_files',
+                    outputnode, 'intensity_files')
     preproc.connect(ad, 'statistic_files',
                     outputnode, 'outlier_stat_files')
     preproc.connect(compcor, 'outputspec.noise_components',
@@ -396,6 +399,7 @@ def create_prep(name='preproc'):
                     outputnode,'z_img')
     preproc.connect(plot_motion,'out_file',
                     outputnode,'motion_plots')
+
                     
 
     return preproc

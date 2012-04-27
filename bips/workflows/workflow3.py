@@ -12,7 +12,7 @@ Task/Resting fMRI Quality Assurance workflow
 """
 mwf = MetaWorkflow()
 mwf.uuid = '5dd866fe8af611e1b9d5001e4fb1404c'
-mwf.tags = ['task','fMRI','preprocessing','QA']
+mwf.tags = ['task','fMRI','preprocessing','QA', 'resting']
 mwf.uses_outputs_of = ['63fcbb0a890211e183d30023dfa375f2','7757e3168af611e1b9d5001e4fb1404c']
 mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
 mwf.help = desc
