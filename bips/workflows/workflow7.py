@@ -296,7 +296,7 @@ def combine_report(c, first_c, prep_c, fx_c=None, thr=2.326,csize=30,fx=False):
     
     # add plot detrended timeseries with onsets if block
     if c.is_block_design:
-        plottseries = tsnr_roi(plot=True)
+        plottseries = tsnr_roi(plot=True, onsets=True)
         plottseries.inputs.inputspec.TR = prep_c.TR
         workflow.connect(dataflow,'reg',plottseries, 'inputspec.reg_file')
         workflow.connect(fssource, ('aparc_aseg',pickfirst), plottseries, 'inputspec.aparc_aseg')
@@ -308,7 +308,7 @@ def combine_report(c, first_c, prep_c, fx_c=None, thr=2.326,csize=30,fx=False):
 
         workflow.connect(infosource,'subject_id', subjectinfo, 'subject_id')
         workflow.connect(subjectinfo, 'output', plottseries, 'inputspec.onsets')
-
+        plottseries.inputs.inputspec.input_units = first_c.input_units
         workflow.connect(plottseries,'outputspec.out_file',writereport,'onset_images')
     else:
         writereport.inputs.onset_images = None

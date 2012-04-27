@@ -103,7 +103,8 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False, onsets=False):
                                                                  'TR',
                                                                  'aparc_aseg',
                                                                  'subject',
-                                                                 'onsets']),name='inputspec')
+                                                                 'onsets',
+                                                                 'input_units']),name='inputspec')
     
     voltransform = pe.MapNode(interface=ApplyVolTransform(inverse=True, interp='nearest'),name='applyreg', iterfield=['source_file'])
     
@@ -146,18 +147,25 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False, onsets=False):
     preproc.connect(statsflow, 'segstats.avgwf_txt_file', roistripper, 'roi_file')
     preproc.connect(statsflow, 'segstats.summary_file', roistripper, 'summary_file')
 
-    roiplotter = pe.MapNode(util.Function(input_names=['statsfile', 'roi','TR','plot','onsets'],
-                                       output_names=['Fname','AvgRoi'],
-                                       function=plot_timeseries),
-                          name='roiplotter', iterfield=['statsfile'])
+
+    if onsets:
+        roiplotter = pe.MapNode(util.Function(input_names=['statsfile', 'roi','TR','plot','onsets','units'],
+            output_names=['Fname','AvgRoi'],
+            function=plot_timeseries),
+            name='roiplotter', iterfield=['statsfile','onsets'])
+        preproc.connect(inputspec,'onsets',roiplotter,'onsets')
+        preproc.connect(inputspec, 'input_units',roiplotter,'units')
+    else:
+        roiplotter = pe.MapNode(util.Function(input_names=['statsfile', 'roi','TR','plot','onsets','units'],
+            output_names=['Fname','AvgRoi'],
+            function=plot_timeseries),
+            name='roiplotter', iterfield=['statsfile'])
+        roiplotter.inputs.onsets = None
+        roiplotter.inputs.onsets = None
+
     roiplotter.inputs.roi = roi
     preproc.connect(inputspec,'TR',roiplotter,'TR')
     roiplotter.inputs.plot = plot
-    if onsets:
-        preproc.connect(inputspec,'onsets',roiplotter,'onsets')
-    else:
-        roiplotter.inputs.onsets = None
-
     preproc.connect(roistripper,'roi_file',roiplotter,'statsfile')
     outputspec = pe.Node(interface=util.IdentityInterface(fields=['out_file','roi_table']),name='outputspec')
     preproc.connect(roiplotter,'Fname',outputspec,'out_file')
@@ -184,7 +192,7 @@ def tsdiffana(img):
     plt.close()
     return out_file
 
-def plot_timeseries(roi,statsfile,TR,plot,onsets):
+def plot_timeseries(roi,statsfile,TR,plot,onsets,units):
     """ Returns a plot of an averaged timeseries across an roi
     
     Parameters
@@ -234,21 +242,43 @@ def plot_timeseries(roi,statsfile,TR,plot,onsets):
             #find roi name for plot title
             title = roiname[roinum==str(np.int_(R))][0]
             if plot:
-                nums = list(stats[i])[1:]
+                nums = np.asarray(list(stats[i])[1:])
                 X = np.array(range(len(nums)))*TR
                 plt.figure(1)
-                p1 = plt.plot(X,nums)
-                
+                plt.plot(X,nums)
                 if onsets:
-                    # onsets is a Bunch with "names", "onsets" and "durations".
-                    for B in onsets:
-                        p = []*len(B.onsets)
-                        for i, ons in enumerate(B.onsets):
-                            p[i] = plt.plot(ons,nums[ons])
-                
+                    # onsets is a Bunch with "conditions", "onsets" and "durations".
+                    print onsets
+                    names = onsets.conditions
+                    durations = onsets.durations
+                    onsets = onsets.onsets
+                    colors1 = [[]]*len(onsets)
+
+                    for i, ons in enumerate(onsets):
+                        colors1[i] = [np.random.rand(3)]
+                        if units == 'scans':
+                            plt.plot(np.asarray(ons)*TR,nums[ons],marker='*',linestyle='None',color=colors1[i][0])
+                        else:
+                            plt.plot(ons,nums[np.int_(np.asarray(ons)/TR)],marker='*',linestyle='None',color=colors1[i][0])
+
+                    plt.legend(['signal']+names)
+
+                    for i, ons in enumerate(onsets):
+                        ons = np.asarray(ons)
+                        newX = np.zeros(nums.shape)
+                        newX[:] = np.nan
+                        for d in xrange(durations[i][0]):
+                            if units == 'scans':
+                                newX[np.int_(ons+np.ones(ons.shape)*(d))] = nums[np.int_(ons+np.ones(ons.shape)*(d))]
+                            else:
+                                newX[np.int_(np.int_(ons/TR+ons.shape)*(d/TR))] = nums[np.int_(ons/TR+np.ones(ons.shape)*(d/TR))]
+                        plt.plot(X,newX,color=colors1[i][0])
+
+
                 plt.title(title)
                 plt.xlabel('time (s)')
                 plt.ylabel('signal')
+
                 fname = os.path.join(os.getcwd(),os.path.split(statsfile)[1][:-4]+'_'+title+'.png')
                 plt.savefig(fname,dpi=200)
                 plt.close()
@@ -257,6 +287,7 @@ def plot_timeseries(roi,statsfile,TR,plot,onsets):
                 AvgRoi.append([title,np.mean(list(stats[i])[1])])
         else:
             print "roi %s not found!"%R
+
     return Fname, AvgRoi
 
 
