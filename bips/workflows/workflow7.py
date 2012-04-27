@@ -380,6 +380,7 @@ def main(config_file):
 
     workflow = combine_report(c,first_c, prep_c, fx_c=fx_c, fx=c.is_fixed_fx,csize=c.cluster_size,thr=c.threshold)
     workflow.base_dir = c.working_dir
+    workflow.config = {'execution': {'crashdump_dir': c.crash_dir}}
 
     if c.test_mode:
         workflow.write_graph()
