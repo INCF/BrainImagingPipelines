@@ -57,7 +57,7 @@ class config(HasTraits):
     contrasts = traits.Code()
     interscan_interval = traits.Float()
     film_threshold = traits.Float()
-
+    input_units = traits.Enum('scans','secs')
     # preprocessing info
     preproc_config = traits.File(desc="preproc config file")
 
@@ -69,7 +69,7 @@ def create_config():
 
 mwf.config_ui = create_config
 
-def preproc_datagrabber(name='preproc_datagrabber'):
+def preproc_datagrabber(c, name='preproc_datagrabber'):
     # create a node to obtain the preproc files
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id','fwhm'],
                                                    outfields=['noise_components',
@@ -139,7 +139,7 @@ def combine_wkflw(c,prep_c, name='work_dir'):
     modelflow = pe.Workflow(name=name)
     modelflow.base_dir = os.path.join(c.working_dir)
     
-    preproc = preproc_datagrabber()
+    preproc = preproc_datagrabber(prep_c)
     
     infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
                          name='subject_names')
@@ -151,8 +151,11 @@ def combine_wkflw(c,prep_c, name='work_dir'):
 
     modelflow.connect(infosource,'subject_id',preproc,'subject_id')
     preproc.iterables = ('fwhm', prep_c.fwhm)
-    
-    def getsubs(subject_id,getcontrasts,subjectinfo,fwhm):
+
+    subjectinfo = pe.Node(util.Function(input_names=['subject_id'], output_names=['output']), name='subjectinfo')
+    subjectinfo.inputs.function_str = c.subjectinfo
+
+    def getsubs(subject_id,cons,info,fwhm):
         #from config import getcontrasts, get_run_numbers, subjectinfo, fwhm
         subs = [('_subject_id_%s/'%subject_id,''),
                 ('_plot_type_',''),
@@ -167,8 +170,6 @@ def combine_wkflw(c,prep_c, name='work_dir'):
             subs.append(('_highpass%d/'%i, ''))
             subs.append(('_realign%d/'%i, ''))
             subs.append(('_meanfunc2%d/'%i, ''))
-        cons = getcontrasts(subject_id)
-        info = subjectinfo(subject_id)
         runs = range(len(info))
         for i, run in enumerate(runs):
             subs.append(('_modelestimate%d/'%i, '_run_%d_%02d_'%(i,run)))
@@ -187,7 +188,13 @@ def combine_wkflw(c,prep_c, name='work_dir'):
             subs.append(('_register%d/'%(i),''))
         
         return subs
-    
+
+    get_substitutions = pe.Node(util.Function(input_names=['subject_id',
+                                                           'cons',
+                                                           'info',
+                                                           'fwhm'],
+        output_names=['subs'], function=getsubs), name='getsubs')
+
     # create a node to create the subject info
     s = pe.Node(SpecifyModel(),name='s')
     s.inputs.input_units =                              c.input_units
@@ -212,8 +219,11 @@ def combine_wkflw(c,prep_c, name='work_dir'):
     #modelflow.connect(subjinfo, 'output',
     #                  trad_motn, 'subinfo')
     
-    modelflow.connect(infosource, ('subject_id',c.subjectinfo), trad_motn, 'subinfo')
-    
+    #modelflow.connect(infosource, ('subject_id',subjectinfo), trad_motn, 'subinfo')
+    modelflow.connect(infosource,'subject_id', subjectinfo, 'subject_id')
+    modelflow.connect(subjectinfo, 'output', trad_motn, 'subinfo')
+
+
     # create a node to add the principle components of the noise regressors to 
     # the subject info
     noise_motn = pe.Node(util.Function(input_names=['subinfo',
@@ -229,8 +239,9 @@ def combine_wkflw(c,prep_c, name='work_dir'):
     modelfit.inputs.inputspec.film_threshold =          c.film_threshold
     
     
-    contrasts = pe.Node(util.Function(input_names=['subject_id'], output_names=['contrasts'], function=c.getcontrasts), name='getcontrasts')
-    
+    contrasts = pe.Node(util.Function(input_names=['subject_id'], output_names=['contrasts']), name='getcontrasts')
+    contrasts.inputs.function_str = c.contrasts
+
     modelflow.connect(infosource,'subject_id', 
                      contrasts, 'subject_id')
     modelflow.connect(contrasts,'contrasts', modelfit, 'inputspec.contrasts')
@@ -244,9 +255,15 @@ def combine_wkflw(c,prep_c, name='work_dir'):
     sinkd.inputs.base_directory = os.path.join(c.sink_dir)
         
     modelflow.connect(infosource, 'subject_id', sinkd, 'container')
-    modelflow.connect(infosource, ('subject_id',getsubs, c.getcontrasts, c.subjectinfo, prep_c.fwhm), sinkd, 'substitutions')
-    
-    sinkd.inputs.regexp_substitutions = [('mask/fwhm_%d/_threshold([0-9]*)/.*nii'%x,'mask/fwhm_%d/funcmask.nii'%x) for x in fwhm]
+    #modelflow.connect(infosource, ('subject_id',getsubs, getcontrasts, subjectinfo, prep_c.fwhm), sinkd, 'substitutions')
+    modelflow.connect(infosource, 'subject_id', get_substitutions, 'subject_id')
+    modelflow.connect(contrasts, 'contrasts', get_substitutions, 'cons')
+    modelflow.connect(subjectinfo,'output',get_substitutions,'info')
+    get_substitutions.inputs.fwhm = prep_c.fwhm
+    modelflow.connect(get_substitutions,'subs', sinkd, 'substitutions')
+
+
+    sinkd.inputs.regexp_substitutions = [('mask/fwhm_%d/_threshold([0-9]*)/.*nii'%x,'mask/fwhm_%d/funcmask.nii'%x) for x in prep_c.fwhm]
     sinkd.inputs.regexp_substitutions.append(('realigned/fwhm_([0-9])/_copy_geom([0-9]*)/','realigned/'))
     sinkd.inputs.regexp_substitutions.append(('motion/fwhm_([0-9])/','motion/'))
     sinkd.inputs.regexp_substitutions.append(('bbreg/fwhm_([0-9])/','bbreg/'))
@@ -275,11 +292,11 @@ def main(config_file):
 
     c = load_config(config_file, create_config)
     from .workflow1 import create_config as prep_config
-    prep_c = load_config(c.prep_config, prep_config)
+    prep_c = load_config(c.preproc_config, prep_config)
 
     first_level = combine_wkflw(c, prep_c)
     first_level.config = {'execution' : {'crashdump_dir' : c.crash_dir}}
-    first_level.base_dir = c.base_dir
+    first_level.base_dir = c.working_dir
 
     if c.test_mode:
         first_level.write_graph()
@@ -288,6 +305,7 @@ def main(config_file):
         first_level.run(plugin=c.plugin, plugin_args = c.plugin_args)
     else:
         first_level.run()
+
 
 def create_view():
     from traitsui.api import View, Item, Group, CSVListEditor
@@ -309,6 +327,7 @@ def create_view():
             label='Subjects', show_border=True),
         Group(Item(name='interscan_interval'),
               Item(name='film_threshold'),
+              Item(name='input_units'),
               Item(name='subjectinfo'),
               Item(name='contrasts'),
             label = 'First Level'),
@@ -319,5 +338,6 @@ def create_view():
         width=1050)
     return view
 
+mwf.workflow_main_function = main
 mwf.config_view = create_view
 register_workflow(mwf)
