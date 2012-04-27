@@ -12,7 +12,7 @@ def art_output(art_file):
     except:
         out=np.asarray([])
     table=[["file",art_file],["num outliers", str(out.shape)],["timepoints",str(out)]]
-    return table, [out]
+    return table, out.tolist()
         
 
 def plot_ADnorm(ADnorm,TR,norm_thresh,out):
@@ -35,7 +35,10 @@ def plot_ADnorm(ADnorm,TR,norm_thresh,out):
     import matplotlib.pyplot as plt
     import os
     import numpy as np
-    out = out[0]
+
+    if not isinstance(out,list):
+        out = [out]
+
     plot = os.path.abspath('plot_'+os.path.split(ADnorm)[1]+'.png')
     
     data = np.genfromtxt(ADnorm)
@@ -481,6 +484,7 @@ def corr_image(resting_image,fwhm):
 
     #br.add_overlay(precuneus[0,1:], min=0.3, sign='pos', name='mean', visible=True)
 
+    br.add_overlay(precuneus[0,1:], min=0.2, name='mean', visible=True)
     br.add_overlay(precuneus[0,1:], min=0.2, name='mean', visible=True)
     plt.hist(precuneus[0,1:], 128)
     plt.savefig(os.path.abspath("histogram.png"))

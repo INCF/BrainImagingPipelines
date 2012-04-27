@@ -42,6 +42,12 @@ totable = lambda x: [[x]]
 to1table = lambda x: [x]
 pickfirst = lambda x: x[0]
 
+def sort(x):
+    if isinstance(x,list):
+        return sorted(x)
+    else:
+        return x
+
 def get_config_params(subject_id, table):
         table.insert(0,['subject_id',subject_id])
         return table
@@ -168,11 +174,12 @@ def QA_workflow(c,QAc,name='QA'):
     
     workflow.connect(orig_datagrabber, 'func', inputspec, 'in_file')
     workflow.connect(infosource, 'subject_id', inputspec, 'subject_id')
-    workflow.connect(datagrabber, 'outlier_files', inputspec, 'art_file')
-    workflow.connect(datagrabber, 'reg_file', inputspec, 'reg_file')
-    workflow.connect(datagrabber, 'tsnr', inputspec, 'tsnr')
-    workflow.connect(datagrabber, 'tsnr_stddev', inputspec, 'tsnr_stddev')
-    workflow.connect(datagrabber, 'art_norm', inputspec, 'ADnorm')
+
+    workflow.connect(datagrabber, ('outlier_files',sort), inputspec, 'art_file')
+    workflow.connect(datagrabber, ('reg_file', sort), inputspec, 'reg_file')
+    workflow.connect(datagrabber, ('tsnr',sort), inputspec, 'tsnr')
+    workflow.connect(datagrabber, ('tsnr_stddev',sort), inputspec, 'tsnr_stddev')
+    workflow.connect(datagrabber, ('art_norm',sort), inputspec, 'ADnorm')
     
     inputspec.inputs.TR = c.TR
     inputspec.inputs.sd = c.surf_dir
@@ -185,7 +192,7 @@ def QA_workflow(c,QAc,name='QA'):
                         name="motion_plots",
                         iterfield=['motion_parameters'])
     
-    workflow.connect(datagrabber,'motion_parameters',plot_m,'motion_parameters')
+    workflow.connect(datagrabber,('motion_parameters', sort),plot_m,'motion_parameters')
     #workflow.connect(plot_m, 'fname',inputspec,'motion_plots')
     
     tsdiff = pe.MapNode(util.Function(input_names = ['img'], 
@@ -255,7 +262,7 @@ def QA_workflow(c,QAc,name='QA'):
                                           name='overlay_mask')
     overlaymask.inputs.threshold = 0
     
-    workflow.connect(datagrabber, 'mean_image', plotanat, 'brain')
+    workflow.connect(datagrabber, ('mean_image', sort), plotanat, 'brain')
 
     write_rep = pe.Node(interface=ReportSink(orderfields=['Introduction',
                                                           'in_file',
