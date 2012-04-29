@@ -77,11 +77,11 @@ def preproc_datagrabber(c, name='preproc_datagrabber'):
                                                                'highpassed_files',
                                                                'outlier_files']),
                          name = name)
-    datasource.inputs.base_directory = os.path.join(c.sink_dir,'analyses','func')
+    datasource.inputs.base_directory = os.path.join(c.sink_dir)
     datasource.inputs.template ='*'
     datasource.inputs.field_template = dict(noise_components='%s/preproc/noise_components/*/noise_components.txt',
                                             motion_parameters='%s/preproc/motion/*.par',
-                                            highpassed_files='%s/preproc/highpass/fwhm_%d/*/*.nii.gz',
+                                            highpassed_files='%s/preproc/highpass/fwhm_%s/*/*.nii.gz',
                                             outlier_files='%s/preproc/art/*_outliers.txt')
     datasource.inputs.template_args = dict(noise_components=[['subject_id']],
                                            motion_parameters=[['subject_id']],

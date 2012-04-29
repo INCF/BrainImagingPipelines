@@ -220,9 +220,9 @@ def QA_workflow(c,QAc,name='QA'):
                                       function=plot_anat),
                         name="plot_anat")
         
-    roidevplot = tsnr_roi(plot=False,name='tsnr_stddev_roi',roi=['all'])
+    roidevplot = tsnr_roi(plot=False,name='tsnr_stddev_roi',roi=['all'],onsets=False)
     roidevplot.inputs.inputspec.TR = c.TR
-    roisnrplot = tsnr_roi(plot=False,name='SNR_roi',roi=['all'])
+    roisnrplot = tsnr_roi(plot=False,name='SNR_roi',roi=['all'],onsets=False)
     roisnrplot.inputs.inputspec.TR = c.TR
     
     workflow.connect(fssource, ('aparc_aseg', pickfirst), roisnrplot, 'inputspec.aparc_aseg')

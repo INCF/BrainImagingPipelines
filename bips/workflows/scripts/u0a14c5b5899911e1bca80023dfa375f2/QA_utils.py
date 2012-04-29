@@ -161,7 +161,7 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False, onsets=False):
             function=plot_timeseries),
             name='roiplotter', iterfield=['statsfile'])
         roiplotter.inputs.onsets = None
-        roiplotter.inputs.onsets = None
+        roiplotter.inputs.units = None
 
     roiplotter.inputs.roi = roi
     preproc.connect(inputspec,'TR',roiplotter,'TR')
