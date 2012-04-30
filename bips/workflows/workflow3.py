@@ -12,7 +12,7 @@ Task/Resting fMRI Quality Assurance workflow
 """
 mwf = MetaWorkflow()
 mwf.uuid = '5dd866fe8af611e1b9d5001e4fb1404c'
-mwf.tags = ['task','fMRI','preprocessing','QA']
+mwf.tags = ['task','fMRI','preprocessing','QA', 'resting']
 mwf.uses_outputs_of = ['63fcbb0a890211e183d30023dfa375f2','7757e3168af611e1b9d5001e4fb1404c']
 mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
 mwf.help = desc
@@ -41,6 +41,12 @@ from ..utils.reportsink.io import ReportSink
 totable = lambda x: [[x]]
 to1table = lambda x: [x]
 pickfirst = lambda x: x[0]
+
+def sort(x):
+    if isinstance(x,list):
+        return sorted(x)
+    else:
+        return x
 
 def get_config_params(subject_id, table):
         table.insert(0,['subject_id',subject_id])
@@ -168,11 +174,12 @@ def QA_workflow(c,QAc,name='QA'):
     
     workflow.connect(orig_datagrabber, 'func', inputspec, 'in_file')
     workflow.connect(infosource, 'subject_id', inputspec, 'subject_id')
-    workflow.connect(datagrabber, 'outlier_files', inputspec, 'art_file')
-    workflow.connect(datagrabber, 'reg_file', inputspec, 'reg_file')
-    workflow.connect(datagrabber, 'tsnr', inputspec, 'tsnr')
-    workflow.connect(datagrabber, 'tsnr_stddev', inputspec, 'tsnr_stddev')
-    workflow.connect(datagrabber, 'art_norm', inputspec, 'ADnorm')
+
+    workflow.connect(datagrabber, ('outlier_files',sort), inputspec, 'art_file')
+    workflow.connect(datagrabber, ('reg_file', sort), inputspec, 'reg_file')
+    workflow.connect(datagrabber, ('tsnr',sort), inputspec, 'tsnr')
+    workflow.connect(datagrabber, ('tsnr_stddev',sort), inputspec, 'tsnr_stddev')
+    workflow.connect(datagrabber, ('art_norm',sort), inputspec, 'ADnorm')
     
     inputspec.inputs.TR = c.TR
     inputspec.inputs.sd = c.surf_dir
@@ -185,7 +192,7 @@ def QA_workflow(c,QAc,name='QA'):
                         name="motion_plots",
                         iterfield=['motion_parameters'])
     
-    workflow.connect(datagrabber,'motion_parameters',plot_m,'motion_parameters')
+    workflow.connect(datagrabber,('motion_parameters', sort),plot_m,'motion_parameters')
     #workflow.connect(plot_m, 'fname',inputspec,'motion_plots')
     
     tsdiff = pe.MapNode(util.Function(input_names = ['img'], 
@@ -213,9 +220,9 @@ def QA_workflow(c,QAc,name='QA'):
                                       function=plot_anat),
                         name="plot_anat")
         
-    roidevplot = tsnr_roi(plot=False,name='tsnr_stddev_roi',roi=['all'])
+    roidevplot = tsnr_roi(plot=False,name='tsnr_stddev_roi',roi=['all'],onsets=False)
     roidevplot.inputs.inputspec.TR = c.TR
-    roisnrplot = tsnr_roi(plot=False,name='SNR_roi',roi=['all'])
+    roisnrplot = tsnr_roi(plot=False,name='SNR_roi',roi=['all'],onsets=False)
     roisnrplot.inputs.inputspec.TR = c.TR
     
     workflow.connect(fssource, ('aparc_aseg', pickfirst), roisnrplot, 'inputspec.aparc_aseg')
@@ -255,7 +262,7 @@ def QA_workflow(c,QAc,name='QA'):
                                           name='overlay_mask')
     overlaymask.inputs.threshold = 0
     
-    workflow.connect(datagrabber, 'mean_image', plotanat, 'brain')
+    workflow.connect(datagrabber, ('mean_image', sort), plotanat, 'brain')
 
     write_rep = pe.Node(interface=ReportSink(orderfields=['Introduction',
                                                           'in_file',

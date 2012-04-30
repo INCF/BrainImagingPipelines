@@ -3,7 +3,7 @@ from nipype.interfaces import fsl
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import nipype.interfaces.io as nio
-from .base import MetaWorkflow, load_json, register_workflow
+from .base import MetaWorkflow, load_config, register_workflow
 from nipype.interfaces.io import FreeSurferSource
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import pickfirst
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import tsnr_roi, \
@@ -12,73 +12,67 @@ from .scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import tsnr_roi, \
                                                                show_slices, \
                                                                get_labels,\
                                                                get_coords
-from .workflow1 import config_ui
-from traitsui.menu import OKButton, CancelButton
-from traitsui.api import View, Item, Group
+import traits.api as traits
 
 desc = """
-fMRI First Level QA workflow
-=====================================
+fMRI First Level or FixedFx QA workflow
+=======================================
 
 """
 mwf = MetaWorkflow()
 mwf.uuid = '9ecc82228b1d11e1b99a001e4fb1404c'
 mwf.tags = ['QA','first-level','activation','constrast images']
-mwf.config_ui = lambda : config_ui
 mwf.help = desc
-mwf.config_view = View(Group(Item(name='working_dir'),
-    Item(name='sink_dir'),
-    Item(name='crash_dir'),
-    Item(name='json_sink'),
-    Item(name='surf_dir'),
-    label='Directories',show_border=True),
-    Group(Item(name='run_on_grid'),
-        Item(name='plugin',enabled_when="run_on_grid"),
-        Item(name='plugin_args',enabled_when="run_on_grid"),
-        Item(name='test_mode'),
-        label='Execution Options',show_border=True),
-    Group(Item(name='subjects'),
-        Item(name='base_dir'),
-        Item(name='func_template'),
-        Item(name='check_func_datagrabber'),
-        label='Subjects',show_border=True),
-    Group(Item(name='use_fieldmap'),
-        Item(name='field_dir',enabled_when="use_fieldmap"),
-        Item(name='magnitude_template',enabled_when="use_fieldmap"),
-        Item(name='phase_template',enabled_when="use_fieldmap"),
-        Item(name='check_field_datagrabber',enabled_when="use_fieldmap"),
-        Item(name='echospacing',enabled_when="use_fieldmap"),
-        Item(name='TE_diff',enabled_when="use_fieldmap"),
-        Item(name='sigma',enabled_when="use_fieldmap"),
-        label='Fieldmap',show_border=True),
-    Group(Item(name='TR'),
-        Item(name='Interleaved'),
-        Item(name='SliceOrder'),
-        label='Motion Correction',show_border=True),
-    Group(Item(name='norm_thresh'),
-        Item(name='z_thresh'),
-        label='Artifact Detection',show_border=True),
-    Group(Item(name='compcor_select'),
-        Item(name='num_noise_components'),
-        label='CompCor',show_border=True),
-    Group(Item(name='fwhm'),
-        label='Smoothing',show_border=True),
-    Group(Item(name='hpcutoff'),
-        label='Highpass Filter',show_border=True),
-    Group(Item(name='is_block_design'),
-        Item(name='input_units'),
-        Item(name='interscan_interval'),
-        Item(name='film_threshold'),
-        Item(name='subjectinfo'),
-        Item(name='getcontrasts'),
-        label='First Level',show_border=True),
-    Group(Item(name='fx'),
-          Item(name='thr'),
-          Item(name='csize'),
-          label='First Level QA',show_border=True),
-    buttons = [OKButton, CancelButton],
-    resizable=True,
-    width=1050)
+
+from .workflow3 import config as baseconfig
+
+class config(baseconfig):
+    threshold = traits.Float
+    cluster_size = traits.Int
+    is_fixed_fx = traits.Bool
+    first_level_config = traits.File
+    fx_config = traits.File
+    is_block_design = traits.Bool
+
+def create_config():
+    c = config()
+    c.uuid = mwf.uuid
+    c.desc = mwf.help
+    return c
+
+def create_view():
+    from traitsui.api import View, Item, Group, CSVListEditor
+    from traitsui.menu import OKButton, CancelButton
+    view = View(Group(Item(name='uuid', style='readonly'),
+        Item(name='desc', style='readonly'),
+        label='Description', show_border=True),
+        Group(Item(name='working_dir'),
+            Item(name='sink_dir'),
+            Item(name='crash_dir'),
+            Item(name='json_sink'),
+            label='Directories', show_border=True),
+        Group(Item(name='run_using_plugin'),
+            Item(name='plugin', enabled_when="run_using_plugin"),
+            Item(name='plugin_args', enabled_when="run_using_plugin"),
+            Item(name='test_mode'),
+            label='Execution Options', show_border=True),
+        Group(Item(name='subjects', editor=CSVListEditor()),
+            label='Subjects', show_border=True),
+        Group(Item(name='first_level_config'),
+              Item(name='fx_config', enabled_when='is_fixed_fx'),
+              Item(name='is_fixed_fx'),
+            label = 'First Level Info'),
+        Group(Item('threshold'),
+              Item('cluster_size'),
+              Item('is_block_design'),
+              label='QA Options'),
+        buttons = [OKButton, CancelButton],
+        resizable=True,
+        width=1050)
+    return view
+
+mwf.config_view = create_view
+mwf.config_ui = create_config
 
 def img_wkflw(thr, csize, name='slice_image_generator'):
     inputspec = pe.Node(util.IdentityInterface(fields=['in_file',
@@ -177,14 +171,14 @@ def get_data(c,name='first_level_datagrab'):
 
     datasource.inputs.template = '*'
     
-    datasource.inputs.base_directory = os.path.join(c["sink_dir"],'analyses','func')
+    datasource.inputs.base_directory = os.path.join(c.sink_dir)
     
-    datasource.inputs.field_template = dict(func='%s/modelfit/contrasts/fwhm_'+'%1d'+'/*/*zstat*',
+    datasource.inputs.field_template = dict(func='%s/modelfit/contrasts/fwhm_'+'%s'+'/*/*zstat*',
                                             mask = '%s/preproc/mask/'+'*.nii',
                                             reg = '%s/preproc/bbreg/*.dat',
                                             detrended = '%s/preproc/tsnr/*detrended.nii.gz',
-                                            des_mat = '%s/modelfit/design/fwhm_%1d/*/run?.png',
-                                            des_mat_cov = '%s/modelfit/design/fwhm_%1d/*/*cov.png')
+                                            des_mat = '%s/modelfit/design/fwhm_%s/*/run?.png',
+                                            des_mat_cov = '%s/modelfit/design/fwhm_%s/*/*cov.png')
     
     datasource.inputs.template_args = dict(func=[['subject_id','fwhm']],
                                            mask=[['subject_id']], 
@@ -208,7 +202,7 @@ def get_fx_data(c, name='fixedfx_datagrab'):
 
     datasource.inputs.template = '*'
     
-    datasource.inputs.base_directory = os.path.join(c["sink_dir"],'analyses','func')
+    datasource.inputs.base_directory = os.path.join(c.sink_dir)
     
     datasource.inputs.field_template = dict(func='%s/fixedfx/fwhm_'+'%s'+'*zstat*',
                                             mask = '%s/preproc/mask/'+'*.nii',
@@ -225,22 +219,26 @@ def get_fx_data(c, name='fixedfx_datagrab'):
                                            des_mat_cov = [['subject_id','fwhm']])
     return datasource
     
-def combine_report(c, thr=2.326,csize=30,fx=False):
+def combine_report(c, first_c, prep_c, fx_c=None, thr=2.326,csize=30,fx=False):
 
     if not fx:
         workflow = pe.Workflow(name='first_level_report')
-        dataflow = get_data(c)
+        dataflow = get_data(first_c)
     else:
         workflow = pe.Workflow(name='fixedfx_report')
-        dataflow =  get_fx_data(c)
+        dataflow =  get_fx_data(fx_c)
     
     infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
                          name='subject_names')
-    infosource.iterables = ('subject_id', c["subjects"].split(','))
+
+    if c.test_mode:
+        infosource.iterables = ('subject_id', [c.subjects[0]])
+    else:
+        infosource.iterables = ('subject_id', c.subjects)
     
     infosource1 = pe.Node(util.IdentityInterface(fields=['fwhm']),
                          name='fwhms')
-    infosource1.iterables = ('fwhm', c["fwhm"])
+    infosource1.iterables = ('fwhm', prep_c.fwhm)
     
     fssource = pe.Node(interface = FreeSurferSource(),name='fssource')
     
@@ -248,7 +246,7 @@ def combine_report(c, thr=2.326,csize=30,fx=False):
     workflow.connect(infosource1, 'fwhm', dataflow, 'fwhm')
     
     workflow.connect(infosource, 'subject_id', fssource, 'subject_id')
-    fssource.inputs.subjects_dir = c["surf_dir"]
+    fssource.inputs.subjects_dir = prep_c.surf_dir
     
     imgflow = img_wkflw(thr=thr,csize=csize)
     
@@ -274,7 +272,7 @@ def combine_report(c, thr=2.326,csize=30,fx=False):
     workflow.connect(fssource,'brain',imgflow, 'inputspec.anat_file')
     
     workflow.connect(infosource, 'subject_id', imgflow, 'inputspec.subject_id')
-    imgflow.inputs.inputspec.fsdir = c["surf_dir"]
+    imgflow.inputs.inputspec.fsdir = prep_c.surf_dir
     
     writereport = pe.Node(util.Function( input_names = ["cs",
                                                         "locations",
@@ -297,14 +295,20 @@ def combine_report(c, thr=2.326,csize=30,fx=False):
     
     
     # add plot detrended timeseries with onsets if block
-    if c["is_block_design"]:
-        plottseries = tsnr_roi(plot=True)
-        plottseries.inputs.inputspec.TR = c["TR"]
+    if c.is_block_design:
+        plottseries = tsnr_roi(plot=True, onsets=True)
+        plottseries.inputs.inputspec.TR = prep_c.TR
         workflow.connect(dataflow,'reg',plottseries, 'inputspec.reg_file')
         workflow.connect(fssource, ('aparc_aseg',pickfirst), plottseries, 'inputspec.aparc_aseg')
         workflow.connect(infosource, 'subject_id', plottseries, 'inputspec.subject')
         workflow.connect(dataflow, 'detrended', plottseries,'inputspec.tsnr_file')
-        workflow.connect(infosource,('subject_id',c["subjectinfo"]),plottseries,'inputspec.onsets')
+
+        subjectinfo = pe.Node(util.Function(input_names=['subject_id'], output_names=['output']), name='subjectinfo')
+        subjectinfo.inputs.function_str = first_c.subjectinfo
+
+        workflow.connect(infosource,'subject_id', subjectinfo, 'subject_id')
+        workflow.connect(subjectinfo, 'output', plottseries, 'inputspec.onsets')
+        plottseries.inputs.inputspec.input_units = first_c.input_units
         workflow.connect(plottseries,'outputspec.out_file',writereport,'onset_images')
     else:
         writereport.inputs.onset_images = None
@@ -334,10 +338,10 @@ def combine_report(c, thr=2.326,csize=30,fx=False):
     workflow.connect(infosource, 'subject_id', makesurfaceplots, 'subject_id')
     
     makesurfaceplots.inputs.thr = thr
-    makesurfaceplots.inputs.sd = c["surf_dir"]
+    makesurfaceplots.inputs.sd = prep_c.surf_dir
     
     sinker = pe.Node(nio.DataSink(), name='sinker')
-    sinker.inputs.base_directory = os.path.join(c["sink_dir"],'analyses','func')
+    sinker.inputs.base_directory = os.path.join(c.sink_dir)
     
     workflow.connect(infosource,'subject_id',sinker,'container')
     workflow.connect(dataflow,'func',makesurfaceplots,'con_image')
@@ -362,18 +366,32 @@ def combine_report(c, thr=2.326,csize=30,fx=False):
     return workflow
 
 
-def main(config):
-    c = load_json(config)
-    workflow = combine_report(c, fx=c["fx"],csize=c["csize"],thr=c["thr"])
-    workflow.base_dir = c["working_dir"]
+def main(config_file):
+    c = load_config(config_file, create_config)
+    from .workflow10 import create_config as first_config
+    first_c = load_config(c.first_level_config, first_config)
+    from .workflow1 import create_config as prep_config
+    prep_c = load_config(first_c.preproc_config, prep_config)
+    if c.is_fixed_fx:
+        from .workflow11 import create_config as fx_config
+        fx_c = load_config(c.fx_config, fx_config)
+    else:
+        fx_c=None
 
-    if not os.environ['SUBJECTS_DIR'] == c["surf_dir"]:
+    workflow = combine_report(c,first_c, prep_c, fx_c=fx_c, fx=c.is_fixed_fx,csize=c.cluster_size,thr=c.threshold)
+    workflow.base_dir = c.working_dir
+    workflow.config = {'execution': {'crashdump_dir': c.crash_dir}}
+
+    if c.test_mode:
+        workflow.write_graph()
+
+    if not os.environ['SUBJECTS_DIR'] == prep_c.surf_dir:
         print "Your SUBJECTS_DIR is incorrect!"
-        print "export SUBJECTS_DIR=%s"%c["surf_dir"]
+        print "export SUBJECTS_DIR=%s"%prep_c.surf_dir
         
     else:
-        if c["run_on_grid"]:
-            workflow.run(plugin=c["plugin"], plugin_args=c["plugin_args"])
+        if c.run_using_plugin:
+            workflow.run(plugin=c.plugin, plugin_args=c.plugin_args)
         else:
             workflow.run()
         

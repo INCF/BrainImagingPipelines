@@ -72,7 +72,7 @@ class config(HasTraits):
     
     # Artifact Detection
     
-    norm_thresh = traits.Float(2, min=0, usedefault=True, desc="norm thresh for art")
+    norm_thresh = traits.Float(1, min=0, usedefault=True, desc="norm thresh for art")
     z_thresh = traits.Float(3, min=0, usedefault=True, desc="z thresh for art")
     
     # Smoothing
@@ -240,7 +240,11 @@ def prep_workflow(c, fieldmap):
                       sinkd, 'preproc.mask')
     modelflow.connect(preproc, 'outputspec.outlier_files',
                       sinkd, 'preproc.art')
+    modelflow.connect(preproc, 'outputspec.intensity_files',
+                      sinkd, 'preproc.art.@intensity')
     modelflow.connect(preproc, 'outputspec.combined_motion',
+                      sinkd, 'preproc.art.@norm')
+    modelflow.connect(preproc, 'outputspec.outlier_stat_files',
                       sinkd, 'preproc.art.@stats')
     modelflow.connect(preproc, 'outputspec.reg_file',
                       sinkd, 'preproc.bbreg')
