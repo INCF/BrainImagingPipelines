@@ -107,9 +107,11 @@ def prep_workflow(c, fieldmap):
     preproc.inputs.inputspec.ad_normthresh = c.norm_thresh
     preproc.inputs.inputspec.ad_zthresh = c.z_thresh
     preproc.inputs.inputspec.tr = c.TR
+    preproc.inputs.inputspec.do_slicetime = c.do_slicetiming
     if c.do_slicetiming:
         preproc.inputs.inputspec.sliceorder = c.SliceOrder
-        preproc.inputs.inputspec.interleaved = False # NOTE: This should be removed later
+    else:
+        preproc.inputs.inputspec.sliceorder = None
 
     preproc.inputs.inputspec.compcor_select = c.compcor_select
     if c.highpass_freq < 0:
