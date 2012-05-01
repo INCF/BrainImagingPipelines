@@ -161,7 +161,7 @@ def create_prep(name='preproc'):
                                                       'ad_normthresh',
                                                       'ad_zthresh',
                                                       'tr',
-                                                      'interleaved',
+                                                      'do_slicetime',
                                                       'sliceorder',
                                                       'compcor_select',
                                                       'highpass_sigma',
@@ -188,7 +188,7 @@ def create_prep(name='preproc'):
     #motion_correct = pe.Node(interface=FmriRealign4d(),
     #                            name='realign')
 
-    motion_correct = pe.Node(util.Function(input_names=['node','in_file','tr','interleaved','sliceorder'],
+    motion_correct = pe.Node(util.Function(input_names=['node','in_file','tr','do_slicetime','sliceorder'],
         output_names=['out_file','par_file'],
         function=mod_realign),
         name="mod_realign")
@@ -275,8 +275,8 @@ def create_prep(name='preproc'):
                     ad, 'zintensity_threshold')
     preproc.connect(inputnode, 'tr',
                     motion_correct, 'tr')
-    preproc.connect(inputnode, 'interleaved',
-                    motion_correct, 'interleaved')
+    preproc.connect(inputnode, 'do_slicetime',
+                    motion_correct, 'do_slicetime')
     preproc.connect(inputnode, 'sliceorder',
                     motion_correct, 'sliceorder')
     preproc.connect(inputnode, 'compcor_select',

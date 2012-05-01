@@ -521,7 +521,7 @@ def z_image(image,outliers):
     z_img = [z_img, z_img2]
     return z_img
 
-def mod_realign(node,in_file,tr,interleaved,sliceorder):
+def mod_realign(node,in_file,tr,do_slicetime,sliceorder):
     import nipype.interfaces.fsl as fsl
     import nipype.interfaces.spm as spm
     import nipype.interfaces.nipy as nipy
@@ -532,7 +532,11 @@ def mod_realign(node,in_file,tr,interleaved,sliceorder):
         realign.inputs.in_file = in_file
         realign.inputs.tr = tr
         realign.inputs.interleaved= False
-        realign.inputs.slice_order = sliceorder
+        if do_slicetime:
+            realign.inputs.slice_order = sliceorder
+        else:
+            realign.inputs.time_interp = False
+
         res = realign.run()
         out_file = res.outputs.out_file
         par_file = res.outputs.par_file
@@ -543,19 +547,23 @@ def mod_realign(node,in_file,tr,interleaved,sliceorder):
         out_file = []
         par_file = []
         for file in in_file:
-            slicetime = fsl.SliceTimer()
-            slicetime.inputs.in_file = file
-            custom_order = open(os.path.abspath('FSL_custom_order_file.txt'),'w')
-            for t in sliceorder:
-                custom_order.write('%d\n'%t)
-            custom_order.close()
-            slicetime.inputs.custom_order = os.path.abspath('FSL_custom_order_file.txt') # needs to be 1-based
-            slicetime.inputs.time_repetition = tr
-            res = slicetime.run()
+            if do_slicetime:
+                slicetime = fsl.SliceTimer()
+                slicetime.inputs.in_file = file
+                custom_order = open(os.path.abspath('FSL_custom_order_file.txt'),'w')
+                for t in sliceorder:
+                    custom_order.write('%d\n'%t)
+                custom_order.close()
+                slicetime.inputs.custom_order = os.path.abspath('FSL_custom_order_file.txt') # needs to be 1-based
+                slicetime.inputs.time_repetition = tr
+                res = slicetime.run()
+                file_to_realign = res.outputs.slice_time_corrected_file
+            else:
+                file_to_realign = file
             realign = fsl.MCFLIRT()
             realign.inputs.save_plots = True
             realign.inputs.mean_vol = True
-            realign.inputs.in_file = res.outputs.slice_time_corrected_file
+            realign.inputs.in_file = file_to_realign
             Realign_res = realign.run()
             out_file.append(Realign_res.outputs.out_file)
             par_file.append(Realign_res.outputs.par_file)
@@ -577,19 +585,22 @@ def mod_realign(node,in_file,tr,interleaved,sliceorder):
                 new_in_file.append(f)
             else:
                 new_in_file.append(f)
-
-        img = nib.load(in_file[0])
-        num_slices = img.shape[2]
-        st = spm.SliceTiming()
-        st.inputs.in_files = new_in_file
-        st.inputs.num_slices = num_slices
-        st.inputs.time_repetition = tr
-        st.inputs.time_acquisition = tr - tr/num_slices
-        st.inputs.slice_order = sliceorder #1 based!!
-        st.inputs.ref_slice = 1
-        res_st = st.run()
+        if do_slicetime:
+            img = nib.load(in_file[0])
+            num_slices = img.shape[2]
+            st = spm.SliceTiming()
+            st.inputs.in_files = new_in_file
+            st.inputs.num_slices = num_slices
+            st.inputs.time_repetition = tr
+            st.inputs.time_acquisition = tr - tr/num_slices
+            st.inputs.slice_order = sliceorder #1 based!!
+            st.inputs.ref_slice = 1
+            res_st = st.run()
+            file_to_realign = res_st.outputs.timecorrected_files
+        else:
+            file_to_realign = new_in_file
         realign = spm.Realign()
-        realign.inputs.in_files = res_st.outputs.timecorrected_files
+        realign.inputs.in_files = file_to_realign
         res = realign.run()
         parameters = res.outputs.realignment_parameters
         foo = np.genfromtxt(parameters)
