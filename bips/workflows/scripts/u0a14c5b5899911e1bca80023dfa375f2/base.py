@@ -1,14 +1,13 @@
 import nipype.interfaces.fsl as fsl         # fsl
 import nipype.algorithms.rapidart as ra     # rapid artifact detection
 from nipype.interfaces.fsl.utils import EPIDeWarp
-from nipype.interfaces.nipy.preprocess import FmriRealign4d
 from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
 from nipype.workflows.fmri.fsl import create_susan_smooth
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 
 from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
-                   getmeanscale, highpass_operand, pickfirst)
+                   getmeanscale, highpass_operand, pickfirst, mod_realign)
 
 
 def create_filter_matrix(motion_params, composite_norm,
@@ -170,7 +169,8 @@ def create_prep(name='preproc'):
                                                       'reg_params',
                                                       'FM_TEdiff',
                                                       'FM_Echo_spacing',
-                                                      'FM_sigma']),
+                                                      'FM_sigma',
+                                                      'motion_correct_node']),
                         name='inputspec')
 
     # Separate input node for FWHM
@@ -185,13 +185,21 @@ def create_prep(name='preproc'):
                            name='img2float')
 
     # define the motion correction node
-    motion_correct = pe.Node(interface=FmriRealign4d(),
-                                name='realign')
+    #motion_correct = pe.Node(interface=FmriRealign4d(),
+    #                            name='realign')
+
+    motion_correct = pe.Node(util.Function(input_names=['node','in_file','tr','interleaved','sliceorder'],
+        output_names=['out_file','par_file'],
+        function=mod_realign),
+        name="mod_realign")
+
+    preproc.connect(inputnode,'motion_correct_node',
+                    motion_correct, 'node')
 
     # construct motion plots
-    plot_motion = pe.MapNode(interface=fsl.PlotMotionParams(in_source='fsl'),
-                             name='plot_motion',
-                             iterfield=['in_file'])
+    #plot_motion = pe.MapNode(interface=fsl.PlotMotionParams(in_source='fsl'),
+    #                         name='plot_motion',
+    #                         iterfield=['in_file'])
 
     # rapidArt for artifactual timepoint detection
     ad = pe.Node(ra.ArtifactDetect(),
@@ -248,7 +256,8 @@ def create_prep(name='preproc'):
                         iterfield=['image','outliers'])
 
     # declare some node inputs...
-    plot_motion.iterables = ('plot_type', ['rotations', 'translations'])
+    #plot_motion.iterables = ('plot_type', ['rotations', 'translations'])
+
     ad.inputs.parameter_source = 'FSL'
     meanfunc.inputs.inputspec.parameter_source = 'FSL'
     ad.inputs.mask_type = 'file'
@@ -269,7 +278,7 @@ def create_prep(name='preproc'):
     preproc.connect(inputnode, 'interleaved',
                     motion_correct, 'interleaved')
     preproc.connect(inputnode, 'sliceorder',
-                    motion_correct, 'slice_order')
+                    motion_correct, 'sliceorder')
     preproc.connect(inputnode, 'compcor_select',
                     compcor, 'inputspec.selector')
     preproc.connect(inputnode, 'fssubject_dir',
@@ -278,8 +287,8 @@ def create_prep(name='preproc'):
                     img2float, 'in_file')
     preproc.connect(img2float, 'out_file',
                     motion_correct, 'in_file')
-    preproc.connect(motion_correct, 'par_file', 
-                    plot_motion, 'in_file')
+    #preproc.connect(motion_correct, 'par_file',
+    #                plot_motion, 'in_file')
     preproc.connect(motion_correct, 'out_file', 
                     meanfunc, 'inputspec.realigned_files')
     preproc.connect(motion_correct, 'par_file',
@@ -397,8 +406,8 @@ def create_prep(name='preproc'):
                     outputnode, 'tsnr_detrended')
     preproc.connect(zscore,'z_img',
                     outputnode,'z_img')
-    preproc.connect(plot_motion,'out_file',
-                    outputnode,'motion_plots')
+    #preproc.connect(plot_motion,'out_file',
+    #                outputnode,'motion_plots')
 
                     
 
@@ -425,7 +434,7 @@ def create_prep_fieldmap(name='preproc'):
     outputspec = preproc.get_node('outputspec')
     ad = preproc.get_node('artifactdetect')
     compcor = preproc.get_node('CompCor')
-    motion_correct = preproc.get_node('realign')
+    motion_correct = preproc.get_node('mod_realign')
     smooth = preproc.get_node('smooth_with_susan')
     choosesusan = preproc.get_node('select_smooth')
     meanfunc = preproc.get_node('take_mean_art')
@@ -572,7 +581,7 @@ def create_rest_prep(name='preproc',fieldmap=False):
     medianval = preproc.get_node('compute_median_val')
     ad = preproc.get_node('artifactdetect')
     compcor = preproc.get_node('CompCor')
-    motion_correct = preproc.get_node('realign')
+    motion_correct = preproc.get_node('mod_realign')
     smooth = preproc.get_node('smooth_with_susan')
     highpass = preproc.get_node('highpass')
     outputnode = preproc.get_node('outputspec')

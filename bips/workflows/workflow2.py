@@ -97,6 +97,7 @@ def prep_workflow(c, fieldmap):
                           sinkd, 'preproc.mean')
 
     # inputs
+    preproc.inputs.inputspec.motion_correct_node = c.motion_correct_node
     preproc.inputs.inputspec.num_noise_components = c.num_noise_components
     preproc.crash_dir = c.crash_dir
     modelflow.connect(infosource, 'subject_id', preproc, 'inputspec.fssubject_id')
@@ -135,8 +136,8 @@ def prep_workflow(c, fieldmap):
                       preproc,'inputspec.func')
     modelflow.connect(preproc, 'outputspec.motion_parameters',
                       sinkd, 'preproc.motion')
-    modelflow.connect(preproc, 'plot_motion.out_file',
-                      sinkd, 'preproc.motion.@plots')
+    #modelflow.connect(preproc, 'plot_motion.out_file',
+    #                  sinkd, 'preproc.motion.@plots')
     modelflow.connect(preproc, 'outputspec.mask',
                       sinkd, 'preproc.mask')
     modelflow.connect(preproc, 'outputspec.outlier_files',
@@ -174,7 +175,7 @@ def prep_workflow(c, fieldmap):
 def main(config_file):
     c = load_config(config_file, create_config)
     preprocess = prep_workflow(c, c.use_fieldmap)
-    realign = preprocess.get_node('preproc.realign')
+    realign = preprocess.get_node('preproc.mod_realign')
     #realign.inputs.loops = 2
     realign.inputs.speedup = 5
     realign.plugin_args = c.plugin_args
@@ -224,7 +225,8 @@ def create_view():
                       Item(name='TE_diff',enabled_when="use_fieldmap"),
                       Item(name='sigma',enabled_when="use_fieldmap"),
                       label='Fieldmap',show_border=True),
-                Group(Item(name='TR'),
+                Group(Item(name="motion_correct_node"),
+                      Item(name='TR'),
                       Item(name='do_slicetiming'),
                       Item(name='SliceOrder',editor=CSVListEditor()),
                       label='Motion Correction', show_border=True),

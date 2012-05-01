@@ -26,9 +26,9 @@ class config(HasTraits):
     desc = traits.Str(desc='Workflow description')
     # Directories
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
-    base_dir = Directory(exists=True, desc='Base directory of data. (Should be subject-independent)')
+    base_dir = Directory(mandatory=True, desc='Base directory of data. (Should be subject-independent)')
     sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
-    field_dir = Directory(exists=True, desc="Base directory of field-map data (Should be subject-independent) \
+    field_dir = Directory(desc="Base directory of field-map data (Should be subject-independent) \
                                                  Set this value to None if you don't want fieldmap distortion correction")
     crash_dir = Directory(mandatory=False, desc="Location to store crash files")
     json_sink = Directory(mandatory=False, desc= "Location to store json_files")
@@ -52,7 +52,9 @@ class config(HasTraits):
                                 Freesurfer directory. For simplicity, the subject id's should \
                                 also match with the location of individual functional files.")
     func_template = traits.String('%s/functional.nii.gz')
-    
+    run_datagrabber_without_submitting = traits.Bool(desc="Run the datagrabber without \
+    submitting to the cluster")
+
     # Fieldmap
     
     use_fieldmap = Bool(False, mandatory=False, usedefault=True,
@@ -68,7 +70,10 @@ class config(HasTraits):
 
     do_slicetiming = Bool(True, usedefault=True, desc="Perform slice timing correction")
     SliceOrder = traits.List(traits.Int)
-    TR = traits.Float(mandatory=True, desc = "TR of functional")    
+    TR = traits.Float(mandatory=True, desc = "TR of functional")
+    motion_correct_node = traits.Enum('nipy','fsl','spm',
+                                      desc="motion correction algorithm to use",
+                                      usedefault=True,)
     
     # Artifact Detection
     
@@ -139,7 +144,8 @@ from scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import (get_datasink,
 def get_dataflow(c):
     dataflow = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
                                                    outfields=['func']),
-                         name = "preproc_dataflow")
+                         name = "preproc_dataflow",
+                         run_without_submitting=c.run_datagrabber_without_submitting)
     dataflow.inputs.base_directory = c.base_dir
     dataflow.inputs.template ='*'
     dataflow.inputs.sort_filelist = True
@@ -200,7 +206,8 @@ def prep_workflow(c, fieldmap):
                           sinkd, 'preproc.fieldmap.@unwarped_epi')
     else:
         preproc = create_prep()
-    
+
+    preproc.inputs.inputspec.motion_correct_node = c.motion_correct_node
     preproc.inputs.inputspec.fssubject_dir = c.surf_dir
     preproc.get_node('fwhm_input').iterables = ('fwhm', c.fwhm)
     preproc.inputs.inputspec.highpass = c.hpcutoff/(2*c.TR)
@@ -234,8 +241,8 @@ def prep_workflow(c, fieldmap):
                       sinkd, 'preproc.motion.realigned')
     modelflow.connect(preproc, 'outputspec.mean',
                       sinkd, 'preproc.meanfunc')
-    modelflow.connect(preproc, 'plot_motion.out_file',
-                      sinkd, 'preproc.motion.@plots')
+    #modelflow.connect(preproc, 'plot_motion.out_file',
+    #                  sinkd, 'preproc.motion.@plots')
     modelflow.connect(preproc, 'outputspec.mask',
                       sinkd, 'preproc.mask')
     modelflow.connect(preproc, 'outputspec.outlier_files',
@@ -272,7 +279,7 @@ def prep_workflow(c, fieldmap):
 def main(configfile):
     c = load_config(configfile, create_config)
     preprocess = prep_workflow(c, c.use_fieldmap)
-    realign = preprocess.get_node('preproc.realign')
+    realign = preprocess.get_node('preproc.mod_realign')
     realign.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
     #realign.inputs.loops = 2
     realign.inputs.speedup = 5
@@ -310,6 +317,7 @@ def create_view():
                       Item(name='base_dir', ),
                       Item(name='func_template'),
                       Item(name='check_func_datagrabber'),
+                      Item(name='run_datagrabber_without_submitting'),
                       label='Subjects', show_border=True),
                 Group(Item(name='use_fieldmap'),
                       Item(name='field_dir', enabled_when="use_fieldmap"),
@@ -322,7 +330,8 @@ def create_view():
                       Item(name='TE_diff',enabled_when="use_fieldmap"),
                       Item(name='sigma',enabled_when="use_fieldmap"),
                       label='Fieldmap',show_border=True),
-                Group(Item(name='TR'),
+                Group(Item(name="motion_correct_node"),
+                      Item(name='TR'),
                       Item(name='do_slicetiming'),
                       Item(name='SliceOrder', editor=CSVListEditor()),
                       label='Motion Correction', show_border=True),

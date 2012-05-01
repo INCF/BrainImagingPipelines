@@ -521,6 +521,85 @@ def z_image(image,outliers):
     z_img = [z_img, z_img2]
     return z_img
 
+def mod_realign(node,in_file,tr,interleaved,sliceorder):
+    import nipype.interfaces.fsl as fsl
+    import nipype.interfaces.spm as spm
+    import nipype.interfaces.nipy as nipy
+    import os
+
+    if node=="nipy":
+        realign = nipy.FmriRealign4d()
+        realign.inputs.in_file = in_file
+        realign.inputs.tr = tr
+        realign.inputs.interleaved= False
+        realign.inputs.slice_order = sliceorder
+        res = realign.run()
+        out_file = res.outputs.out_file
+        par_file = res.outputs.par_file
+
+    elif node=="fsl":
+        if not isinstance(in_file,list):
+            in_file = [in_file]
+        out_file = []
+        par_file = []
+        for file in in_file:
+            slicetime = fsl.SliceTimer()
+            slicetime.inputs.in_file = file
+            custom_order = open(os.path.abspath('FSL_custom_order_file.txt'),'w')
+            for t in sliceorder:
+                custom_order.write('%d\n'%t)
+            custom_order.close()
+            slicetime.inputs.custom_order = os.path.abspath('FSL_custom_order_file.txt') # needs to be 1-based
+            slicetime.inputs.time_repetition = tr
+            res = slicetime.run()
+            realign = fsl.MCFLIRT()
+            realign.inputs.save_plots = True
+            realign.inputs.mean_vol = True
+            realign.inputs.in_file = res.outputs.slice_time_corrected_file
+            Realign_res = realign.run()
+            out_file.append(Realign_res.outputs.out_file)
+            par_file.append(Realign_res.outputs.par_file)
+
+    elif node=='spm':
+        import numpy as np
+        import nibabel as nib
+        import nipype.interfaces.freesurfer as fs
+        if not isinstance(in_file,list):
+            in_file = [in_file]
+        new_in_file = []
+        for f in in_file:
+            if f.endswith('.nii.gz'):
+                convert = fs.MRIConvert()
+                convert.inputs.in_file = f
+                convert.inputs.out_type = 'nii'
+                convert.inputs.in_type = 'niigz'
+                f = convert.run().outputs.out_file
+                new_in_file.append(f)
+            else:
+                new_in_file.append(f)
+
+        img = nib.load(in_file[0])
+        num_slices = img.shape[2]
+        st = spm.SliceTiming()
+        st.inputs.in_files = new_in_file
+        st.inputs.num_slices = num_slices
+        st.inputs.time_repetition = tr
+        st.inputs.time_acquisition = tr - tr/num_slices
+        st.inputs.slice_order = sliceorder #1 based!!
+        st.inputs.ref_slice = 1
+        res_st = st.run()
+        realign = spm.Realign()
+        realign.inputs.in_files = res_st.outputs.timecorrected_files
+        res = realign.run()
+        parameters = res.outputs.realignment_parameters
+        foo = np.genfromtxt(parameters)
+        boo = np.hstack((foo[:,3:],foo[:,:3]))
+        np.savetxt(os.path.abspath('realignment_parameters.txt'),boo,delimiter='\t')
+        out_file = res.outputs.realigned_files
+        par_file = os.path.abspath('realignment_parameters.txt')
+
+    return out_file, par_file
+
 
 tolist = lambda x: [x]
 highpass_operand = lambda x: '-bptf %.10f -1' % x
