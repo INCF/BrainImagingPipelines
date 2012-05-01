@@ -2,7 +2,7 @@ import nipype.interfaces.fsl as fsl         # fsl
 import nipype.algorithms.rapidart as ra     # rapid artifact detection
 from nipype.interfaces.fsl.utils import EPIDeWarp
 from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
-from nipype.workflows.fmri.fsl import create_susan_smooth
+from .utils import create_mod_smooth
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 
@@ -170,7 +170,8 @@ def create_prep(name='preproc'):
                                                       'FM_TEdiff',
                                                       'FM_Echo_spacing',
                                                       'FM_sigma',
-                                                      'motion_correct_node']),
+                                                      'motion_correct_node',
+                                                      'smooth_type']),
                         name='inputspec')
 
     # Separate input node for FWHM
@@ -214,9 +215,9 @@ def create_prep(name='preproc'):
     # create a SUSAN smoothing workflow, and smooth each run with
     # 75% of the median value for each run as the brightness
     # threshold.
-    smooth = create_susan_smooth(name="smooth_with_susan",
+    smooth = create_mod_smooth(name="modular_smooth",
                                  separate_masks=False)
-
+    preproc.connect(inputnode,'smooth_type', smooth,'inputnode.smooth_type')
     # choose susan function
     """
     The following node selects smooth or unsmoothed data
@@ -435,7 +436,7 @@ def create_prep_fieldmap(name='preproc'):
     ad = preproc.get_node('artifactdetect')
     compcor = preproc.get_node('CompCor')
     motion_correct = preproc.get_node('mod_realign')
-    smooth = preproc.get_node('smooth_with_susan')
+    smooth = preproc.get_node('modular_smooth')
     choosesusan = preproc.get_node('select_smooth')
     meanfunc = preproc.get_node('take_mean_art')
     getmask = preproc.get_node('getmask')
@@ -582,7 +583,7 @@ def create_rest_prep(name='preproc',fieldmap=False):
     ad = preproc.get_node('artifactdetect')
     compcor = preproc.get_node('CompCor')
     motion_correct = preproc.get_node('mod_realign')
-    smooth = preproc.get_node('smooth_with_susan')
+    smooth = preproc.get_node('modular_smooth')
     highpass = preproc.get_node('highpass')
     outputnode = preproc.get_node('outputspec')
     choosesusan = preproc.get_node('select_smooth')

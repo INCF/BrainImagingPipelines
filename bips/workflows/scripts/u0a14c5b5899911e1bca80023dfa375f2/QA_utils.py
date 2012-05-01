@@ -349,10 +349,12 @@ def plot_ribbon(Brain):
             z_view = os.path.abspath('z_view.png')
             
             pl.savefig(x_view,bbox_inches='tight')
-            
+            pl.close()
+
             viz.plot_anat(anat=data, anat_affine=affine, draw_cross=False, slicer='y', cmap=viz.cm.black_green)
             pl.savefig(y_view,bbox_inches='tight')
-            
+            pl.close()
+
             viz.plot_anat(anat=data, anat_affine=affine, draw_cross=False, slicer='z', cmap=viz.cm.black_green)
             pl.savefig(z_view,bbox_inches='tight')
             
@@ -431,7 +433,7 @@ def overlay_dB(stat_image,background_image,threshold,dB):
                          orientation='horizontal', format=formatter)
     cb.set_ticks([cb._values.min(), cb._values.max()])
     pl.savefig(fnames[2],bbox_inches='tight')
-    
+    pl.close()
     return fnames
 
 
@@ -479,7 +481,7 @@ def overlay_new(stat_image,background_image,threshold):
                          orientation='horizontal', format=formatter)
     cb.set_ticks([cb._values.min(), cb._values.max()])
     pl.savefig(fnames[2],bbox_inches='tight')
-    
+    pl.close()
     return fnames
 
 def corr_image(resting_image,fwhm):

@@ -84,7 +84,9 @@ class config(HasTraits):
     fwhm = traits.List([0, 5], traits.Float(), mandatory=True, usedefault=True,
                        desc="Full width at half max. The data will be smoothed at all values \
                              specified in this list.")
-                             
+    smooth_type = traits.Enum("Susan","Isotropic Smooth",
+        usedefault=True, desc="Type of smoothing to use")
+
     # CompCor
     compcor_select = traits.BaseTuple(traits.Bool, traits.Bool, mandatory=True,
                                   desc="The first value in the list corresponds to applying \
@@ -208,6 +210,7 @@ def prep_workflow(c, fieldmap):
         preproc = create_prep()
 
     preproc.inputs.inputspec.motion_correct_node = c.motion_correct_node
+    preproc.inputs.inputspec.smooth_type = c.smooth_type
     preproc.inputs.inputspec.fssubject_dir = c.surf_dir
     preproc.get_node('fwhm_input').iterables = ('fwhm', c.fwhm)
     preproc.inputs.inputspec.highpass = c.hpcutoff/(2*c.TR)
@@ -343,7 +346,8 @@ def create_view():
                 Group(Item(name='compcor_select'),
                       Item(name='num_noise_components'),
                       label='CompCor',show_border=True),
-                Group(Item(name='fwhm', editor=CSVListEditor()),
+                Group(Item(name="smooth_type"),
+                      Item(name='fwhm', editor=CSVListEditor()),
                       label='Smoothing',show_border=True),
                 Group(Item(name='hpcutoff'),
                       label='Highpass Filter',show_border=True),
