@@ -537,6 +537,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder):
             realign.inputs.slice_order = sliceorder
         else:
             realign.inputs.time_interp = False
+            realign.inputs.slice_order = [0]
 
         res = realign.run()
         out_file = res.outputs.out_file
@@ -560,7 +561,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder):
                 slicetime.inputs.in_file = file
                 custom_order = open(os.path.abspath('FSL_custom_order_file.txt'),'w')
                 for t in sliceorder:
-                    custom_order.write('%d\n'%t)
+                    custom_order.write('%d\n'%(t+1))
                 custom_order.close()
                 slicetime.inputs.custom_order = os.path.abspath('FSL_custom_order_file.txt') # needs to be 1-based
                 slicetime.inputs.time_repetition = tr
@@ -601,7 +602,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder):
             st.inputs.num_slices = num_slices
             st.inputs.time_repetition = tr
             st.inputs.time_acquisition = tr - tr/num_slices
-            st.inputs.slice_order = sliceorder #1 based!!
+            st.inputs.slice_order = np.int_(np.asarray(sliceorder) + np.ones(len(sliceorder))).tolist()
             st.inputs.ref_slice = 1
             res_st = st.run()
             file_to_realign = res_st.outputs.timecorrected_files
