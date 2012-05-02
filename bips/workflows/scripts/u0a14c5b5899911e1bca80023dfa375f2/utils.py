@@ -599,6 +599,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder):
             num_slices = img.shape[2]
             st = spm.SliceTiming()
             st.inputs.in_files = new_in_file
+            print new_in_file
             st.inputs.num_slices = num_slices
             st.inputs.time_repetition = tr
             st.inputs.time_acquisition = tr - tr/num_slices
@@ -613,6 +614,8 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder):
         realign.inputs.in_files = file_to_realign
         res = realign.run()
         parameters = res.outputs.realignment_parameters
+        if not isinstance(parameters,list):
+            parameters = [parameters]
         for i, p in enumerate(parameters):
             foo = np.genfromtxt(p)
             boo = np.hstack((foo[:,3:],foo[:,:3]))
