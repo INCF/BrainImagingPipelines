@@ -71,7 +71,7 @@ class config(HasTraits):
     do_slicetiming = Bool(True, usedefault=True, desc="Perform slice timing correction")
     SliceOrder = traits.List(traits.Int)
     TR = traits.Float(mandatory=True, desc = "TR of functional")
-    motion_correct_node = traits.Enum('nipy','fsl','spm',
+    motion_correct_node = traits.Enum('nipy','fsl','spm','afni',
                                       desc="motion correction algorithm to use",
                                       usedefault=True,)
     

@@ -30,13 +30,14 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder):
         out_file = []
         par_file = []
         # get the first volume of first run as ref file
-        extract = fsl.ExtractROI()
-        extract.inputs.t_min = 0
-        extract.inputs.t_size=1
-        extract.inputs.in_file = in_file[0]
-        ref_vol = extract.run().outputs.roi_file
+        if not do_slicetime:
+            extract = fsl.ExtractROI()
+            extract.inputs.t_min = 0
+            extract.inputs.t_size=1
+            extract.inputs.in_file = in_file[0]
+            ref_vol = extract.run().outputs.roi_file
 
-        for file in in_file:
+        for idx, file in enumerate(in_file):
             if do_slicetime:
                 slicetime = fsl.SliceTimer()
                 slicetime.inputs.in_file = file
@@ -48,6 +49,12 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder):
                 slicetime.inputs.time_repetition = tr
                 res = slicetime.run()
                 file_to_realign = res.outputs.slice_time_corrected_file
+                if not idx:
+                    extract = fsl.ExtractROI()
+                    extract.inputs.t_min = 0
+                    extract.inputs.t_size=1
+                    extract.inputs.in_file = file_to_realign
+                    ref_vol = extract.run().outputs.roi_file
             else:
                 file_to_realign = file
             realign = fsl.MCFLIRT(interpolation='spline', ref_file=ref_vol)
@@ -100,9 +107,78 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder):
         for i, p in enumerate(parameters):
             foo = np.genfromtxt(p)
             boo = np.hstack((foo[:,3:],foo[:,:3]))
-            np.savetxt(os.path.abspath('realignment_parameters_%d.txt'%i),boo,delimiter='\t')
-            par_file.append(os.path.abspath('realignment_parameters_%d.txt'%i))
+            np.savetxt(os.path.abspath('realignment_parameters_%d.par'%i),boo,delimiter='\t')
+            par_file.append(os.path.abspath('realignment_parameters_%d.par'%i))
         out_file = res.outputs.realigned_files
+
+    elif node == 'afni':
+        import nipype.interfaces.afni as afni
+        import nibabel as nib
+        import numpy as np
+        if not isinstance(in_file,list):
+            in_file = [in_file]
+        img = nib.load(in_file[0])
+        Nz = img.shape[2]
+        out_file = []
+        par_file = []
+        # get the first volume of first run as ref file
+        if not do_slicetime:
+            extract = fsl.ExtractROI()
+            extract.inputs.t_min = 0
+            extract.inputs.t_size=1
+            extract.inputs.in_file = in_file[0]
+            ref_vol = extract.run().outputs.roi_file
+
+        for idx, file in enumerate(in_file):
+            if do_slicetime:
+                slicetime = afni.TShift()
+                slicetime.inputs.in_file = file
+                custom_order = open(os.path.abspath('afni_custom_order_file.txt'),'w')
+                tpattern = []
+                for i in xrange(len(sliceorder)):
+                    tpattern.append((i*tr/float(Nz), sliceorder[i]))
+                tpattern.sort(key=lambda x:x[1])
+                for i,t in enumerate(tpattern):
+                    print '%f\n'%(t[0])
+                    custom_order.write('%f\n'%(t[0]))
+                custom_order.close()
+
+                slicetime.inputs.args ='-tpattern @%s' % os.path.abspath('afni_custom_order_file.txt')
+                slicetime.inputs.tr = str(tr)+'s'
+                slicetime.inputs.outputtype = 'NIFTI_GZ'
+                res = slicetime.run()
+                file_to_realign = res.outputs.out_file
+
+                if not idx:
+                    extract = fsl.ExtractROI()
+                    extract.inputs.t_min = 0
+                    extract.inputs.t_size=1
+                    extract.inputs.in_file = file_to_realign
+                    ref_vol = extract.run().outputs.roi_file
+
+            else:
+                file_to_realign = file
+
+            realign = afni.Volreg()
+            realign.inputs.in_file = file_to_realign
+            realign.inputs.out_file = "afni_corr_"+os.path.split(file_to_realign)[1]
+            realign.inputs.oned_file = "afni_realignment_parameters.par"
+            realign.inputs.basefile = ref_vol
+            Realign_res = realign.run()
+            out_file.append(Realign_res.outputs.out_file)
+
+            parameters = Realign_res.outputs.oned_file
+            if not isinstance(parameters,list):
+                parameters = [parameters]
+            for i, p in enumerate(parameters):
+                foo = np.genfromtxt(p)
+                boo = foo[:,[1,2,0,4,5,3]]
+                boo[:,:3] = boo[:,:3]*np.pi/180
+                np.savetxt(os.path.abspath('realignment_parameters_%d.par'%i),boo,delimiter='\t')
+                par_file.append(os.path.abspath('realignment_parameters_%d.par'%i))
+
+            #par_file.append(Realign_res.outputs.oned_file)
+
 
     return out_file, par_file
 
