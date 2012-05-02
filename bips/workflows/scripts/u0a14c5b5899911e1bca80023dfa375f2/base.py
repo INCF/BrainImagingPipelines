@@ -2,12 +2,12 @@ import nipype.interfaces.fsl as fsl         # fsl
 import nipype.algorithms.rapidart as ra     # rapid artifact detection
 from nipype.interfaces.fsl.utils import EPIDeWarp
 from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
-from .utils import create_mod_smooth
+from .modular_nodes import create_mod_smooth, mod_realign
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 
 from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
-                   getmeanscale, highpass_operand, pickfirst, mod_realign)
+                   getmeanscale, highpass_operand, pickfirst)
 
 
 def create_filter_matrix(motion_params, composite_norm,
