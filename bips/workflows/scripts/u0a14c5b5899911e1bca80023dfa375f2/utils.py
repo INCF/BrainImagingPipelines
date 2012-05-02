@@ -603,7 +603,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder):
             st.inputs.num_slices = num_slices
             st.inputs.time_repetition = tr
             st.inputs.time_acquisition = tr - tr/num_slices
-            st.inputs.slice_order = np.int_(np.asarray(sliceorder) + np.ones(len(sliceorder))).tolist()
+            st.inputs.slice_order = (np.asarray(sliceorder) + 1).astype(int).tolist()
             st.inputs.ref_slice = 1
             res_st = st.run()
             file_to_realign = res_st.outputs.timecorrected_files
