@@ -99,6 +99,7 @@ def prep_workflow(c, fieldmap):
     # inputs
     preproc.inputs.inputspec.motion_correct_node = c.motion_correct_node
     preproc.inputs.inputspec.smooth_type = c.smooth_type
+    preproc.inputs.inputspec.surface_fwhm = c.surface_fwhm
     preproc.inputs.inputspec.num_noise_components = c.num_noise_components
     preproc.crash_dir = c.crash_dir
     modelflow.connect(infosource, 'subject_id', preproc, 'inputspec.fssubject_id')
@@ -243,6 +244,7 @@ def create_view():
                       label='Nuisance Filtering',show_border=True),
                 Group(Item(name='smooth_type'),
                       Item(name='fwhm', editor=CSVListEditor()),
+                      Item(name='surface_fwhm'),
                       label='Smoothing',show_border=True),
                 Group(Item(name='highpass_freq'),
                       Item(name='lowpass_freq'),

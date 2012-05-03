@@ -84,8 +84,10 @@ class config(HasTraits):
     fwhm = traits.List([0, 5], traits.Float(), mandatory=True, usedefault=True,
                        desc="Full width at half max. The data will be smoothed at all values \
                              specified in this list.")
-    smooth_type = traits.Enum("Susan","Isotropic Smooth",
+    smooth_type = traits.Enum("susan","isotropic",'freesurfer',
         usedefault=True, desc="Type of smoothing to use")
+    surface_fwhm = traits.Float(0.0, desc='surface smoothing kernel, if freesurfer is selected',
+        usedefault=True)
 
     # CompCor
     compcor_select = traits.BaseTuple(traits.Bool, traits.Bool, mandatory=True,
@@ -211,6 +213,7 @@ def prep_workflow(c, fieldmap):
 
     preproc.inputs.inputspec.motion_correct_node = c.motion_correct_node
     preproc.inputs.inputspec.smooth_type = c.smooth_type
+    preproc.inputs.inputspec.surface_fwhm = c.surface_fwhm
     preproc.inputs.inputspec.fssubject_dir = c.surf_dir
     preproc.get_node('fwhm_input').iterables = ('fwhm', c.fwhm)
     preproc.inputs.inputspec.highpass = c.hpcutoff/(2*c.TR)
@@ -348,6 +351,7 @@ def create_view():
                       label='CompCor',show_border=True),
                 Group(Item(name="smooth_type"),
                       Item(name='fwhm', editor=CSVListEditor()),
+                      Item(name='surface_fwhm'),
                       label='Smoothing',show_border=True),
                 Group(Item(name='hpcutoff'),
                       label='Highpass Filter',show_border=True),

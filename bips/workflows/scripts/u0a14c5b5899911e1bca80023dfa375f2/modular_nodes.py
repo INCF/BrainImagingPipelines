@@ -182,8 +182,10 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder):
 
     return out_file, par_file
 
-def mod_smooth(in_file,brightness_threshold,usans,fwhm,smooth_type):
+def mod_smooth(in_file,brightness_threshold,usans,fwhm,
+               smooth_type, reg_file, surface_fwhm, subjects_dir):
     import nipype.interfaces.fsl as fsl
+    import nipype.interfaces.freesurfer as fs
     if smooth_type == 'susan':
         smooth = fsl.SUSAN()
         smooth.inputs.fwhm = fwhm
@@ -192,12 +194,22 @@ def mod_smooth(in_file,brightness_threshold,usans,fwhm,smooth_type):
         smooth.inputs.in_file = in_file
         res = smooth.run()
         smoothed_file = res.outputs.smoothed_file
-    else:
+    elif smooth_type=='isotropic':
         smooth = fsl.IsotropicSmooth()
         smooth.inputs.in_file = in_file
         smooth.inputs.fwhm = fwhm
         res = smooth.run()
         smoothed_file = res.outputs.out_file
+    elif smooth_type == 'freesurfer':
+        smooth = fs.Smooth()
+        smooth.inputs.reg_file = reg_file
+        smooth.inputs.in_file = in_file
+        smooth.inputs.surface_fwhm = surface_fwhm
+        smooth.inputs.vol_fwhm = fwhm
+        smooth.inputs.proj_frac_avg = (0.0,1.0,0.1)
+        smooth.inputs.subjects_dir = subjects_dir
+        res = smooth.run()
+        smoothed_file = res.outputs.smoothed_file
     return smoothed_file
 
 def getbtthresh(medianvals):
@@ -248,7 +260,10 @@ Set up a node to define all inputs required for the preprocessing workflow
     inputnode = pe.Node(interface=util.IdentityInterface(fields=['in_files',
                                                                  'fwhm',
                                                                  'mask_file',
-                                                                 'smooth_type']),
+                                                                 'smooth_type',
+                                                                 'reg_file',
+                                                                 'surface_fwhm',
+                                                                 'surf_dir']),
         name='inputnode')
 
     """
@@ -265,13 +280,18 @@ functional
                                                    'brightness_threshold',
                                                    'usans',
                                                    'fwhm',
-                                                   'smooth_type'],
+                                                   'smooth_type',
+                                                   'reg_file',
+                                                   'surface_fwhm',
+                                                   'subjects_dir'],
         output_names=['smoothed_file'],
         function=mod_smooth),
         name='mod_smooth',
         iterfield=['in_file', 'brightness_threshold','usans'])
     susan_smooth.connect(inputnode, 'smooth_type', smooth, 'smooth_type')
-
+    susan_smooth.connect(inputnode,'reg_file',smooth, 'reg_file')
+    susan_smooth.connect(inputnode,'surface_fwhm', smooth,'surface_fwhm')
+    susan_smooth.connect(inputnode,'surf_dir', smooth, 'subjects_dir')
     """
 Determine the median value of the functional runs using the mask
 """

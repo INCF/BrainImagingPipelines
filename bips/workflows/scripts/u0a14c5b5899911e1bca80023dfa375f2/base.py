@@ -171,7 +171,8 @@ def create_prep(name='preproc'):
                                                       'FM_Echo_spacing',
                                                       'FM_sigma',
                                                       'motion_correct_node',
-                                                      'smooth_type']),
+                                                      'smooth_type',
+                                                      'surface_fwhm']),
                         name='inputspec')
 
     # Separate input node for FWHM
@@ -320,6 +321,12 @@ def create_prep(name='preproc'):
                     smooth, 'inputnode.in_files')
     preproc.connect(getmask, ('outputspec.mask_file',pickfirst),
                     smooth, 'inputnode.mask_file')
+    preproc.connect(getmask, ('outputspec.reg_file', pickfirst),
+                    smooth, 'inputnode.reg_file')
+    preproc.connect(inputnode,'surface_fwhm',
+                    smooth, 'inputnode.surface_fwhm')
+    preproc.connect(inputnode, 'fssubject_dir',
+                    smooth, 'inputnode.surf_dir')
     preproc.connect(smooth, 'outputnode.smoothed_files',
                     choosesusan, 'smoothed_files')
     preproc.connect(motion_correct, 'out_file',
