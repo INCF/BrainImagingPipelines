@@ -61,6 +61,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder):
             realign.inputs.save_plots = True
             realign.inputs.mean_vol = True
             realign.inputs.in_file = file_to_realign
+            realign.inputs.out_file = 'fsl_corr_'+os.path.split(file_to_realign)[1]
             Realign_res = realign.run()
             out_file.append(Realign_res.outputs.out_file)
             par_file.append(Realign_res.outputs.par_file)
@@ -100,6 +101,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder):
         par_file = []
         realign = spm.Realign()
         realign.inputs.in_files = file_to_realign
+        realign.inputs.out_prefix = 'spm_corr_'
         res = realign.run()
         parameters = res.outputs.realignment_parameters
         if not isinstance(parameters,list):
@@ -358,3 +360,42 @@ Define a function to get the brightness threshold for SUSAN
     susan_smooth.connect(smooth, 'smoothed_file', outputnode, 'smoothed_files')
 
     return susan_smooth
+
+def mod_filter(in_file,algorithm,lowpass_freq, highpass_freq,tr):
+    import os
+    from nipype.utils.filemanip import split_filename
+    if algorithm == 'fsl':
+        import nipype.interfaces.fsl as fsl
+        filter = fsl.TemporalFilter()
+        filter.inputs.in_file = in_file
+        if highpass_freq < 0:
+            filter.inputs.highpass_sigma = -1
+        else:
+            filter.inputs.highpass_sigma = 1/(2*tr*highpass_freq)
+        if lowpass_freq < 0:
+            filter.inputs.lowpass_sigma = -1
+        else:
+            filter.inputs.lowpass_sigma = 1/(2*tr*lowpass_freq)
+
+        res = filter.run()
+        out_file = res.outputs.out_file
+
+    else:
+        import nitime.fmri.io as io
+        from nitime.analysis import FilterAnalyzer
+        import nibabel as nib
+        import numpy as np
+
+        T = io.time_series_from_file(in_file)
+        F = FilterAnalyzer(T,ub=highpass_freq,lb=lowpass_freq)
+        print "going to filter data ..."
+        if algorithm == 'IIR':
+            Filtered_data = F.iir.data[0]
+            print "Filtered!"
+        elif algorithm == 'FIR':
+            Filtered_data = F.fir.data[0]
+        out_file = os.path.abspath(split_filename(in_file)[1]+"_iir_filt"+split_filename(in_file)[2])
+        out_img = nib.Nifti1Image(Filtered_data,nib.load(in_file).get_affine())
+        out_img.to_filename(out_file)
+
+    return out_file

@@ -2,7 +2,7 @@ import nipype.interfaces.fsl as fsl         # fsl
 import nipype.algorithms.rapidart as ra     # rapid artifact detection
 from nipype.interfaces.fsl.utils import EPIDeWarp
 from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
-from .modular_nodes import create_mod_smooth, mod_realign
+from .modular_nodes import create_mod_smooth, mod_realign, mod_filter
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 
@@ -164,15 +164,16 @@ def create_prep(name='preproc'):
                                                       'do_slicetime',
                                                       'sliceorder',
                                                       'compcor_select',
-                                                      'highpass_sigma',
-                                                      'lowpass_sigma',
+                                                      'highpass_freq',
+                                                      'lowpass_freq',
                                                       'reg_params',
                                                       'FM_TEdiff',
                                                       'FM_Echo_spacing',
                                                       'FM_sigma',
                                                       'motion_correct_node',
                                                       'smooth_type',
-                                                      'surface_fwhm']),
+                                                      'surface_fwhm',
+                                                      'filter_type']),
                         name='inputspec')
 
     # Separate input node for FWHM
@@ -579,9 +580,18 @@ def create_rest_prep(name='preproc',fieldmap=False):
                        iterfield=['design_file','in_file'])
 
     # bandpass filter
-    bandpass_filter = pe.MapNode(fsl.TemporalFilter(),
-                              name='bandpass_filter',
-                              iterfield=['in_file'])
+    #bandpass_filter = pe.MapNode(fsl.TemporalFilter(),
+    #                          name='bandpass_filter',
+    #                          iterfield=['in_file'])
+
+    bandpass_filter = pe.MapNode(util.Function(input_names=['in_file',
+                                                            'algorithm',
+                                                            'lowpass_freq',
+                                                            'highpass_freq',
+                                                            'tr'],
+                                output_names=['out_file'],
+                                function=mod_filter),
+                      name='bandpass_filter',iterfield=['in_file'])
 
     # Get old nodes
     inputnode = preproc.get_node('inputspec')
@@ -617,6 +627,10 @@ def create_rest_prep(name='preproc',fieldmap=False):
     preproc.remove_nodes([highpass])
 
     # connect nodes
+    preproc.connect(inputnode,'tr',
+        bandpass_filter,'tr')
+    preproc.connect(inputnode,'filter_type',
+        bandpass_filter,'algorithm')
     preproc.connect(ad, 'outlier_files',
                     addoutliers, 'art_outliers')
     preproc.connect(ad, 'norm_files',
@@ -643,10 +657,10 @@ def create_rest_prep(name='preproc',fieldmap=False):
                     medianval, 'in_file')
     preproc.connect(meanscale, 'out_file',
                     outputnode, 'scaled_files')
-    preproc.connect(inputnode, 'highpass_sigma',
-                    bandpass_filter, 'highpass_sigma')
-    preproc.connect(inputnode, 'lowpass_sigma',
-                    bandpass_filter, 'lowpass_sigma')
+    preproc.connect(inputnode, 'highpass_freq',
+                    bandpass_filter, 'highpass_freq')
+    preproc.connect(inputnode, 'lowpass_freq',
+                    bandpass_filter, 'lowpass_freq')
     preproc.connect(bandpass_filter, 'out_file',
                     zscore, 'image')
     preproc.connect(inputnode, 'reg_params',

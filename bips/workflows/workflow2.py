@@ -25,6 +25,7 @@ from workflow1 import get_dataflow
 class config(baseconfig):
     highpass_freq = traits.Float()
     lowpass_freq = traits.Float()
+    filtering_algorithm = traits.Enum("fsl","IIR","FIR")
     reg_params = traits.BaseTuple(traits.Bool, traits.Bool, traits.Bool,
                                   traits.Bool, traits.Bool)
 
@@ -116,14 +117,11 @@ def prep_workflow(c, fieldmap):
         preproc.inputs.inputspec.sliceorder = None
 
     preproc.inputs.inputspec.compcor_select = c.compcor_select
-    if c.highpass_freq < 0:
-        preproc.inputs.inputspec.highpass_sigma = -1
-    else:
-        preproc.inputs.inputspec.highpass_sigma = 1/(2*c.TR*c.highpass_freq)
-    if c.lowpass_freq < 0:
-        preproc.inputs.inputspec.lowpass_sigma = -1
-    else:
-        preproc.inputs.inputspec.lowpass_sigma = 1/(2*c.TR*c.lowpass_freq)
+
+    preproc.inputs.inputspec.filter_type = c.filtering_algorithm
+    preproc.inputs.inputspec.highpass_freq = c.highpass_freq
+    preproc.inputs.inputspec.lowpass_freq = c.lowpass_freq
+
     preproc.inputs.inputspec.reg_params = c.reg_params
 
     
@@ -248,6 +246,7 @@ def create_view():
                       label='Smoothing',show_border=True),
                 Group(Item(name='highpass_freq'),
                       Item(name='lowpass_freq'),
+                      Item(name='filtering_algorithm'),
                       label='Bandpass Filter',show_border=True),
                 Group(Item(name='use_advanced_options'),
                     Item(name='advanced_script',enabled_when='use_advanced_options'),
