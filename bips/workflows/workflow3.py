@@ -101,6 +101,7 @@ def start_config_table(c):
         table.append(['TE difference',str(c.TE_diff)])
     table.append(['Art: norm thresh',str(c.norm_thresh)])
     table.append(['Art: z thresh',str(c.z_thresh)])
+    table.append(['Smoothing Algorithm',c.smooth_type])
     table.append(['fwhm',str(c.fwhm)])
     try:
         table.append(['Highpass cutoff',str(c.hpcutoff)])

@@ -54,6 +54,7 @@ class config(HasTraits):
     func_template = traits.String('%s/functional.nii.gz')
     run_datagrabber_without_submitting = traits.Bool(desc="Run the datagrabber without \
     submitting to the cluster")
+    timepoints_to_remove = traits.Int(0,usedefault=True)
 
     # Fieldmap
     
@@ -212,6 +213,7 @@ def prep_workflow(c, fieldmap):
         preproc = create_prep()
 
     preproc.inputs.inputspec.motion_correct_node = c.motion_correct_node
+    preproc.inputs.inputspec.timepoints_to_remove = c.timepoints_to_remove
     preproc.inputs.inputspec.smooth_type = c.smooth_type
     preproc.inputs.inputspec.surface_fwhm = c.surface_fwhm
     preproc.inputs.inputspec.fssubject_dir = c.surf_dir
@@ -322,10 +324,11 @@ def create_view():
                       Item(name='test_mode'),
                       label='Execution Options', show_border=True),
                 Group(Item(name='subjects', editor=CSVListEditor()),
-                      Item(name='base_dir', ),
+                      Item(name='base_dir'),
                       Item(name='func_template'),
                       Item(name='check_func_datagrabber'),
                       Item(name='run_datagrabber_without_submitting'),
+                      Item(name='timepoints_to_remove'),
                       label='Subjects', show_border=True),
                 Group(Item(name='use_fieldmap'),
                       Item(name='field_dir', enabled_when="use_fieldmap"),

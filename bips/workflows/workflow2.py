@@ -99,6 +99,7 @@ def prep_workflow(c, fieldmap):
 
     # inputs
     preproc.inputs.inputspec.motion_correct_node = c.motion_correct_node
+    preproc.inputs.inputspec.timepoints_to_remove = c.timepoints_to_remove
     preproc.inputs.inputspec.smooth_type = c.smooth_type
     preproc.inputs.inputspec.surface_fwhm = c.surface_fwhm
     preproc.inputs.inputspec.num_noise_components = c.num_noise_components
@@ -215,6 +216,8 @@ def create_view():
                       Item(name='base_dir', ),
                       Item(name='func_template'),
                       Item(name='check_func_datagrabber'),
+                      Item(name='run_datagrabber_without_submitting'),
+                      Item(name='timepoints_to_remove'),
                       label='Subjects', show_border=True),
                 Group(Item(name='use_fieldmap'),
                       Item(name='field_dir', enabled_when="use_fieldmap"),

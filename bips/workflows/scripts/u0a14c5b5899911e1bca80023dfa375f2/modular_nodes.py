@@ -101,7 +101,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder):
         par_file = []
         realign = spm.Realign()
         realign.inputs.in_files = file_to_realign
-        realign.inputs.out_prefix = 'spm_corr_'
+        #realign.inputs.out_prefix = 'spm_corr_'
         res = realign.run()
         parameters = res.outputs.realignment_parameters
         if not isinstance(parameters,list):
@@ -387,14 +387,17 @@ def mod_filter(in_file,algorithm,lowpass_freq, highpass_freq,tr):
         import numpy as np
 
         T = io.time_series_from_file(in_file)
-        F = FilterAnalyzer(T,ub=highpass_freq,lb=lowpass_freq)
+        F = FilterAnalyzer(T,ub=lowpass_freq,lb=highpass_freq,filt_order=5)
+
         print "going to filter data ..."
         if algorithm == 'IIR':
-            Filtered_data = F.iir.data[0]
+            Filtered_data = F.iir.data
             print "Filtered!"
         elif algorithm == 'FIR':
-            Filtered_data = F.fir.data[0]
+            Filtered_data = F.fir.data
+
         out_file = os.path.abspath(split_filename(in_file)[1]+"_iir_filt"+split_filename(in_file)[2])
+        
         out_img = nib.Nifti1Image(Filtered_data,nib.load(in_file).get_affine())
         out_img.to_filename(out_file)
 

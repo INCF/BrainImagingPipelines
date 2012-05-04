@@ -173,12 +173,18 @@ def create_prep(name='preproc'):
                                                       'motion_correct_node',
                                                       'smooth_type',
                                                       'surface_fwhm',
-                                                      'filter_type']),
+                                                      'filter_type',
+                                                      'timepoints_to_remove']),
                         name='inputspec')
 
     # Separate input node for FWHM
     inputnode_fwhm = pe.Node(util.IdentityInterface(fields=['fwhm']),
                              name='fwhm_input')
+
+    # strip ids
+    strip_rois = pe.MapNode(fsl.ExtractROI(),name='extractroi',iterfield='in_file')
+    strip_rois.inputs.t_size = -1
+    preproc.connect(inputnode,'timepoints_to_remove',strip_rois,'t_min')
 
     # convert BOLD images to float
     img2float = pe.MapNode(interface=fsl.ImageMaths(out_data_type='float',
@@ -286,8 +292,12 @@ def create_prep(name='preproc'):
                     compcor, 'inputspec.selector')
     preproc.connect(inputnode, 'fssubject_dir',
                     getmask, 'inputspec.subjects_dir')
-    preproc.connect(inputnode, 'func',
-                    img2float, 'in_file')
+
+    #preproc.connect(inputnode, 'func',
+    #                img2float, 'in_file')
+    preproc.connect(inputnode, 'func', strip_rois, 'in_file')
+    preproc.connect(strip_rois, 'roi_file', img2float, 'in_file')
+
     preproc.connect(img2float, 'out_file',
                     motion_correct, 'in_file')
     #preproc.connect(motion_correct, 'par_file',

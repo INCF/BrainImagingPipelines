@@ -34,7 +34,8 @@ class ReportSinkInputSpec(DynamicTraitedSpec, BaseInterfaceInputSpec):
                                   desc='remove dest directory when copying dirs')
     report_name = traits.Str('Report',usedefault=True, desc='Name of report')
     json_sink = Directory(desc="place to store json in addition to base_directory")
-    
+    parameterization = traits.Bool(True, usedefault=True)
+    strip_dir = Directory()
     def __setattr__(self, key, value):
         if key not in self.copyable_trait_names():
             if not isdefined(value):
@@ -101,6 +102,32 @@ Indicates the input fields to be dynamically created
             
         self.inputs.trait_set(trait_change_notify=False, **undefined_traits)
 
+    def _get_dst(self, src):
+        path, fname = os.path.split(src)
+        if self.inputs.parameterization:
+            dst = path
+            if isdefined(self.inputs.strip_dir):
+                dst = dst.replace(self.inputs.strip_dir, '')
+
+            if not isdefined(self.inputs.container):
+                folders = [folder for folder in dst.split(os.path.sep) if
+                            folder.startswith('_')]
+            else:
+                folders = [folder for folder in dst.split(os.path.sep) if
+                           (folder.startswith('_') and not self.inputs.container in folder)]
+
+            dst = os.path.sep.join(folders).replace('_','')
+
+
+        else:
+            if fname:
+                dst = fname
+            else:
+                dst = path.split(os.path.sep)[-1]
+        if dst[0] == os.path.sep:
+            dst = dst[1:]
+        return dst
+
     def _list_outputs(self):
         """Execute this module.
 """
@@ -111,7 +138,12 @@ Indicates the input fields to be dynamically created
         
         if isdefined(self.inputs.container):
             outdir = os.path.join(outdir, self.inputs.container)
-            
+
+        cwd = os.getcwd()
+        dst = self._get_dst(cwd)
+
+        outdir = os.path.join(outdir,dst)
+
         if not os.path.exists(outdir):
             try:
                 os.makedirs(outdir)

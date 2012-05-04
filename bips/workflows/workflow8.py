@@ -192,8 +192,8 @@ def create_workflow(c):
     workflow.connect(inputnode, 'subject_id', datasource, 'subject_id')
 
     # vol2surf
-    vol2surf = pe.Node(SampleToSurface(),
-                       name='sampletimeseries')
+    vol2surf = pe.MapNode(SampleToSurface(),
+                       name='sampletimeseries',iterfield=['source_file'])
     vol2surf.inputs.projection_stem = c.projection_stem
     vol2surf.iterables = [('hemi', ['lh', 'rh']),
                           ('smooth_surf', c.surface_fwhm)]
@@ -207,11 +207,11 @@ def create_workflow(c):
     workflow.connect(datasource, 'ref_file', vol2surf, 'reference_file')
 
     # create correlation matrix
-    corrmat = pe.Node(util.Function(input_names=['infile', 'out_type',
+    corrmat = pe.MapNode(util.Function(input_names=['infile', 'out_type',
                                                  'package'],
                                     output_names=['corrmatfile'],
                                     function=create_correlation_matrix),
-                      name='correlation_matrix')
+                      name='correlation_matrix',iterfield=['infile'])
     corrmat.inputs.out_type = c.out_type
     corrmat.inputs.package = c.hdf5_package
     workflow.connect(vol2surf, 'out_file', corrmat, 'infile')
