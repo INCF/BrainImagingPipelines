@@ -54,11 +54,12 @@ def get_config_params(subject_id, table):
 
 def preproc_datagrabber(c,name='preproc_datagrabber'):
     # create a node to obtain the preproc files
-    datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id','fwhm'],
-                                                   outfields=['noise_components',
-                                                              'motion_parameters',
+    datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id','node_type'],
+                                                   outfields=[ 'motion_parameters',
                                                                'outlier_files',
                                                                'art_norm',
+                                                               'art_intensity',
+                                                               'art_stats',
                                                                'tsnr',
                                                                'tsnr_detrended',
                                                                'tsnr_stddev',
@@ -73,6 +74,8 @@ def preproc_datagrabber(c,name='preproc_datagrabber'):
     datasource.inputs.field_template = dict(motion_parameters='%s/preproc/motion/*.par',
                                             outlier_files='%s/preproc/art/*_outliers.txt',
                                             art_norm='%s/preproc/art/norm.*.txt',
+                                            art_stats='%s/preproc/art/stats.*.txt',
+                                            art_intensity='%s/preproc/art/global_intensity.*.txt',
                                             tsnr='%s/preproc/tsnr/*_tsnr.nii.gz',
                                             tsnr_detrended='%s/preproc/tsnr/*_detrended.nii.gz',
                                             tsnr_stddev='%s/preproc/tsnr/*tsnr_stddev.nii.gz',
@@ -82,6 +85,8 @@ def preproc_datagrabber(c,name='preproc_datagrabber'):
     datasource.inputs.template_args = dict(motion_parameters=[['subject_id']],
                                            outlier_files=[['subject_id']],
                                            art_norm=[['subject_id']],
+                                           art_stats=[['subject_id']],
+                                           art_intensity=[['subject_id']],
                                            tsnr=[['subject_id']],
                                            tsnr_stddev=[['subject_id']],
                                            reg_file=[['subject_id']],
@@ -94,14 +99,14 @@ def start_config_table(c):
     table = []
     table.append(['TR',str(c.TR)])
     table.append(['Slice Order',str(c.SliceOrder)])
-    table.append(['Realignment algorithm',c.motion_correct_node])
+    #table.append(['Realignment algorithm',c.motion_correct_node])
     if c.use_fieldmap:
         table.append(['Echo Spacing',str(c.echospacing)])
         table.append(['Fieldmap Smoothing',str(c.sigma)])
         table.append(['TE difference',str(c.TE_diff)])
     table.append(['Art: norm thresh',str(c.norm_thresh)])
     table.append(['Art: z thresh',str(c.z_thresh)])
-    table.append(['Smoothing Algorithm',c.smooth_type])
+    #table.append(['Smoothing Algorithm',c.smooth_type])
     table.append(['fwhm',str(c.fwhm)])
     try:
         table.append(['Highpass cutoff',str(c.hpcutoff)])
@@ -200,10 +205,10 @@ def QA_workflow(c,QAc,name='QA'):
                                       function=tsdiffana), 
                         name='tsdiffana', iterfield=["img"])
                         
-    art_info = pe.MapNode(util.Function(input_names = ['art_file'], 
-                                      output_names = ['table','out'], 
+    art_info = pe.MapNode(util.Function(input_names = ['art_file','intensity_file','stats_file'],
+                                      output_names = ['table','out','intensity_plot'],
                                       function=art_output), 
-                        name='art_output', iterfield=["art_file"])
+                        name='art_output', iterfield=["art_file","intensity_file","stats_file"])
     
     fssource = pe.Node(interface = FreeSurferSource(),name='fssource')
     
@@ -268,6 +273,7 @@ def QA_workflow(c,QAc,name='QA'):
                                                           'in_file',
                                                           'config_params',
                                                           'Art_Detect',
+                                                          'Global_Intensity',
                                                           'Mean_Functional',
                                                           'Ribbon',
                                                           'motion_plot_translations',
@@ -294,8 +300,11 @@ def QA_workflow(c,QAc,name='QA'):
     workflow.connect(inputspec,'subject_id',fssource,'subject_id')
     workflow.connect(inputspec,'sd',fssource,'subjects_dir')
     workflow.connect(inputspec,'in_file',write_rep,'in_file')
+    workflow.connect(datagrabber,'art_intensity',art_info,'intensity_file')
+    workflow.connect(datagrabber,'art_stats',art_info,'stats_file')
     workflow.connect(inputspec,'art_file',art_info,'art_file')
     workflow.connect(art_info,('table',to1table), write_rep,'Art_Detect')
+    workflow.connect(art_info,'intensity_plot',write_rep,'Global_Intensity')
     workflow.connect(plot_m, 'fname_t',write_rep,'motion_plot_translations')
     workflow.connect(plot_m, 'fname_r',write_rep,'motion_plot_rotations')
     workflow.connect(inputspec,'in_file',tsdiff,'img')
@@ -340,6 +349,10 @@ def main(config_file):
 
     a.inputs.inputspec.config_params = start_config_table(c)
     a.config = {'execution' : {'crashdump_dir' : QA_config.crash_dir}}
+
+    if QA_config.use_advanced_options:
+        exec QA_config.advanced_script
+
     if QA_config.run_using_plugin:
         a.run(plugin=QA_config.plugin,plugin_args=QA_config.plugin_args)
     else:
@@ -367,6 +380,9 @@ def create_view():
                       Item(name='resting',enabled_when='not task'),
                       Item(name='task', enabled_when='not resting'),
                       label = 'Preprocessing Info'),
+                Group(Item(name='use_advanced_options'),
+                    Item(name='advanced_script',enabled_when='use_advanced_options'),
+                    label='Advanced',show_border=True),
                 buttons = [OKButton, CancelButton],
                 resizable=True,
                 width=1050)
@@ -404,6 +420,9 @@ class config(HasTraits):
     preproc_config = traits.File(desc="preproc config file")
     resting = traits.Bool(desc="True if running QA for resting preproc")
     task = traits.Bool(desc="True if running QA for task fmri preproc")
+    # Advanced Options
+    use_advanced_options = traits.Bool()
+    advanced_script = traits.Code()
 
 def create_config():
     c = config()

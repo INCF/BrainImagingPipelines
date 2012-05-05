@@ -5,14 +5,39 @@ import nipype.interfaces.utility as util
 from nipype.interfaces.freesurfer import ApplyVolTransform
 from nipype.workflows.smri.freesurfer.utils import create_get_stats_flow
 
-def art_output(art_file):
+def art_output(art_file,intensity_file,stats_file):
     import numpy as np
+    from nipype.utils.filemanip import load_json
+    import os
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
     try:
         out=np.asarray(np.genfromtxt(art_file))
     except:
         out=np.asarray([])
     table=[["file",art_file],["num outliers", str(out.shape)],["timepoints",str(out)]]
-    return table, out.tolist()
+    stats = load_json(stats_file)
+    for s in stats:
+        for key, item in s.iteritems():
+            if isinstance(item,dict):
+                table.append(['+'+key,''])
+                for sub_key,sub_item in item.iteritems():
+                    table.append(['  '+sub_key,str(sub_item)])
+            elif isinstance(item, list):
+                table.append(['+'+key,''])
+                for s_item in item:
+                    for sub_key, sub_item in s_item.iteritems():
+                        table.append(['  '+sub_key,str(sub_item)])
+            else:
+                table.append([key,str(item)])
+    print table
+    intensity = np.genfromtxt(intensity_file)
+    intensity_plot = os.path.abspath('global_intensity.png')
+    plt.plot(intensity)
+    plt.savefig(intensity_plot)
+    plt.close()
+    return table, out.tolist(), intensity_plot
         
 
 def plot_ADnorm(ADnorm,TR,norm_thresh,out):

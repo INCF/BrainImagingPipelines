@@ -183,7 +183,7 @@ Indicates the input fields to be dynamically created
             for i, thing in enumerate(files):
                 # Add a table, image or text
                 if isinstance(thing,list):
-                    rep.add_table(thing)
+                    rep.add_table(thing,para=True)
                 else:
                     if thing.endswith('.png') or thing.endswith('.jpg'):
                         rep.add_text(os.path.split(thing)[1])
