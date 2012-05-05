@@ -1,9 +1,8 @@
 import nipype.interfaces.fsl as fsl         # fsl
 import nipype.algorithms.rapidart as ra     # rapid artifact detection
 from nipype.interfaces.fsl.utils import EPIDeWarp
-from nipype.interfaces.nipy.preprocess import FmriRealign4d
 from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
-from nipype.workflows.fmri.fsl import create_susan_smooth
+from .modular_nodes import create_mod_smooth, mod_realign, mod_filter
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 
@@ -162,20 +161,30 @@ def create_prep(name='preproc'):
                                                       'ad_normthresh',
                                                       'ad_zthresh',
                                                       'tr',
-                                                      'interleaved',
+                                                      'do_slicetime',
                                                       'sliceorder',
                                                       'compcor_select',
-                                                      'highpass_sigma',
-                                                      'lowpass_sigma',
+                                                      'highpass_freq',
+                                                      'lowpass_freq',
                                                       'reg_params',
                                                       'FM_TEdiff',
                                                       'FM_Echo_spacing',
-                                                      'FM_sigma']),
+                                                      'FM_sigma',
+                                                      'motion_correct_node',
+                                                      'smooth_type',
+                                                      'surface_fwhm',
+                                                      'filter_type',
+                                                      'timepoints_to_remove']),
                         name='inputspec')
 
     # Separate input node for FWHM
     inputnode_fwhm = pe.Node(util.IdentityInterface(fields=['fwhm']),
                              name='fwhm_input')
+
+    # strip ids
+    strip_rois = pe.MapNode(fsl.ExtractROI(),name='extractroi',iterfield='in_file')
+    strip_rois.inputs.t_size = -1
+    preproc.connect(inputnode,'timepoints_to_remove',strip_rois,'t_min')
 
     # convert BOLD images to float
     img2float = pe.MapNode(interface=fsl.ImageMaths(out_data_type='float',
@@ -185,13 +194,21 @@ def create_prep(name='preproc'):
                            name='img2float')
 
     # define the motion correction node
-    motion_correct = pe.Node(interface=FmriRealign4d(),
-                                name='realign')
+    #motion_correct = pe.Node(interface=FmriRealign4d(),
+    #                            name='realign')
+
+    motion_correct = pe.Node(util.Function(input_names=['node','in_file','tr','do_slicetime','sliceorder'],
+        output_names=['out_file','par_file'],
+        function=mod_realign),
+        name="mod_realign")
+
+    preproc.connect(inputnode,'motion_correct_node',
+                    motion_correct, 'node')
 
     # construct motion plots
-    plot_motion = pe.MapNode(interface=fsl.PlotMotionParams(in_source='fsl'),
-                             name='plot_motion',
-                             iterfield=['in_file'])
+    #plot_motion = pe.MapNode(interface=fsl.PlotMotionParams(in_source='fsl'),
+    #                         name='plot_motion',
+    #                         iterfield=['in_file'])
 
     # rapidArt for artifactual timepoint detection
     ad = pe.Node(ra.ArtifactDetect(),
@@ -206,9 +223,9 @@ def create_prep(name='preproc'):
     # create a SUSAN smoothing workflow, and smooth each run with
     # 75% of the median value for each run as the brightness
     # threshold.
-    smooth = create_susan_smooth(name="smooth_with_susan",
+    smooth = create_mod_smooth(name="modular_smooth",
                                  separate_masks=False)
-
+    preproc.connect(inputnode,'smooth_type', smooth,'inputnode.smooth_type')
     # choose susan function
     """
     The following node selects smooth or unsmoothed data
@@ -248,7 +265,8 @@ def create_prep(name='preproc'):
                         iterfield=['image','outliers'])
 
     # declare some node inputs...
-    plot_motion.iterables = ('plot_type', ['rotations', 'translations'])
+    #plot_motion.iterables = ('plot_type', ['rotations', 'translations'])
+
     ad.inputs.parameter_source = 'FSL'
     meanfunc.inputs.inputspec.parameter_source = 'FSL'
     ad.inputs.mask_type = 'file'
@@ -266,20 +284,24 @@ def create_prep(name='preproc'):
                     ad, 'zintensity_threshold')
     preproc.connect(inputnode, 'tr',
                     motion_correct, 'tr')
-    preproc.connect(inputnode, 'interleaved',
-                    motion_correct, 'interleaved')
+    preproc.connect(inputnode, 'do_slicetime',
+                    motion_correct, 'do_slicetime')
     preproc.connect(inputnode, 'sliceorder',
-                    motion_correct, 'slice_order')
+                    motion_correct, 'sliceorder')
     preproc.connect(inputnode, 'compcor_select',
                     compcor, 'inputspec.selector')
     preproc.connect(inputnode, 'fssubject_dir',
                     getmask, 'inputspec.subjects_dir')
-    preproc.connect(inputnode, 'func',
-                    img2float, 'in_file')
+
+    #preproc.connect(inputnode, 'func',
+    #                img2float, 'in_file')
+    preproc.connect(inputnode, 'func', strip_rois, 'in_file')
+    preproc.connect(strip_rois, 'roi_file', img2float, 'in_file')
+
     preproc.connect(img2float, 'out_file',
                     motion_correct, 'in_file')
-    preproc.connect(motion_correct, 'par_file', 
-                    plot_motion, 'in_file')
+    #preproc.connect(motion_correct, 'par_file',
+    #                plot_motion, 'in_file')
     preproc.connect(motion_correct, 'out_file', 
                     meanfunc, 'inputspec.realigned_files')
     preproc.connect(motion_correct, 'par_file',
@@ -310,6 +332,12 @@ def create_prep(name='preproc'):
                     smooth, 'inputnode.in_files')
     preproc.connect(getmask, ('outputspec.mask_file',pickfirst),
                     smooth, 'inputnode.mask_file')
+    preproc.connect(getmask, ('outputspec.reg_file', pickfirst),
+                    smooth, 'inputnode.reg_file')
+    preproc.connect(inputnode,'surface_fwhm',
+                    smooth, 'inputnode.surface_fwhm')
+    preproc.connect(inputnode, 'fssubject_dir',
+                    smooth, 'inputnode.surf_dir')
     preproc.connect(smooth, 'outputnode.smoothed_files',
                     choosesusan, 'smoothed_files')
     preproc.connect(motion_correct, 'out_file',
@@ -397,8 +425,8 @@ def create_prep(name='preproc'):
                     outputnode, 'tsnr_detrended')
     preproc.connect(zscore,'z_img',
                     outputnode,'z_img')
-    preproc.connect(plot_motion,'out_file',
-                    outputnode,'motion_plots')
+    #preproc.connect(plot_motion,'out_file',
+    #                outputnode,'motion_plots')
 
                     
 
@@ -425,8 +453,8 @@ def create_prep_fieldmap(name='preproc'):
     outputspec = preproc.get_node('outputspec')
     ad = preproc.get_node('artifactdetect')
     compcor = preproc.get_node('CompCor')
-    motion_correct = preproc.get_node('realign')
-    smooth = preproc.get_node('smooth_with_susan')
+    motion_correct = preproc.get_node('mod_realign')
+    smooth = preproc.get_node('modular_smooth')
     choosesusan = preproc.get_node('select_smooth')
     meanfunc = preproc.get_node('take_mean_art')
     getmask = preproc.get_node('getmask')
@@ -562,9 +590,18 @@ def create_rest_prep(name='preproc',fieldmap=False):
                        iterfield=['design_file','in_file'])
 
     # bandpass filter
-    bandpass_filter = pe.MapNode(fsl.TemporalFilter(),
-                              name='bandpass_filter',
-                              iterfield=['in_file'])
+    #bandpass_filter = pe.MapNode(fsl.TemporalFilter(),
+    #                          name='bandpass_filter',
+    #                          iterfield=['in_file'])
+
+    bandpass_filter = pe.MapNode(util.Function(input_names=['in_file',
+                                                            'algorithm',
+                                                            'lowpass_freq',
+                                                            'highpass_freq',
+                                                            'tr'],
+                                output_names=['out_file'],
+                                function=mod_filter),
+                      name='bandpass_filter',iterfield=['in_file'])
 
     # Get old nodes
     inputnode = preproc.get_node('inputspec')
@@ -572,8 +609,8 @@ def create_rest_prep(name='preproc',fieldmap=False):
     medianval = preproc.get_node('compute_median_val')
     ad = preproc.get_node('artifactdetect')
     compcor = preproc.get_node('CompCor')
-    motion_correct = preproc.get_node('realign')
-    smooth = preproc.get_node('smooth_with_susan')
+    motion_correct = preproc.get_node('mod_realign')
+    smooth = preproc.get_node('modular_smooth')
     highpass = preproc.get_node('highpass')
     outputnode = preproc.get_node('outputspec')
     choosesusan = preproc.get_node('select_smooth')
@@ -600,6 +637,10 @@ def create_rest_prep(name='preproc',fieldmap=False):
     preproc.remove_nodes([highpass])
 
     # connect nodes
+    preproc.connect(inputnode,'tr',
+        bandpass_filter,'tr')
+    preproc.connect(inputnode,'filter_type',
+        bandpass_filter,'algorithm')
     preproc.connect(ad, 'outlier_files',
                     addoutliers, 'art_outliers')
     preproc.connect(ad, 'norm_files',
@@ -626,10 +667,10 @@ def create_rest_prep(name='preproc',fieldmap=False):
                     medianval, 'in_file')
     preproc.connect(meanscale, 'out_file',
                     outputnode, 'scaled_files')
-    preproc.connect(inputnode, 'highpass_sigma',
-                    bandpass_filter, 'highpass_sigma')
-    preproc.connect(inputnode, 'lowpass_sigma',
-                    bandpass_filter, 'lowpass_sigma')
+    preproc.connect(inputnode, 'highpass_freq',
+                    bandpass_filter, 'highpass_freq')
+    preproc.connect(inputnode, 'lowpass_freq',
+                    bandpass_filter, 'lowpass_freq')
     preproc.connect(bandpass_filter, 'out_file',
                     zscore, 'image')
     preproc.connect(inputnode, 'reg_params',

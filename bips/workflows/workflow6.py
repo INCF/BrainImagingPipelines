@@ -51,7 +51,7 @@ class config(HasTraits):
                                     Freesurfer directory. For simplicity, the subject id's should \
                                     also match with the location of individual functional files.")
     func_template = traits.String('%s/functional.nii.gz')
-
+    run_datagrabber_without_submitting = Bool(True, usedefault=True)
     # Motion Correction
 
     do_slicetiming = Bool(True, usedefault=True, desc="Perform slice timing correction")
@@ -91,6 +91,7 @@ def create_view():
             Item(name='base_dir', ),
             Item(name='func_template'),
             Item(name='check_func_datagrabber'),
+            Item(name='run_datagrabber_without_submitting'),
             label='Subjects', show_border=True),
         Group(Item(name='TR'),
             Item(name='SliceOrder', editor=CSVListEditor()),

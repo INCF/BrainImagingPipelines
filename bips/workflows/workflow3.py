@@ -77,7 +77,6 @@ def preproc_datagrabber(c,name='preproc_datagrabber'):
                                             tsnr_detrended='%s/preproc/tsnr/*_detrended.nii.gz',
                                             tsnr_stddev='%s/preproc/tsnr/*tsnr_stddev.nii.gz',
                                             reg_file='%s/preproc/bbreg/*.dat',
-                                            motion_plots='%s/preproc/motion/*.png',
                                             mean_image='%s/preproc/mean*/*.nii.gz',
                                             mask='%s/preproc/mask/*_brainmask.nii')
     datasource.inputs.template_args = dict(motion_parameters=[['subject_id']],
@@ -86,7 +85,6 @@ def preproc_datagrabber(c,name='preproc_datagrabber'):
                                            tsnr=[['subject_id']],
                                            tsnr_stddev=[['subject_id']],
                                            reg_file=[['subject_id']],
-                                           motion_plots=[['subject_id']],
                                            mean_image=[['subject_id']],
                                            mask=[['subject_id']])
     return datasource
@@ -96,12 +94,14 @@ def start_config_table(c):
     table = []
     table.append(['TR',str(c.TR)])
     table.append(['Slice Order',str(c.SliceOrder)])
+    table.append(['Realignment algorithm',c.motion_correct_node])
     if c.use_fieldmap:
         table.append(['Echo Spacing',str(c.echospacing)])
         table.append(['Fieldmap Smoothing',str(c.sigma)])
         table.append(['TE difference',str(c.TE_diff)])
     table.append(['Art: norm thresh',str(c.norm_thresh)])
     table.append(['Art: z thresh',str(c.z_thresh)])
+    table.append(['Smoothing Algorithm',c.smooth_type])
     table.append(['fwhm',str(c.fwhm)])
     try:
         table.append(['Highpass cutoff',str(c.hpcutoff)])
@@ -340,7 +340,7 @@ def main(config_file):
 
     a.inputs.inputspec.config_params = start_config_table(c)
     a.config = {'execution' : {'crashdump_dir' : QA_config.crash_dir}}
-    if c.run_using_plugin:
+    if QA_config.run_using_plugin:
         a.run(plugin=QA_config.plugin,plugin_args=QA_config.plugin_args)
     else:
         a.run()
