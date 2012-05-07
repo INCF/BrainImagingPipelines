@@ -5,6 +5,7 @@ import nipype.interfaces.io as nio
 from bips.utils.reportsink.io import ReportSink
 from .base import MetaWorkflow, load_config, register_workflow
 from scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import corr_image, vol2surf
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import pickfirst
 
 desc = """
 Resting State correlation QA workflow
@@ -52,15 +53,16 @@ def resting_datagrab(c,name="resting_datagrabber"):
                                                               "func"]),
                          name = name)
     datasource.inputs.base_directory = os.path.join(c.sink_dir)
+    datasource.inputs.sort_filelist = True
     datasource.inputs.template ='*'
     datasource.inputs.field_template = dict(reg_file='%s/preproc/bbreg/*.dat',
                                             mean_image='%s/preproc/mean/*.nii.gz',
                                             mask='%s/preproc/mask/*_brainmask.nii',
-                                            func="%s/preproc/output/fwhm_%s/%s_r??_bandpassed.nii.gz")
+                                            func="%s/preproc/output/fwhm_%s/*bandpassed.nii.gz")
     datasource.inputs.template_args = dict(reg_file=[['subject_id']],
                                            mean_image=[['subject_id']],
                                            mask=[['subject_id']],
-                                           func=[['subject_id','fwhm','subject_id']])
+                                           func=[['subject_id','fwhm']])
     return datasource
 
 def resting_QA(c,QA_c, name="resting_QA"):
@@ -83,7 +85,7 @@ def resting_QA(c,QA_c, name="resting_QA"):
     dataflow = resting_datagrab(c)
     workflow.connect(fwhmsource,'fwhm',dataflow,'fwhm')
     workflow.connect(infosource,'subject_id',dataflow,'subject_id')
-    workflow.connect(dataflow,'func', inputspec,'in_files')
+    workflow.connect(dataflow,('func',pickfirst), inputspec,'in_files')
     workflow.connect(dataflow,'reg_file', inputspec, 'reg_file')
     workflow.inputs.inputspec.subjects_dir = c.surf_dir
     workflow.connect(dataflow,'mean_image', inputspec,'mean_image')
