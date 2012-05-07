@@ -241,10 +241,11 @@ def QA_workflow(c,QAc,name='QA'):
     
    
     tablecombine = pe.MapNode(util.Function(input_names = ['roidev',
-                                                        'roisnr'],
-                                         output_names = ['roisnr'], 
+                                                        'roisnr',
+                                                        'imagetable'],
+                                         output_names = ['imagetable'],
                                          function = combine_table),
-                           name='combinetable', iterfield=['roidev','roisnr'])
+                           name='combinetable', iterfield=['roidev','roisnr','imagetable'])
     
     
     
@@ -301,7 +302,6 @@ def QA_workflow(c,QAc,name='QA'):
                                                           'motion_plot_rotations',
                                                           'tsdiffana',
                                                           'ADnorm',
-                                                          'Timeseries_and_Spectra',
                                                           'TSNR_Images',
                                                           'tsnr_roi_table']),
                                              name='report_sink')
@@ -327,7 +327,7 @@ def QA_workflow(c,QAc,name='QA'):
     workflow.connect(datagrabber,'art_stats',art_info,'stats_file')
     workflow.connect(inputspec,'art_file',art_info,'art_file')
     workflow.connect(art_info,('table',to1table), write_rep,'Art_Detect')
-    workflow.connect(ts_and_spectra,('imagetable',to1table),write_rep, 'Timeseries_and_Spectra')
+    workflow.connect(ts_and_spectra,'imagetable',tablecombine, 'imagetable')
     workflow.connect(art_info,'intensity_plot',write_rep,'Global_Intensity')
     workflow.connect(plot_m, 'fname_t',write_rep,'motion_plot_translations')
     workflow.connect(plot_m, 'fname_r',write_rep,'motion_plot_rotations')
@@ -340,7 +340,7 @@ def QA_workflow(c,QAc,name='QA'):
     workflow.connect(inputspec,'reg_file',roisnrplot,'inputspec.reg_file')
     workflow.connect(inputspec,'tsnr',roisnrplot,'inputspec.tsnr_file')
     workflow.connect(roisnrplot,'outputspec.roi_table',tablecombine,'roisnr')
-    workflow.connect(tablecombine, ('roisnr',to1table), write_rep, 'tsnr_roi_table')
+    workflow.connect(tablecombine, ('imagetable',to1table), write_rep, 'tsnr_roi_table')
     workflow.connect(inputspec,'ADnorm',adnormplot,'ADnorm')
     workflow.connect(adnormplot,'plot',write_rep,'ADnorm')
     workflow.connect(fssource,'orig',convert,'in_file')

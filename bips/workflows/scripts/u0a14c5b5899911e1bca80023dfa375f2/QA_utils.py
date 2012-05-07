@@ -398,20 +398,26 @@ def plot_timeseries(roi,statsfile,TR,plot,onsets,units):
     return Fname, AvgRoi
 
 
-def combine_table(roidev,roisnr):
-    if len(roisnr) == len(roidev):
-        for i, roi in enumerate(roisnr):
-            # merge mean and stddev table
-            roi.append(roidev[i][1]*roisnr[i][1])
-            roi.append(roidev[i][1])
-            
-        roisnr.sort(key=lambda x:x[1])
-        roisnr.insert(0,['ROI','TSNR',
-                         'Mean','Standard Deviation'])
-    else:
-        roisnr.sort(key=lambda x:x[1])
-        roisnr.insert(0,['ROI','TSNR'])     
-    return roisnr
+def combine_table(roidev,roisnr,imagetable):
+    print len(roidev)
+    print len(roisnr)
+    print len(imagetable)
+
+    def match(List, Value):
+        for L in List:
+            if L[0]==Value:
+                return L[1]
+        return 0
+
+    for i, roi in enumerate(imagetable[1:]):
+        # merge mean and stddev table
+        avg = match(roidev,roi[0])*match(roisnr,roi[0])
+        dev = match(roidev,roi[0])
+        snr = match(roisnr,roi[0])
+        roi[0]+="\nSNR = %f\nMean = %f\nStandard Deviation = %f"%(snr,avg,dev)
+
+
+    return imagetable
     
 def plot_motion(motion_parameters):
     import matplotlib.pyplot as plt
