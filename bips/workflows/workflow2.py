@@ -163,6 +163,8 @@ def prep_workflow(c, fieldmap):
                       sinkd, 'preproc.tsnr')
     modelflow.connect(preproc, 'outputspec.stddev_file',
                       sinkd, 'preproc.tsnr.@stddev')
+    modelflow.connect(preproc, 'outputspec.tsnr_detrended',
+        sinkd, 'preproc.tsnr.@detrended')
     modelflow.connect(preproc, 'outputspec.filter_file',
                       sinkd, 'preproc.regressors')
     modelflow.connect(preproc, 'outputspec.z_img', 

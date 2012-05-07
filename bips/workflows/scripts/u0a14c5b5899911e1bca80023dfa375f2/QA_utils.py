@@ -34,11 +34,91 @@ def art_output(art_file,intensity_file,stats_file):
     print table
     intensity = np.genfromtxt(intensity_file)
     intensity_plot = os.path.abspath('global_intensity.png')
+    plt.figure(1,figsize = (8,3))
+    plt.xlabel('Volume')
+    plt.ylabel("Global Intensity")
     plt.plot(intensity)
-    plt.savefig(intensity_plot)
+    plt.savefig(intensity_plot,bbox_inches='tight')
     plt.close()
     return table, out.tolist(), intensity_plot
-        
+
+
+def plot_spectrum(timeseries, tr, title):
+    from nitime.timeseries import TimeSeries
+    from nitime.analysis import SpectralAnalyzer
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import os
+    import numpy as np
+
+    #T = io.time_series_from_file(in_file,TR=tr)
+    timeseries = np.asarray(timeseries)
+    print timeseries.shape
+    timeseries = timeseries-np.mean(timeseries)*np.ones(timeseries.shape)
+    T = TimeSeries(timeseries,sampling_interval=tr)
+    S_original = SpectralAnalyzer(T)
+    # Initialize a figure to put the results into:
+    fig01 = plt.figure(figsize = (8,3))
+    ax01 = fig01.add_subplot(1, 1, 1)
+    ax01.plot(S_original.psd[0],
+        S_original.psd[1],
+        label='Welch PSD')
+
+    ax01.plot(S_original.spectrum_fourier[0],
+        S_original.spectrum_fourier[1],
+        label='FFT')
+
+    ax01.plot(S_original.periodogram[0],
+        S_original.periodogram[1],
+        label='Periodogram')
+
+    ax01.plot(S_original.spectrum_multi_taper[0],
+        S_original.spectrum_multi_taper[1],
+        label='Multi-taper')
+
+    ax01.set_xlabel('Frequency (Hz)')
+    ax01.set_ylabel('Power')
+
+    ax01.legend()
+    figure = os.path.abspath(title+'.png')
+    plt.savefig(figure, bbox_inches='tight')
+    plt.close()
+    return figure
+
+def plot_simple_timeseries(timeseries,title):
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import os
+
+    title = os.path.abspath(title+'.png')
+    plt.figure(figsize=(8,3))
+    plt.plot(timeseries)
+    plt.xlabel('Volume')
+    plt.ylabel('Signal')
+    plt.savefig(title,bbox_inches='tight')
+    return title
+
+def spectrum_ts_table(stats_file,tr):
+    from bips.workflows.scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import plot_spectrum, plot_simple_timeseries
+    from bips.utils.reportsink.write_report import get_and_scale
+    import numpy as np
+    LUT = np.genfromtxt('/software/Freesurfer/current/FreeSurferColorLUT.txt',dtype = str)
+    roinum = LUT[:,0]
+    roiname = LUT[:,1]
+    stats = np.recfromcsv(stats_file)
+
+    imagetable=[['ROI','Timeseries','Spectra']]
+
+    for i, R in enumerate(stats):
+        title = roiname[roinum==str(np.int_(R[0]))][0]
+        timeseries = R.tolist()[1:]
+        timeseries_plot = plot_simple_timeseries(timeseries,'timeseries_'+title)
+        spectra_plot = plot_spectrum(timeseries,tr,'spectra_'+title)
+        imagetable.append([title,timeseries_plot,spectra_plot])
+
+    return imagetable
 
 def plot_ADnorm(ADnorm,TR,norm_thresh,out):
     """ Returns a plot of the composite_norm file output from art
@@ -192,9 +272,11 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False, onsets=False):
     preproc.connect(inputspec,'TR',roiplotter,'TR')
     roiplotter.inputs.plot = plot
     preproc.connect(roistripper,'roi_file',roiplotter,'statsfile')
-    outputspec = pe.Node(interface=util.IdentityInterface(fields=['out_file','roi_table']),name='outputspec')
+
+    outputspec = pe.Node(interface=util.IdentityInterface(fields=['out_file','roi_table','roi_file']),name='outputspec')
     preproc.connect(roiplotter,'Fname',outputspec,'out_file')
     preproc.connect(roiplotter,'AvgRoi',outputspec,'roi_table')
+    preproc.connect(roistripper,'roi_file', outputspec,'roi_file')
 
     return preproc
     
@@ -392,9 +474,11 @@ def plot_anat(brain):
     import pylab as pl
     from nibabel import load
     from nipy.labs import viz   
-    
+    import numpy as np
+
     img = load(brain)
     data = img.get_data()
+    data[np.isnan(data)] = 0
     affine = img.get_affine() 
     viz.plot_anat(anat=data, anat_affine=affine, draw_cross=False, slicer='x')
     

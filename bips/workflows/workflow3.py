@@ -34,7 +34,8 @@ from scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import (plot_ADnorm,
                                                                 plot_ribbon,
                                                                 plot_anat,
                                                                 overlay_new,
-                                                                overlay_dB)
+                                                                overlay_dB,
+                                                                spectrum_ts_table)
 
 from ..utils.reportsink.io import ReportSink
 
@@ -76,11 +77,11 @@ def preproc_datagrabber(c,name='preproc_datagrabber'):
                                             art_norm='%s/preproc/art/norm.*.txt',
                                             art_stats='%s/preproc/art/stats.*.txt',
                                             art_intensity='%s/preproc/art/global_intensity.*.txt',
-                                            tsnr='%s/preproc/tsnr/*_tsnr.nii.gz',
-                                            tsnr_detrended='%s/preproc/tsnr/*_detrended.nii.gz',
-                                            tsnr_stddev='%s/preproc/tsnr/*tsnr_stddev.nii.gz',
+                                            tsnr='%s/preproc/tsnr/*_tsnr.nii*',
+                                            tsnr_detrended='%s/preproc/tsnr/*_detrended.nii*',
+                                            tsnr_stddev='%s/preproc/tsnr/*tsnr_stddev.nii*',
                                             reg_file='%s/preproc/bbreg/*.dat',
-                                            mean_image='%s/preproc/mean*/*.nii.gz',
+                                            mean_image='%s/preproc/mean*/*.nii*',
                                             mask='%s/preproc/mask/*_brainmask.nii')
     datasource.inputs.template_args = dict(motion_parameters=[['subject_id']],
                                            outlier_files=[['subject_id']],
@@ -89,6 +90,7 @@ def preproc_datagrabber(c,name='preproc_datagrabber'):
                                            art_intensity=[['subject_id']],
                                            tsnr=[['subject_id']],
                                            tsnr_stddev=[['subject_id']],
+                                           tsnr_detrended=[['subject_id']],
                                            reg_file=[['subject_id']],
                                            mean_image=[['subject_id']],
                                            mask=[['subject_id']])
@@ -152,7 +154,7 @@ def QA_workflow(c,QAc,name='QA'):
                                                                  'motion_plots',
                                                                  'reg_file',
                                                                  'tsnr',
-                                                                 'tsnr_mean',
+                                                                 'tsnr_detrended',
                                                                  'tsnr_stddev',
                                                                  'ADnorm',
                                                                  'TR',
@@ -168,7 +170,7 @@ def QA_workflow(c,QAc,name='QA'):
     
     datagrabber = preproc_datagrabber(c)
     
-    datagrabber.inputs.fwhm = c.fwhm
+    datagrabber.inputs.node_type = c.motion_correct_node
     
     orig_datagrabber = get_dataflow(c)
     
@@ -184,6 +186,7 @@ def QA_workflow(c,QAc,name='QA'):
     workflow.connect(datagrabber, ('reg_file', sort), inputspec, 'reg_file')
     workflow.connect(datagrabber, ('tsnr',sort), inputspec, 'tsnr')
     workflow.connect(datagrabber, ('tsnr_stddev',sort), inputspec, 'tsnr_stddev')
+    workflow.connect(datagrabber, ('tsnr_detrended',sort), inputspec, 'tsnr_detrended')
     workflow.connect(datagrabber, ('art_norm',sort), inputspec, 'ADnorm')
     
     inputspec.inputs.TR = c.TR
@@ -269,6 +272,24 @@ def QA_workflow(c,QAc,name='QA'):
     
     workflow.connect(datagrabber, ('mean_image', sort), plotanat, 'brain')
 
+    ts_and_spectra = pe.MapNode(util.Function(input_names=['stats_file',
+                                                        'tr'],
+                                           output_names=['imagetable'],
+                                           function=spectrum_ts_table),
+                            name='spectra_and_timeseries_table', iterfield=['stats_file'])
+
+    timeseries_segstats = tsnr_roi(plot=False,name='timeseries_roi',roi=['all'],onsets=False)
+    workflow.connect(inputspec,'tsnr_detrended', timeseries_segstats,'inputspec.tsnr_file')
+    workflow.connect(inputspec,'reg_file', timeseries_segstats,'inputspec.reg_file')
+    workflow.connect(infosource, 'subject_id', timeseries_segstats, 'inputspec.subject')
+    workflow.connect(fssource, ('aparc_aseg', pickfirst), timeseries_segstats, 'inputspec.aparc_aseg')
+    timeseries_segstats.inputs.inputspec.TR = c.TR
+    ts_and_spectra.inputs.tr = c.TR
+
+    workflow.connect(timeseries_segstats,'outputspec.roi_file',ts_and_spectra, 'stats_file')
+
+
+
     write_rep = pe.Node(interface=ReportSink(orderfields=['Introduction',
                                                           'in_file',
                                                           'config_params',
@@ -280,6 +301,7 @@ def QA_workflow(c,QAc,name='QA'):
                                                           'motion_plot_rotations',
                                                           'tsdiffana',
                                                           'ADnorm',
+                                                          'Timeseries_and_Spectra',
                                                           'TSNR_Images',
                                                           'tsnr_roi_table']),
                                              name='report_sink')
@@ -289,13 +311,14 @@ def QA_workflow(c,QAc,name='QA'):
     write_rep.inputs.json_sink = QAc.json_sink
     workflow.connect(infosource,'subject_id',write_rep,'container')
     workflow.connect(plotanat, 'images', write_rep, "Mean_Functional")
-
+    write_rep.inputs.table_as_para=False
     # Define Inputs
     
     convert.inputs.out_type = 'niigz'
     convert.inputs.in_type = 'mgz'
     
     # Define Connections
+
     workflow.connect(inputspec,'TR',adnormplot,'TR')
     workflow.connect(inputspec,'subject_id',fssource,'subject_id')
     workflow.connect(inputspec,'sd',fssource,'subjects_dir')
@@ -304,6 +327,7 @@ def QA_workflow(c,QAc,name='QA'):
     workflow.connect(datagrabber,'art_stats',art_info,'stats_file')
     workflow.connect(inputspec,'art_file',art_info,'art_file')
     workflow.connect(art_info,('table',to1table), write_rep,'Art_Detect')
+    workflow.connect(ts_and_spectra,('imagetable',to1table),write_rep, 'Timeseries_and_Spectra')
     workflow.connect(art_info,'intensity_plot',write_rep,'Global_Intensity')
     workflow.connect(plot_m, 'fname_t',write_rep,'motion_plot_translations')
     workflow.connect(plot_m, 'fname_r',write_rep,'motion_plot_rotations')
