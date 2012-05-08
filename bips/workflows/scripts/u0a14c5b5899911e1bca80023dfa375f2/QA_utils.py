@@ -5,15 +5,120 @@ import nipype.interfaces.utility as util
 from nipype.interfaces.freesurfer import ApplyVolTransform
 from nipype.workflows.smri.freesurfer.utils import create_get_stats_flow
 
-def art_output(art_file):
+def art_output(art_file,intensity_file,stats_file):
     import numpy as np
+    from nipype.utils.filemanip import load_json
+    import os
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
     try:
         out=np.asarray(np.genfromtxt(art_file))
     except:
         out=np.asarray([])
     table=[["file",art_file],["num outliers", str(out.shape)],["timepoints",str(out)]]
-    return table, [out]
-        
+    stats = load_json(stats_file)
+    for s in stats:
+        for key, item in s.iteritems():
+            if isinstance(item,dict):
+                table.append(['+'+key,''])
+                for sub_key,sub_item in item.iteritems():
+                    table.append(['  '+sub_key,str(sub_item)])
+            elif isinstance(item, list):
+                table.append(['+'+key,''])
+                for s_item in item:
+                    for sub_key, sub_item in s_item.iteritems():
+                        table.append(['  '+sub_key,str(sub_item)])
+            else:
+                table.append([key,str(item)])
+    print table
+    intensity = np.genfromtxt(intensity_file)
+    intensity_plot = os.path.abspath('global_intensity.png')
+    plt.figure(1,figsize = (8,3))
+    plt.xlabel('Volume')
+    plt.ylabel("Global Intensity")
+    plt.plot(intensity)
+    plt.savefig(intensity_plot,bbox_inches='tight')
+    plt.close()
+    return table, out.tolist(), intensity_plot
+
+
+def plot_spectrum(timeseries, tr, title):
+    from nitime.timeseries import TimeSeries
+    from nitime.analysis import SpectralAnalyzer
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import os
+    import numpy as np
+
+    #T = io.time_series_from_file(in_file,TR=tr)
+    timeseries = np.asarray(timeseries)
+    print timeseries.shape
+    timeseries = timeseries-np.mean(timeseries)*np.ones(timeseries.shape)
+    T = TimeSeries(timeseries,sampling_interval=tr)
+    S_original = SpectralAnalyzer(T)
+    # Initialize a figure to put the results into:
+    fig01 = plt.figure(figsize = (8,3))
+    ax01 = fig01.add_subplot(1, 1, 1)
+    ax01.plot(S_original.psd[0],
+        S_original.psd[1],
+        label='Welch PSD')
+
+    ax01.plot(S_original.spectrum_fourier[0],
+        S_original.spectrum_fourier[1],
+        label='FFT')
+
+    ax01.plot(S_original.periodogram[0],
+        S_original.periodogram[1],
+        label='Periodogram')
+
+    ax01.plot(S_original.spectrum_multi_taper[0],
+        S_original.spectrum_multi_taper[1],
+        label='Multi-taper')
+
+    ax01.set_xlabel('Frequency (Hz)')
+    ax01.set_ylabel('Power')
+
+    ax01.legend()
+    figure = os.path.abspath(title+'.png')
+    plt.savefig(figure, bbox_inches='tight')
+    plt.close()
+    return figure
+
+def plot_simple_timeseries(timeseries,title):
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import os
+
+    title = os.path.abspath(title+'.png')
+    plt.figure(figsize=(8,3))
+    plt.plot(timeseries)
+    plt.xlabel('Volume')
+    plt.ylabel('Signal')
+    plt.savefig(title,bbox_inches='tight')
+    return title
+
+def spectrum_ts_table(stats_file,tr):
+    from bips.workflows.scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import plot_spectrum, plot_simple_timeseries
+    from bips.utils.reportsink.write_report import get_and_scale
+    import numpy as np
+    LUT = np.genfromtxt('/software/Freesurfer/current/FreeSurferColorLUT.txt',dtype = str)
+    roinum = LUT[:,0]
+    roiname = LUT[:,1]
+    stats = np.recfromcsv(stats_file)
+
+    imagetable=[['ROI','Timeseries','Spectra']]
+
+    for i, R in enumerate(stats):
+        title = roiname[roinum==str(np.int_(R[0]))][0]
+        timeseries = R.tolist()[1:]
+        timeseries_plot = plot_simple_timeseries(timeseries,'timeseries_'+title)
+        spectra_plot = plot_spectrum(timeseries,tr,'spectra_'+title)
+        imagetable.append([title,timeseries_plot,spectra_plot])
+
+    return imagetable
 
 def plot_ADnorm(ADnorm,TR,norm_thresh,out):
     """ Returns a plot of the composite_norm file output from art
@@ -35,7 +140,10 @@ def plot_ADnorm(ADnorm,TR,norm_thresh,out):
     import matplotlib.pyplot as plt
     import os
     import numpy as np
-    out = out[0]
+
+    if not isinstance(out,list):
+        out = [out]
+
     plot = os.path.abspath('plot_'+os.path.split(ADnorm)[1]+'.png')
     
     data = np.genfromtxt(ADnorm)
@@ -100,7 +208,8 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False, onsets=False):
                                                                  'TR',
                                                                  'aparc_aseg',
                                                                  'subject',
-                                                                 'onsets']),name='inputspec')
+                                                                 'onsets',
+                                                                 'input_units']),name='inputspec')
     
     voltransform = pe.MapNode(interface=ApplyVolTransform(inverse=True, interp='nearest'),name='applyreg', iterfield=['source_file'])
     
@@ -143,22 +252,31 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False, onsets=False):
     preproc.connect(statsflow, 'segstats.avgwf_txt_file', roistripper, 'roi_file')
     preproc.connect(statsflow, 'segstats.summary_file', roistripper, 'summary_file')
 
-    roiplotter = pe.MapNode(util.Function(input_names=['statsfile', 'roi','TR','plot','onsets'],
-                                       output_names=['Fname','AvgRoi'],
-                                       function=plot_timeseries),
-                          name='roiplotter', iterfield=['statsfile'])
+
+    if onsets:
+        roiplotter = pe.MapNode(util.Function(input_names=['statsfile', 'roi','TR','plot','onsets','units'],
+            output_names=['Fname','AvgRoi'],
+            function=plot_timeseries),
+            name='roiplotter', iterfield=['statsfile','onsets'])
+        preproc.connect(inputspec,'onsets',roiplotter,'onsets')
+        preproc.connect(inputspec, 'input_units',roiplotter,'units')
+    else:
+        roiplotter = pe.MapNode(util.Function(input_names=['statsfile', 'roi','TR','plot','onsets','units'],
+            output_names=['Fname','AvgRoi'],
+            function=plot_timeseries),
+            name='roiplotter', iterfield=['statsfile'])
+        roiplotter.inputs.onsets = None
+        roiplotter.inputs.units = None
+
     roiplotter.inputs.roi = roi
     preproc.connect(inputspec,'TR',roiplotter,'TR')
     roiplotter.inputs.plot = plot
-    if onsets:
-        preproc.connect(inputspec,'onsets',roiplotter,'onsets')
-    else:
-        roiplotter.inputs.onsets = None
-
     preproc.connect(roistripper,'roi_file',roiplotter,'statsfile')
-    outputspec = pe.Node(interface=util.IdentityInterface(fields=['out_file','roi_table']),name='outputspec')
+
+    outputspec = pe.Node(interface=util.IdentityInterface(fields=['out_file','roi_table','roi_file']),name='outputspec')
     preproc.connect(roiplotter,'Fname',outputspec,'out_file')
     preproc.connect(roiplotter,'AvgRoi',outputspec,'roi_table')
+    preproc.connect(roistripper,'roi_file', outputspec,'roi_file')
 
     return preproc
     
@@ -181,7 +299,7 @@ def tsdiffana(img):
     plt.close()
     return out_file
 
-def plot_timeseries(roi,statsfile,TR,plot,onsets):
+def plot_timeseries(roi,statsfile,TR,plot,onsets,units):
     """ Returns a plot of an averaged timeseries across an roi
     
     Parameters
@@ -231,21 +349,43 @@ def plot_timeseries(roi,statsfile,TR,plot,onsets):
             #find roi name for plot title
             title = roiname[roinum==str(np.int_(R))][0]
             if plot:
-                nums = list(stats[i])[1:]
+                nums = np.asarray(list(stats[i])[1:])
                 X = np.array(range(len(nums)))*TR
                 plt.figure(1)
-                p1 = plt.plot(X,nums)
-                
+                plt.plot(X,nums)
                 if onsets:
-                    # onsets is a Bunch with "names", "onsets" and "durations".
-                    for B in onsets:
-                        p = []*len(B.onsets)
-                        for i, ons in enumerate(B.onsets):
-                            p[i] = plt.plot(ons,nums[ons])
-                
+                    # onsets is a Bunch with "conditions", "onsets" and "durations".
+                    print onsets
+                    names = onsets.conditions
+                    durations = onsets.durations
+                    onsets = onsets.onsets
+                    colors1 = [[]]*len(onsets)
+
+                    for i, ons in enumerate(onsets):
+                        colors1[i] = [np.random.rand(3)]
+                        if units == 'scans':
+                            plt.plot(np.asarray(ons)*TR,nums[ons],marker='*',linestyle='None',color=colors1[i][0])
+                        else:
+                            plt.plot(ons,nums[np.int_(np.asarray(ons)/TR)],marker='*',linestyle='None',color=colors1[i][0])
+
+                    plt.legend(['signal']+names)
+
+                    for i, ons in enumerate(onsets):
+                        ons = np.asarray(ons)
+                        newX = np.zeros(nums.shape)
+                        newX[:] = np.nan
+                        for d in xrange(durations[i][0]):
+                            if units == 'scans':
+                                newX[np.int_(ons+np.ones(ons.shape)*(d))] = nums[np.int_(ons+np.ones(ons.shape)*(d))]
+                            else:
+                                newX[np.int_(np.int_(ons/TR+ons.shape)*(d/TR))] = nums[np.int_(ons/TR+np.ones(ons.shape)*(d/TR))]
+                        plt.plot(X,newX,color=colors1[i][0])
+
+
                 plt.title(title)
                 plt.xlabel('time (s)')
                 plt.ylabel('signal')
+
                 fname = os.path.join(os.getcwd(),os.path.split(statsfile)[1][:-4]+'_'+title+'.png')
                 plt.savefig(fname,dpi=200)
                 plt.close()
@@ -254,23 +394,30 @@ def plot_timeseries(roi,statsfile,TR,plot,onsets):
                 AvgRoi.append([title,np.mean(list(stats[i])[1])])
         else:
             print "roi %s not found!"%R
+
     return Fname, AvgRoi
 
 
-def combine_table(roidev,roisnr):
-    if len(roisnr) == len(roidev):
-        for i, roi in enumerate(roisnr):
-            # merge mean and stddev table
-            roi.append(roidev[i][1]*roisnr[i][1])
-            roi.append(roidev[i][1])
-            
-        roisnr.sort(key=lambda x:x[1])
-        roisnr.insert(0,['ROI','TSNR',
-                         'Mean','Standard Deviation'])
-    else:
-        roisnr.sort(key=lambda x:x[1])
-        roisnr.insert(0,['ROI','TSNR'])     
-    return roisnr
+def combine_table(roidev,roisnr,imagetable):
+    print len(roidev)
+    print len(roisnr)
+    print len(imagetable)
+
+    def match(List, Value):
+        for L in List:
+            if L[0]==Value:
+                return L[1]
+        return 0
+
+    for i, roi in enumerate(imagetable[1:]):
+        # merge mean and stddev table
+        avg = match(roidev,roi[0])*match(roisnr,roi[0])
+        dev = match(roidev,roi[0])
+        snr = match(roisnr,roi[0])
+        roi[0]+="\nSNR = %f\nMean = %f\nStandard Deviation = %f"%(snr,avg,dev)
+
+
+    return imagetable
     
 def plot_motion(motion_parameters):
     import matplotlib.pyplot as plt
@@ -315,10 +462,12 @@ def plot_ribbon(Brain):
             z_view = os.path.abspath('z_view.png')
             
             pl.savefig(x_view,bbox_inches='tight')
-            
+            pl.close()
+
             viz.plot_anat(anat=data, anat_affine=affine, draw_cross=False, slicer='y', cmap=viz.cm.black_green)
             pl.savefig(y_view,bbox_inches='tight')
-            
+            pl.close()
+
             viz.plot_anat(anat=data, anat_affine=affine, draw_cross=False, slicer='z', cmap=viz.cm.black_green)
             pl.savefig(z_view,bbox_inches='tight')
             
@@ -331,9 +480,11 @@ def plot_anat(brain):
     import pylab as pl
     from nibabel import load
     from nipy.labs import viz   
-    
+    import numpy as np
+
     img = load(brain)
     data = img.get_data()
+    data[np.isnan(data)] = 0
     affine = img.get_affine() 
     viz.plot_anat(anat=data, anat_affine=affine, draw_cross=False, slicer='x')
     
@@ -397,7 +548,7 @@ def overlay_dB(stat_image,background_image,threshold,dB):
                          orientation='horizontal', format=formatter)
     cb.set_ticks([cb._values.min(), cb._values.max()])
     pl.savefig(fnames[2],bbox_inches='tight')
-    
+    pl.close()
     return fnames
 
 
@@ -445,7 +596,7 @@ def overlay_new(stat_image,background_image,threshold):
                          orientation='horizontal', format=formatter)
     cb.set_ticks([cb._values.min(), cb._values.max()])
     pl.savefig(fnames[2],bbox_inches='tight')
-    
+    pl.close()
     return fnames
 
 def corr_image(resting_image,fwhm):
@@ -481,7 +632,8 @@ def corr_image(resting_image,fwhm):
 
     #br.add_overlay(precuneus[0,1:], min=0.3, sign='pos', name='mean', visible=True)
 
-    br.add_overlay(precuneus[0,1:], min=0.2, name='mean', visible=True)
+    br.add_overlay(precuneus[0,1:], min=0.2, name='mean')#, visible=True)
+    #br.add_overlay(precuneus[0,1:], min=0.2, name='mean')#, visible=True)
     plt.hist(precuneus[0,1:], 128)
     plt.savefig(os.path.abspath("histogram.png"))
     plt.close()

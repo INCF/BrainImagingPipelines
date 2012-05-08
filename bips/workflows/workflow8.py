@@ -232,7 +232,7 @@ def create_workflow(c):
                                                  'package'],
                                     output_names=['corrmatfile'],
                                     function=create_correlation_matrix),
-                      name='correlation_matrix')
+                      name='correlation_matrix',iterfield=['infile'])
     corrmat.inputs.out_type = c.out_type
     corrmat.inputs.package = c.hdf5_package
     workflow.connect(vol2surf, 'out_file', corrmat, 'infiles')

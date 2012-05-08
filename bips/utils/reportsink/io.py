@@ -28,13 +28,15 @@ class ReportSinkInputSpec(DynamicTraitedSpec, BaseInterfaceInputSpec):
         desc='Path to the base directory for writing report.')
     
     container = traits.Str(desc = 'Folder within base directory in which to store output')
+    table_as_para = traits.Bool(True, usedefault=True)
     _outputs = traits.Dict(traits.Str, value={}, usedefault=True)
     _outputs_order = []
     remove_dest_dir = traits.Bool(False, usedefault=True,
                                   desc='remove dest directory when copying dirs')
     report_name = traits.Str('Report',usedefault=True, desc='Name of report')
     json_sink = Directory(desc="place to store json in addition to base_directory")
-    
+    parameterization = traits.Bool(True, usedefault=True)
+    strip_dir = Directory()
     def __setattr__(self, key, value):
         if key not in self.copyable_trait_names():
             if not isdefined(value):
@@ -101,6 +103,35 @@ Indicates the input fields to be dynamically created
             
         self.inputs.trait_set(trait_change_notify=False, **undefined_traits)
 
+    def _get_dst(self, src):
+        path, fname = os.path.split(src)
+        if self.inputs.parameterization:
+            dst = path
+            if isdefined(self.inputs.strip_dir):
+                dst = dst.replace(self.inputs.strip_dir, '')
+
+            if not isdefined(self.inputs.container):
+                folders = [folder for folder in dst.split(os.path.sep) if
+                            folder.startswith('_')]
+            else:
+                folders = [folder for folder in dst.split(os.path.sep) if
+                           (folder.startswith('_') and not self.inputs.container in folder)]
+
+            dst = os.path.sep.join(folders).replace('_','')
+
+
+        else:
+            if fname:
+                dst = fname
+            else:
+                dst = path.split(os.path.sep)[-1]
+        try:
+            if dst[0] == os.path.sep(dst):
+                dst = dst[1:]
+        except:
+            pass
+        return dst
+
     def _list_outputs(self):
         """Execute this module.
 """
@@ -111,7 +142,12 @@ Indicates the input fields to be dynamically created
         
         if isdefined(self.inputs.container):
             outdir = os.path.join(outdir, self.inputs.container)
-            
+
+        cwd = os.getcwd()
+        dst = self._get_dst(cwd)
+
+        outdir = os.path.join(outdir,dst)
+
         if not os.path.exists(outdir):
             try:
                 os.makedirs(outdir)
@@ -151,7 +187,7 @@ Indicates the input fields to be dynamically created
             for i, thing in enumerate(files):
                 # Add a table, image or text
                 if isinstance(thing,list):
-                    rep.add_table(thing)
+                    rep.add_table(thing,para=self.inputs.table_as_para)
                 else:
                     if thing.endswith('.png') or thing.endswith('.jpg'):
                         rep.add_text(os.path.split(thing)[1])
@@ -162,13 +198,17 @@ Indicates the input fields to be dynamically created
         # write the report
         rep.write()
         # save json
-        save_json(os.path.join(outdir, self.inputs.report_name+'.json'), self.inputs._outputs)
-        if isdefined(self.inputs.json_sink):
-            if not isdefined(self.inputs.container):
-                save_json(os.path.join(self.inputs.json_sink, self.inputs.report_name+'.json'), self.inputs._outputs)
-            else:
-                if not os.path.exists(os.path.join(self.inputs.json_sink,self.inputs.container)):
-                    os.mkdir(os.path.join(self.inputs.json_sink,self.inputs.container))
-                save_json(os.path.join(self.inputs.json_sink,self.inputs.container, self.inputs.report_name+'.json'), self.inputs._outputs)
-        print "json file " , os.path.join(outdir, self.inputs.report_name+'.json')
+        try:
+            save_json(os.path.join(outdir, self.inputs.report_name+'.json'), self.inputs._outputs)
+
+            if isdefined(self.inputs.json_sink):
+                if not isdefined(self.inputs.container):
+                    save_json(os.path.join(self.inputs.json_sink, self.inputs.report_name+'.json'), self.inputs._outputs)
+                else:
+                    if not os.path.exists(os.path.join(self.inputs.json_sink,self.inputs.container)):
+                        os.mkdir(os.path.join(self.inputs.json_sink,self.inputs.container))
+                    save_json(os.path.join(self.inputs.json_sink,self.inputs.container, self.inputs.report_name+'.json'), self.inputs._outputs)
+            print "json file " , os.path.join(outdir, self.inputs.report_name+'.json')
+        except:
+            print "json could not be saved!"
         return None

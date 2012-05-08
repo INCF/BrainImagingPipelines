@@ -25,6 +25,7 @@ from workflow1 import get_dataflow
 class config(baseconfig):
     highpass_freq = traits.Float()
     lowpass_freq = traits.Float()
+    filtering_algorithm = traits.Enum("fsl","IIR","FIR")
     reg_params = traits.BaseTuple(traits.Bool, traits.Bool, traits.Bool,
                                   traits.Bool, traits.Bool)
 
@@ -97,6 +98,10 @@ def prep_workflow(c, fieldmap):
                           sinkd, 'preproc.mean')
 
     # inputs
+    preproc.inputs.inputspec.motion_correct_node = c.motion_correct_node
+    preproc.inputs.inputspec.timepoints_to_remove = c.timepoints_to_remove
+    preproc.inputs.inputspec.smooth_type = c.smooth_type
+    preproc.inputs.inputspec.surface_fwhm = c.surface_fwhm
     preproc.inputs.inputspec.num_noise_components = c.num_noise_components
     preproc.crash_dir = c.crash_dir
     modelflow.connect(infosource, 'subject_id', preproc, 'inputspec.fssubject_id')
@@ -106,19 +111,18 @@ def prep_workflow(c, fieldmap):
     preproc.inputs.inputspec.ad_normthresh = c.norm_thresh
     preproc.inputs.inputspec.ad_zthresh = c.z_thresh
     preproc.inputs.inputspec.tr = c.TR
+    preproc.inputs.inputspec.do_slicetime = c.do_slicetiming
     if c.do_slicetiming:
         preproc.inputs.inputspec.sliceorder = c.SliceOrder
-        preproc.inputs.inputspec.interleaved = False # NOTE: This should be removed later
+    else:
+        preproc.inputs.inputspec.sliceorder = None
 
     preproc.inputs.inputspec.compcor_select = c.compcor_select
-    if c.highpass_freq < 0:
-        preproc.inputs.inputspec.highpass_sigma = -1
-    else:
-        preproc.inputs.inputspec.highpass_sigma = 1/(2*c.TR*c.highpass_freq)
-    if c.lowpass_freq < 0:
-        preproc.inputs.inputspec.lowpass_sigma = -1
-    else:
-        preproc.inputs.inputspec.lowpass_sigma = 1/(2*c.TR*c.lowpass_freq)
+
+    preproc.inputs.inputspec.filter_type = c.filtering_algorithm
+    preproc.inputs.inputspec.highpass_freq = c.highpass_freq
+    preproc.inputs.inputspec.lowpass_freq = c.lowpass_freq
+
     preproc.inputs.inputspec.reg_params = c.reg_params
 
     
@@ -135,14 +139,16 @@ def prep_workflow(c, fieldmap):
                       preproc,'inputspec.func')
     modelflow.connect(preproc, 'outputspec.motion_parameters',
                       sinkd, 'preproc.motion')
-    modelflow.connect(preproc, 'plot_motion.out_file',
-                      sinkd, 'preproc.motion.@plots')
+    #modelflow.connect(preproc, 'plot_motion.out_file',
+    #                  sinkd, 'preproc.motion.@plots')
     modelflow.connect(preproc, 'outputspec.mask',
                       sinkd, 'preproc.mask')
     modelflow.connect(preproc, 'outputspec.outlier_files',
                       sinkd, 'preproc.art')
     modelflow.connect(preproc, 'outputspec.outlier_stat_files',
                       sinkd, 'preproc.art.@stats')
+    modelflow.connect(preproc, 'outputspec.intensity_files',
+                      sinkd, 'preproc.art.@intensity')
     modelflow.connect(preproc, 'outputspec.combined_motion',
                       sinkd, 'preproc.art.@norm')
     modelflow.connect(preproc, 'outputspec.reg_file',
@@ -157,6 +163,8 @@ def prep_workflow(c, fieldmap):
                       sinkd, 'preproc.tsnr')
     modelflow.connect(preproc, 'outputspec.stddev_file',
                       sinkd, 'preproc.tsnr.@stddev')
+    modelflow.connect(preproc, 'outputspec.tsnr_detrended',
+        sinkd, 'preproc.tsnr.@detrended')
     modelflow.connect(preproc, 'outputspec.filter_file',
                       sinkd, 'preproc.regressors')
     modelflow.connect(preproc, 'outputspec.z_img', 
@@ -172,7 +180,7 @@ def prep_workflow(c, fieldmap):
 def main(config_file):
     c = load_config(config_file, create_config)
     preprocess = prep_workflow(c, c.use_fieldmap)
-    realign = preprocess.get_node('preproc.realign')
+    realign = preprocess.get_node('preproc.mod_realign')
     #realign.inputs.loops = 2
     realign.inputs.speedup = 5
     realign.plugin_args = c.plugin_args
@@ -210,6 +218,8 @@ def create_view():
                       Item(name='base_dir', ),
                       Item(name='func_template'),
                       Item(name='check_func_datagrabber'),
+                      Item(name='run_datagrabber_without_submitting'),
+                      Item(name='timepoints_to_remove'),
                       label='Subjects', show_border=True),
                 Group(Item(name='use_fieldmap'),
                       Item(name='field_dir', enabled_when="use_fieldmap"),
@@ -222,7 +232,8 @@ def create_view():
                       Item(name='TE_diff',enabled_when="use_fieldmap"),
                       Item(name='sigma',enabled_when="use_fieldmap"),
                       label='Fieldmap',show_border=True),
-                Group(Item(name='TR'),
+                Group(Item(name="motion_correct_node"),
+                      Item(name='TR'),
                       Item(name='do_slicetiming'),
                       Item(name='SliceOrder',editor=CSVListEditor()),
                       label='Motion Correction', show_border=True),
@@ -234,10 +245,13 @@ def create_view():
                       label='CompCor',show_border=True),
                 Group(Item(name='reg_params'),
                       label='Nuisance Filtering',show_border=True),
-                Group(Item(name='fwhm', editor=CSVListEditor()),
+                Group(Item(name='smooth_type'),
+                      Item(name='fwhm', editor=CSVListEditor()),
+                      Item(name='surface_fwhm'),
                       label='Smoothing',show_border=True),
                 Group(Item(name='highpass_freq'),
                       Item(name='lowpass_freq'),
+                      Item(name='filtering_algorithm'),
                       label='Bandpass Filter',show_border=True),
                 Group(Item(name='use_advanced_options'),
                     Item(name='advanced_script',enabled_when='use_advanced_options'),
