@@ -59,16 +59,45 @@ class report():
         self.elements.append(Spacer(1, 12))    
     
     def add_table(self,data,para=False):
-        if para:
-            data_para = []
-            for dat in data:
-                temp = []
-                for da in dat:
-                    temp.append(Paragraph(str(da),self.styles["Normal"]))
-                data_para.append(temp)
-            t=Table(data_para)
-        else:
-            t = Table(data)
+
+        def splitter(txt):
+            if len(txt)>95:
+                N = len(txt)/95
+                parts = []
+
+                for n in xrange(N):
+                    parts.append(txt[95*n:95*n+95])
+                parts.append(txt[95*N:])
+                txt = ''
+                for p in parts:
+                    txt += p+'\n'
+                return txt
+            else:
+                return txt
+
+        data_para = []
+        for dat in data:
+            temp = []
+            for da in dat:
+                if isinstance(da,str):
+                    if da.endswith('.png'):
+                        temp.append(get_and_scale(da,0.35))
+                    else:
+                        if para:
+                            temp.append(Paragraph(da,self.styles["Normal"]))
+                        else:
+                            if len(da) > 95:
+                                da = splitter(da)
+                            temp.append(da)
+                else:
+                    if para:
+                        temp.append(Paragraph(str(da),self.styles["Normal"]))
+                    else:
+                        temp.append(da)
+
+            data_para.append(temp)
+
+        t=Table(data_para)
             
         t.setStyle(TableStyle([('ALIGN',(0,0), (-1,-1),'LEFT'),
                                ('VALIGN',(0,0), (-1,-1), 'TOP'),
