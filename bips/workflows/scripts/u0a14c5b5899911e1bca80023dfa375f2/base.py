@@ -7,7 +7,7 @@ import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 
 from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
-                   getmeanscale, highpass_operand, pickfirst)
+                   getmeanscale, highpass_operand, pickfirst, whiten)
 
 
 def create_filter_matrix(motion_params, composite_norm,
@@ -174,7 +174,8 @@ def create_prep(name='preproc'):
                                                       'smooth_type',
                                                       'surface_fwhm',
                                                       'filter_type',
-                                                      'timepoints_to_remove']),
+                                                      'timepoints_to_remove',
+                                                      'do_whitening']),
                         name='inputspec')
 
     # Separate input node for FWHM
@@ -603,6 +604,12 @@ def create_rest_prep(name='preproc',fieldmap=False):
                                 function=mod_filter),
                       name='bandpass_filter',iterfield=['in_file'])
 
+    whitening = pe.MapNode(util.Function(input_names=['in_file',
+                                                      "do_whitening"],
+                                         output_names=["out_file"],
+                                         function=whiten),
+        name="whitening",iterfield=["in_file"])
+
     # Get old nodes
     inputnode = preproc.get_node('inputspec')
     meanscale = preproc.get_node('scale_median')
@@ -637,6 +644,8 @@ def create_rest_prep(name='preproc',fieldmap=False):
     preproc.remove_nodes([highpass])
 
     # connect nodes
+    preproc.connect(inputnode,'do_whitening',
+                    whitening, "do_whitening")
     preproc.connect(inputnode,'tr',
         bandpass_filter,'tr')
     preproc.connect(inputnode,'filter_type',
@@ -659,8 +668,12 @@ def create_rest_prep(name='preproc',fieldmap=False):
                     choosesusan, 'motion_files')
     preproc.connect(compcor, 'tsnr.detrended_file',
                     remove_noise, 'in_file')
+
     preproc.connect(meanscale, 'out_file',
+                    whitening, "in_file")
+    preproc.connect(whitening, "out_file",
                     bandpass_filter, 'in_file')
+
     preproc.connect(bandpass_filter, 'out_file',
                     outputnode, 'bandpassed_file')
     preproc.connect(choosesusan, 'cor_smoothed_files',

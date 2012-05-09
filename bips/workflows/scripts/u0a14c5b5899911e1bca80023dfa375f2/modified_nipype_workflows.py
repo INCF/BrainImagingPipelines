@@ -117,8 +117,8 @@ def create_eddy_correct_pipeline(name="eddy_correct"):
                                     function=get_b0),
         name='get_b0_indices')
 
-    pick_ref = pe.MapNode(util.Select(), name="pick_ref", iterfield=["inlist"])
-    pick0 = pe.MapNode(util.Select(index=0), name="pick0_ref", iterfield=["inlist"])
+    pick_ref = pe.MapNode(util.Select(), name="pick_b0_scans", iterfield=["inlist"])
+    pick0 = pe.MapNode(util.Select(index=0), name="pick_first_scan", iterfield=["inlist"])
 
 
     getmotion = pe.MapNode(util.Function(input_names=['flirt_out_mats'],
@@ -138,7 +138,7 @@ def create_eddy_correct_pipeline(name="eddy_correct"):
     coregistration = pe.MapNode(util.Function(input_names=['in_file', 'reference'],
         output_names=['out_file', 'out_matrix_file'],
         function = mapnode_coregistration),
-        name = "coregistration",
+        name = "coregister_b0",
         iterfield=["in_file","reference"])
     pipeline.connect([(pick_ref, coregistration, [("out", "in_file")]),
         (pick0, coregistration, [("out", "reference")])])
@@ -155,19 +155,153 @@ def create_eddy_correct_pipeline(name="eddy_correct"):
 
     pipeline.connect(merge,'merged_file',art_mean,'inputspec.realigned_files')
 
-    outputnode = pe.Node(interface = util.IdentityInterface(fields=["eddy_corrected","mean_image"]),
+    outputnode = pe.Node(interface = util.IdentityInterface(fields=["eddy_corrected","mean_image","coreg_mat_files"]),
         name="outputnode")
 
     pipeline.connect(art_mean, 'outputspec.mean_image', outputnode, "mean_image")
 
-    coreg_all = coregistration.clone("coreg_all")
+    coreg_all = coregistration.clone("coregister_all")
     pipeline.connect(split, 'out_files', coreg_all, 'in_file')
     pipeline.connect(art_mean,'outputspec.mean_image',coreg_all,"reference")
 
     merge_all = merge.clone("merge_all")
     pipeline.connect([(coreg_all, merge_all, [("out_file", "in_files")])
     ])
-
+    pipeline.connect(coreg_all, 'out_matrix_file', outputnode, "coreg_mat_files")
     pipeline.connect(merge_all,'merged_file',outputnode,"eddy_corrected")
 
     return pipeline
+
+def create_getmask_flow(name='getmask', dilate_mask=True):
+    """Registers a source file to freesurfer space and create a brain mask in
+source space
+
+Requires fsl tools for initializing registration
+
+Parameters
+----------
+
+name : string
+name of workflow
+dilate_mask : boolean
+indicates whether to dilate mask or not
+
+Example
+-------
+
+>>> getmask = create_getmask_flow()
+>>> getmask.inputs.inputspec.source_file = 'mean.nii'
+>>> getmask.inputs.inputspec.subject_id = 's1'
+>>> getmask.inputs.inputspec.subjects_dir = '.'
+>>> getmask.inputs.inputspec.contrast_type = 't2'
+
+
+Inputs::
+
+inputspec.source_file : reference image for mask generation
+inputspec.subject_id : freesurfer subject id
+inputspec.subjects_dir : freesurfer subjects directory
+inputspec.contrast_type : MR contrast of reference image
+
+Outputs::
+
+outputspec.mask_file : binary mask file in reference image space
+outputspec.reg_file : registration file that maps reference image to
+freesurfer space
+outputspec.reg_cost : cost of registration (useful for detecting misalignment)
+"""
+
+    """
+Initialize the workflow
+"""
+
+    getmask = pe.Workflow(name=name)
+
+    """
+Define the inputs to the workflow.
+"""
+
+    inputnode = pe.Node(niu.IdentityInterface(fields=['source_file',
+                                                      'subject_id',
+                                                      'subjects_dir',
+                                                      'contrast_type']),
+        name='inputspec')
+
+    """
+Define all the nodes of the workflow:
+
+fssource: used to retrieve aseg.mgz
+threshold : binarize aseg
+register : coregister source file to freesurfer space
+voltransform: convert binarized aseg to source file space
+
+"""
+
+    fssource = pe.Node(nio.FreeSurferSource(),
+        name = 'fssource')
+    threshold = pe.Node(fs.Binarize(min=0.5, out_type='nii'),
+        name='threshold')
+    register = pe.MapNode(fs.BBRegister(init='fsl'),
+        iterfield=['source_file'],
+        name='register')
+    voltransform = pe.MapNode(fs.ApplyVolTransform(inverse=True),
+        iterfield=['source_file', 'reg_file'],
+        name='transform')
+
+    """
+Connect the nodes
+"""
+
+    getmask.connect([
+        (inputnode, fssource, [('subject_id','subject_id'),
+            ('subjects_dir','subjects_dir')]),
+        (inputnode, register, [('source_file', 'source_file'),
+            ('subject_id', 'subject_id'),
+            ('subjects_dir', 'subjects_dir'),
+            ('contrast_type', 'contrast_type')]),
+        (inputnode, voltransform, [('subjects_dir', 'subjects_dir'),
+            ('source_file', 'source_file')]),
+        (fssource, threshold, [('aseg', 'in_file')]),
+        (register, voltransform, [('out_reg_file','reg_file')]),
+        (threshold, voltransform, [('binary_file','target_file')])
+    ])
+
+
+    """
+Add remaining nodes and connections
+
+dilate : dilate the transformed file in source space
+threshold2 : binarize transformed file
+"""
+
+    threshold2 = pe.MapNode(fs.Binarize(min=0.5, out_type='nii'),
+        iterfield=['in_file'],
+        name='threshold2')
+    if dilate_mask:
+        dilate = pe.MapNode(fsl.maths.DilateImage(operation='max'),
+            iterfield=['in_file'],
+            name='dilate')
+        getmask.connect([
+            (voltransform, dilate, [('transformed_file', 'in_file')]),
+            (dilate, threshold2, [('out_file', 'in_file')]),
+        ])
+    else:
+        getmask.connect([
+            (voltransform, threshold2, [('transformed_file', 'in_file')])
+        ])
+
+    """
+Setup an outputnode that defines relevant inputs of the workflow.
+"""
+
+    outputnode = pe.Node(niu.IdentityInterface(fields=["mask_file",
+                                                       "reg_file",
+                                                       "reg_cost"
+    ]),
+        name="outputspec")
+    getmask.connect([
+        (register, outputnode, [("out_reg_file", "reg_file")]),
+        (register, outputnode, [("min_cost_file", "reg_cost")]),
+        (threshold2, outputnode, [("binary_file", "mask_file")]),
+    ])
+    return getmask

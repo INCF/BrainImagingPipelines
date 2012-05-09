@@ -526,3 +526,17 @@ def z_image(image,outliers):
 
 tolist = lambda x: [x]
 highpass_operand = lambda x: '-bptf %.10f -1' % x
+
+def whiten(in_file,do_whitening):
+    if do_whitening:
+        import os
+        from glob import glob
+        from nipype.utils.filemanip import split_filename
+        split_fname = split_filename(in_file)
+        out_file = os.path.abspath(split_fname[1]+"_whitened"+split_fname[2])
+        os.system('film_gls -ac -output_pwdata %s'%in_file)
+        result = glob(os.path.join(os.path.abspath('results'),'prewhitened_data.*'))[0]
+        out_file=result
+    else:
+        out_file = in_file
+    return out_file
