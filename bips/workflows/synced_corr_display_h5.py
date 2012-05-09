@@ -3,12 +3,10 @@
 
 # <codecell>
 
-import argparse
 import os
 
 from surfer import Brain
 import scipy.io as sio
-import nibabel as nb
 import numpy as np
 from mayavi import mlab
 from tables import openFile
@@ -113,27 +111,7 @@ def display_matrices(filenames, target, hemi, surface):
     mlab.show()
 
 def main(config_file):
-    """parser = argparse.ArgumentParser(description="None")
-    parser.add_argument('-f','--files',
-                        dest='files',
-                        nargs="+",
-                        required=True,
-                        help='correlation matrix files'
-                        )
-    parser.add_argument('--hemi',
-                        dest = 'hemi',
-                        required=True,
-                        help='hemisphere')
-    parser.add_argument('-s','--surface',
-                        dest = 'surface',
-                        required=True,
-                        help='Type of surface')
-    parser.add_argument('-t', '--target',
-                        dest = 'target',
-                        required=True,
-                        help='Target fsaverage')
-    
-    args = parser.parse_args()"""
+
     args = load_config(config_file,config)
     if args.use_pattern:
         from glob import glob

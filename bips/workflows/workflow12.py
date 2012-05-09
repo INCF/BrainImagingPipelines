@@ -1,5 +1,4 @@
-from nipype.workflows.dmri.fsl.dti import create_eddy_correct_pipeline
-from nipype.workflows.dmri.fsl.tbss import create_tbss_non_FA, create_tbss_all
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.modified_nipype_workflows import create_eddy_correct_pipeline
 import nipype.interfaces.io as nio
 from nipype.workflows.smri.freesurfer import create_getmask_flow
 import nipype.interfaces.fsl as fsl          # fsl
@@ -33,10 +32,15 @@ def rotate_bvecs(bvecs, motion_vecs, rotate):
     else:
         import numpy as np
         import os
+        from nipype.interfaces.fsl.utils import AvScale
         bvecs = np.genfromtxt(bvecs)
         rotated_bvecs = open(os.path.abspath('rotated_bvecs.txt'),'w')
+
         for i,r in enumerate(motion_vecs):
-            mat = np.genfromtxt(r)
+            avscale = AvScale()
+            avscale.inputs.mat_file = r
+            res = avscale.run()
+            mat = np.asarray(res.outputs.rotation_translation_matrix)
             rot = np.dot(mat,np.hstack((bvecs[i,:],1)))
             for point in rot[:-1]:
                 rotated_bvecs.write('%f '%point)
@@ -64,9 +68,8 @@ def create_prep(use_fieldmap):
     gen_fa = pe.Workflow(name="gen_fa")
 
     eddy_correct = create_eddy_correct_pipeline()
-    eddy_correct.inputs.inputnode.ref_num = 0
     gen_fa.connect(inputspec, 'dwi', eddy_correct, 'inputnode.in_file')
-
+    gen_fa.connect(inputspec,'bval', eddy_correct, 'inputnode.bvals')
 
     getmask = create_getmask_flow()
     gen_fa.connect(inputspec,'subject_id',getmask,'inputspec.subject_id')
@@ -88,7 +91,7 @@ def create_prep(use_fieldmap):
             dewarper, 'mask_file')
         gen_fa.connect(fieldmap, 'vsm_file',
             dewarper, 'shift_in_file')
-        gen_fa.connect(eddy_correct, 'pick_ref.out',
+        gen_fa.connect(eddy_correct, 'outputnode.mean_image',
             fieldmap, 'exf_file')
         gen_fa.connect(inputspec, 'phase_file',
             fieldmap, 'dph_file')
@@ -98,11 +101,11 @@ def create_prep(use_fieldmap):
             getmask, 'inputspec.source_file')
 
     else:
-        gen_fa.connect(eddy_correct,'pick_ref.out',
+        gen_fa.connect(eddy_correct,'outputnode.mean_image',
             getmask,'inputspec.source_file')
 
 
-    dtifit = pe.Node(interface=fsl.DTIFit(), name='dtifit')
+    dtifit = pe.MapNode(interface=fsl.DTIFit(), name='dtifit', iterfield=['dwi',"mask","bvecs","bvals"])
     gen_fa.connect(eddy_correct, 'outputnode.eddy_corrected', dtifit, 'dwi')
 
 
@@ -110,13 +113,13 @@ def create_prep(use_fieldmap):
 
     gen_fa.connect(getmask,('outputspec.mask_file',pickfirst), dtifit, 'mask')
 
-    rotate = pe.Node(util.Function(input_names=['bvecs','motion_vecs','rotate'],
+    rotate = pe.MapNode(util.Function(input_names=['bvecs','motion_vecs','rotate'],
                                       output_names=['rotated_bvecs'],
                                       function=rotate_bvecs),
-        name='rotate_bvecs')
+        name='rotate_bvecs', iterfield=["bvecs", "motion_vecs"])
 
     gen_fa.connect(inputspec,'bvec', rotate, 'bvecs')
-    gen_fa.connect(eddy_correct,'coregistration.out_matrix_file',rotate,'motion_vecs')
+    gen_fa.connect(eddy_correct,'coreg_all.out_matrix_file',rotate,'motion_vecs')
     gen_fa.connect(inputspec,'rotate', rotate, 'rotate')
     gen_fa.connect(rotate,'rotated_bvecs', dtifit, 'bvecs')
 
