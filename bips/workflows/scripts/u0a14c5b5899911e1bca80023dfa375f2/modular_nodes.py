@@ -357,7 +357,20 @@ Define a function to get the brightness threshold for SUSAN
     outputnode = pe.Node(interface=util.IdentityInterface(fields=['smoothed_files']),
         name='outputnode')
 
-    susan_smooth.connect(smooth, 'smoothed_file', outputnode, 'smoothed_files')
+    #susan_smooth.connect(smooth, 'smoothed_file', outputnode, 'smoothed_files')
+
+    if separate_masks:
+        applymask = pe.MapNode(interface=fsl.ApplyMask(),
+            iterfield=['in_file', 'mask_file'],
+            name='applymask')
+    else:
+        applymask = pe.MapNode(interface=fsl.ApplyMask(),
+            iterfield=['in_file'],
+            name='applymask')
+
+    susan_smooth.connect(smooth,'smoothed_file', applymask,'in_file')
+    susan_smooth.connect(inputnode, 'mask_file', applymask, 'mask_file')
+    susan_smooth.connect(applymask, 'out_file',  outputnode, 'smoothed_files')
 
     return susan_smooth
 
