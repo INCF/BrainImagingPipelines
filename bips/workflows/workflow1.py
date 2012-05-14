@@ -301,6 +301,9 @@ def main(configfile):
     if c.use_advanced_options:
         exec c.advanced_script
 
+    if c.test_mode:
+        preprocess.write_graph()
+
     if c.run_using_plugin:
         preprocess.run(plugin=c.plugin, plugin_args = c.plugin_args)
     else:

@@ -60,6 +60,9 @@ class config(HasTraits):
     input_units = traits.Enum('scans','secs')
     # preprocessing info
     preproc_config = traits.File(desc="preproc config file")
+    #advanced_options
+    use_advanced_options = Bool(False)
+    advanced_options = traits.Code()
 
 def create_config():
     c = config()
@@ -81,7 +84,7 @@ def preproc_datagrabber(c, name='preproc_datagrabber'):
     datasource.inputs.template ='*'
     datasource.inputs.field_template = dict(noise_components='%s/preproc/noise_components/*/noise_components.txt',
                                             motion_parameters='%s/preproc/motion/*.par',
-                                            highpassed_files='%s/preproc/highpass/fwhm_%s/*/*.nii.gz',
+                                            highpassed_files='%s/preproc/highpass/fwhm_%s/*/*.nii*',
                                             outlier_files='%s/preproc/art/*_outliers.txt')
     datasource.inputs.template_args = dict(noise_components=[['subject_id']],
                                            motion_parameters=[['subject_id']],
@@ -298,6 +301,9 @@ def main(config_file):
     first_level.config = {'execution' : {'crashdump_dir' : c.crash_dir}}
     first_level.base_dir = c.working_dir
 
+    if c.use_advanced_options:
+        exec c.advanced_options
+
     if c.test_mode:
         first_level.write_graph()
 
@@ -333,6 +339,9 @@ def create_view():
             label = 'First Level'),
         Group(Item(name='preproc_config'),
             label = 'Preprocessing Info'),
+        Group(Item(name='use_advanced_options'),
+              Item(name="advanced_options", enabled_when="use_advanced_options"),
+                  label="Advanced Options", show_border=True),
         buttons = [OKButton, CancelButton],
         resizable=True,
         width=1050)

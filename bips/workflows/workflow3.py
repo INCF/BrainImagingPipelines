@@ -110,9 +110,9 @@ def start_config_table(c):
     table.append(['Art: z thresh',str(c.z_thresh)])
     #table.append(['Smoothing Algorithm',c.smooth_type])
     table.append(['fwhm',str(c.fwhm)])
-    try:
+    if c.task:
         table.append(['Highpass cutoff',str(c.hpcutoff)])
-    except:
+    if c.resting:
         table.append(['highpass freq',str(c.highpass_freq)])
         table.append(['lowpass freq',str(c.lowpass_freq)])
     return table

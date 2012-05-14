@@ -79,6 +79,14 @@ def create_prep(use_fieldmap):
     gen_fa.connect(inputspec,'subjects_dir',getmask,'inputspec.subjects_dir')
     getmask.inputs.inputspec.contrast_type = 't2'
 
+    outputnode = pe.Node(interface=util.IdentityInterface(fields=['FA',
+                                                                  'MD',
+                                                                  'reg_file',
+                                                                  'FM_unwarped_mean',
+                                                                  'FM_unwarped_epi']),
+        name='outputspec')
+    dtifit = pe.MapNode(interface=fsl.DTIFit(), name='dtifit', iterfield=['dwi',"mask","bvecs","bvals"])
+
     if use_fieldmap:
         fieldmap = pe.Node(interface=fsl.utils.EPIDeWarp(), name='fieldmap_unwarp')
         dewarper = pe.MapNode(interface=fsl.FUGUE(),iterfield=['in_file'],name='dewarper')
@@ -96,25 +104,27 @@ def create_prep(use_fieldmap):
             dewarper, 'shift_in_file')
         gen_fa.connect(eddy_correct, 'outputnode.mean_image',
             fieldmap, 'exf_file')
-        gen_fa.connect(inputspec, 'phase_file',
+        gen_fa.connect(inputspec, 'phase_image',
             fieldmap, 'dph_file')
-        gen_fa.connect(inputspec, 'magnitude_file',
+        gen_fa.connect(inputspec, 'magnitude_image',
             fieldmap, 'mag_file')
         gen_fa.connect(fieldmap, 'exfdw',
             getmask, 'inputspec.source_file')
+        gen_fa.connect(fieldmap, 'exfdw',
+            outputnode, 'FM_unwarped_mean')
+        gen_fa.connect(dewarper,'unwarped_file',dtifit,'dwi')
+        gen_fa.connect(dewarper, 'unwarped_file',
+            outputnode, 'FM_unwarped_epi')
+        #gen_fa.connect(fieldmap,'exf_mask',dtifit,'mask')
 
     else:
         gen_fa.connect(eddy_correct,'outputnode.mean_image',
             getmask,'inputspec.source_file')
-
-
-    dtifit = pe.MapNode(interface=fsl.DTIFit(), name='dtifit', iterfield=['dwi',"mask","bvecs","bvals"])
-    gen_fa.connect(eddy_correct, 'outputnode.eddy_corrected', dtifit, 'dwi')
-
-
-    gen_fa.connect(inputspec,'subject_id',dtifit,'base_name')
+        gen_fa.connect(eddy_correct, 'outputnode.eddy_corrected', dtifit, 'dwi')
 
     gen_fa.connect(getmask,('outputspec.mask_file',pickfirst), dtifit, 'mask')
+
+    gen_fa.connect(inputspec,'subject_id',dtifit,'base_name')
 
     rotate = pe.MapNode(util.Function(input_names=['bvecs','motion_vecs','rotate'],
                                       output_names=['rotated_bvecs'],
@@ -140,11 +150,6 @@ def create_prep(use_fieldmap):
 
     gen_fa.connect(eddy_correct,'outputnode.coreg_mat_files',getmotion,'flirt_out_mats')
     gen_fa.connect(getmotion,"motion_params", plotmotion, "motion_parameters")
-
-    outputnode = pe.Node(interface=util.IdentityInterface(fields=['FA',
-                                                                  'MD',
-                                                                  'reg_file']),
-        name='outputspec')
 
     reportnode = pe.Node(io.ReportSink(orderfields=["Introduction",
                                                     "In_Files",
@@ -201,7 +206,27 @@ def combine_prep(c):
 
     prep = create_prep(c.use_fieldmap)
     prep.inputs.inputspec.subjects_dir = c.surf_dir
-    prep.inputs.inputspec
+    if c.use_fieldmap:
+        datasource_fieldmap = pe.Node(nio.DataGrabber(infields=['subject_id'],
+            outfields=['mag',
+                       'phase']),
+            name = "fieldmap_datagrabber")
+        datasource_fieldmap.inputs.base_directory = c.field_dir
+        datasource_fieldmap.inputs.sort_filelist = True
+        datasource_fieldmap.inputs.template ='*'
+        datasource_fieldmap.inputs.field_template = dict(mag=c.magnitude_template,
+            phase=c.phase_template)
+        datasource_fieldmap.inputs.template_args = dict(mag=[['subject_id']],
+            phase=[['subject_id']])
+        prep.inputs.inputspec.echo_spacing = c.echospacing
+        prep.inputs.inputspec.TE_diff = c.TE_diff
+        prep.inputs.inputspec.sigma = c.sigma
+        modelflow.connect(infosource, 'subject_id',
+            datasource_fieldmap, 'subject_id')
+        modelflow.connect(datasource_fieldmap,'mag',
+            prep,'inputspec.magnitude_image')
+        modelflow.connect(datasource_fieldmap,'phase',
+            prep,'inputspec.phase_image')
 
     modelflow.connect(infosource,'subject_id', prep, 'inputspec.subject_id')
     modelflow.connect(datasource,   'dwi',              prep,   'inputspec.dwi')
@@ -217,7 +242,10 @@ def combine_prep(c):
     modelflow.connect(prep,'outputspec.reg_file',sinker,'preproc.bbreg')
     modelflow.connect(prep, 'outputspec.FA', sinker, 'preproc.FA')
     modelflow.connect(prep,'outputspec.MD',sinker,'preproc.MD')
-
+    modelflow.connect(prep, 'outputspec.FM_unwarped_mean',
+        sinker, 'preproc.fieldmap.@unwarped_mean')
+    modelflow.connect(prep, 'outputspec.FM_unwarped_epi',
+        sinker, 'preproc.fieldmap.@unwarped_epi')
     return modelflow
 
 def main(config_file):
