@@ -4,7 +4,7 @@ import nipype.interfaces.utility as niu
 import nipype.pipeline.engine as pe
 import nipype.interfaces.io as nio
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.modular_nodes import mod_realign
-from .scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import art_mean_workflow
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import art_mean_workflow, pickfirst
 logger = pe.logger
 import os
 from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
@@ -65,6 +65,9 @@ class config(HasTraits):
         desc="motion correction algorithm to use",
         usedefault=True,)
 
+    csf_prob = traits.File(desc='CSF_prob_map') 
+    grey_prob = traits.File(desc='grey_prob_map')
+    white_prob = traits.File(desc='white_prob_map')
     # Artifact Detection
 
     norm_thresh = traits.Float(1, min=0, usedefault=True, desc="norm thresh for art")
@@ -103,6 +106,23 @@ def get_dataflow(c):
     dataflow.inputs.template_args = dict(func=[['subject_id']])
     return dataflow
 
+def do_symlink(in_file):
+    import os
+    import shutil
+
+    if not isinstance(in_file, list):
+        out_link=os.path.abspath(os.path.split(in_file)[1])
+        #os.symlink(in_file,out_link)
+        shutil.copy2(in_file,out_link)
+    else:
+        out_links = []
+        for f in in_file:
+            out_link=os.path.abspath(os.path.split(f)[1])
+            #os.symlink(f,out_link)
+            shutil.copy2(f,out_link)
+            out_links.append(out_link)
+        out_link = out_links	
+    return out_link
 
 def create_spm_preproc(name='preproc'):
     """Create an spm preprocessing workflow with freesurfer registration and
@@ -175,6 +195,10 @@ workflow
 
     poplist = lambda x: x.pop()
     #realign = pe.Node(spm.Realign(), name='realign')
+    
+    sym_func = pe.Node(niu.Function(input_names=['in_file'],output_names=['out_link'],function=do_symlink),name='func_symlink')   
+
+    sym_struct = sym_func.clone(name='sym_struct')
 
     realign = pe.Node(niu.Function(input_names=['node','in_file','tr','do_slicetime','sliceorder'],
         output_names=['out_file','par_file'],
@@ -186,7 +210,10 @@ workflow
     workflow.connect(realign,'par_file', mean, 'inputspec.realignment_parameters')
     mean.inputs.inputspec.parameter_source='FSL' # Modular realign puts it in FSL format for consistency
 
-    workflow.connect(inputnode, 'functionals', realign, 'in_file')
+    #workflow.connect(inputnode, 'functionals', realign, 'in_file')
+    workflow.connect(inputnode,'functionals', sym_func, 'in_file')
+    workflow.connect(sym_func,'out_link',realign,'in_file')
+
     workflow.connect(inputnode, 'tr',
         realign, 'tr')
     workflow.connect(inputnode, 'do_slicetime',
@@ -203,25 +230,41 @@ workflow
     workflow.connect(mean, 'outputspec.mean_image', maskflow, 'inputspec.source_file')
     smooth = pe.Node(spm.Smooth(), name='smooth')
 
-    normalize = pe.Node(spm.Normalize(),name='normalize')
+    normalize = pe.Node(spm.Normalize(jobtype='write'),name='normalize')
     segment = pe.Node(spm.Segment(csf_output_type=[True,True,False],
                                   gm_output_type=[True,True,False],
                                   wm_output_type=[True,True,False]),name='segment')
 
-    merge = pe.Node(niu.Merge(),name='merge')
+    mergefunc = lambda in1,in2,in3:[in1,in2,in3]
 
+    # merge = pe.Node(niu.Merge(),name='merge')
+    merge = pe.Node(niu.Function(input_names=['in1','in2','in3'],output_names=['out'],function=mergefunc),name='merge')
     workflow.connect(inputnode,'csf_prob',merge,'in3')
     workflow.connect(inputnode,'wm_prob',merge,'in2')
     workflow.connect(inputnode,'gm_prob',merge,'in1')
 
-    workflow.connect(merge,'out', segment,'tissue_prob_maps')
+    #workflow.connect(merge,'out', segment,'tissue_prob_maps')
 
-    workflow.connect(maskflow,'outputspec.mask_file',segment,'mask_image')
+    sym_prob = sym_func.clone('sym_prob')
+    workflow.connect(merge,'out',sym_prob,'in_file')
+    workflow.connect(sym_prob,'out_link',segment,'tissue_prob_maps')
+
+    workflow.connect(maskflow,('outputspec.mask_file',pickfirst),segment,'mask_image')
     workflow.connect(inputnode, 'fwhm', smooth, 'fwhm')
 
-
+    #sym_brain = sym_func.clone('sym_brain')
     #workflow.connect(realign, 'mean_image', normalize, 'source')
-    workflow.connect(maskflow,'fssource.brain',segment,'data')
+    #workflow.connect(maskflow,'fssource.brain',segment,'data')
+    fssource = maskflow.get_node('fssource')
+    import nipype.interfaces.freesurfer as fs
+    convert_brain = pe.Node(interface=fs.ApplyVolTransform(inverse=True),name='convert')
+    workflow.connect(fssource,'brain',convert_brain,'target_file')
+    workflow.connect(maskflow,('outputspec.reg_file',pickfirst),convert_brain,'reg_file')
+    workflow.connect(mean,'outputspec.mean_image',convert_brain,'source_file')
+    convert2nii = pe.Node(fs.MRIConvert(in_type='mgz',out_type='nii'),name='convert2nii')
+    workflow.connect(convert_brain,'transformed_file',convert2nii,'in_file')
+    workflow.connect(convert2nii,'out_file',segment,'data')    
+
     workflow.connect(segment, 'transformation_mat', normalize, 'parameter_file')
     workflow.connect(realign,'out_file',normalize, 'apply_to_files')
     #normalize.inputs.template='/software/spm8/templates/EPI.nii'
@@ -297,7 +340,9 @@ def main(config_file):
     workflow.inputs.inputspec.tr = c.TR
     workflow.inputs.inputspec.do_slicetime = c.do_slicetiming
     workflow.inputs.inputspec.sliceorder = c.SliceOrder
-
+    workflow.inputs.inputspec.csf_prob = c.csf_prob
+    workflow.inputs.inputspec.gm_prob = c.grey_prob
+    workflow.inputs.inputspec.wm_prob = c.white_prob
     workflow.base_dir = c.working_dir
     workflow.config = {'execution': {'crashdump_dir': c.crash_dir}}
     infosource = pe.Node(niu.IdentityInterface(fields=['subject_id']),
@@ -368,6 +413,11 @@ def create_view():
             Item(name='do_slicetiming'),
             Item(name='SliceOrder', editor=CSVListEditor()),
             label='Motion Correction', show_border=True),
+        Group(Item('csf_prob'),
+            Item('grey_prob'),
+            Item('white_prob'),
+            label='normalize', 
+            show_border=True),
         Group(Item(name='norm_thresh'),
             Item(name='z_thresh'),
             label='Artifact Detection',show_border=True),

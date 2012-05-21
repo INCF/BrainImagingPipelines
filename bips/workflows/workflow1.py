@@ -281,7 +281,8 @@ def prep_workflow(c, fieldmap):
                       sinkd, 'preproc.z_image')
     modelflow.connect(preproc, 'outputspec.noise_components',
                       sinkd, 'preproc.noise_components')
-    
+    modelflow.connect(preproc, 'outputspec.reg_fsl_file',
+                      sinkd, 'preproc.bbreg.@fsl')    
 
     modelflow.base_dir = os.path.join(c.working_dir, 'work_dir')
     return modelflow
