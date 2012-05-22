@@ -1,5 +1,4 @@
 import os
-import sys
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 from nipype.interfaces.io import FreeSurferSource
@@ -35,6 +34,7 @@ class config(HasTraits):
                           desc="Subject id's. Note: These MUST match the subject id's in the \
                                 Freesurfer directory. For simplicity, the subject id's should \
                                 also match with the location of individual functional files.")
+    fwhm=traits.List(traits.Float())
     inputs_template = traits.String('%s/preproc/output/fwhm_%s/*.nii.gz')
     meanfunc_template = traits.String('%s/preproc/mean/*_mean.nii.gz')
     fsl_mat_template = traits.String('%s/preproc/bbreg/*.mat')
@@ -69,7 +69,8 @@ def create_view():
                       Item(name='test_mode'),
                       label='Execution Options', show_border=True),
                 Group(Item(name='subjects', editor=CSVListEditor()),
-                      Item(name='base_dir', ),
+                      Item(name='base_dir'),
+                      Item(name='fwhm', editor=CSVListEditor()),
                       Item(name='inputs_template'),
                       Item(name='meanfunc_template'),
                       Item(name='fsl_mat_template'),
@@ -98,16 +99,15 @@ mwf.config_ui = create_config
 mwf.help = desc
 mwf.config_view = create_view
 
-def func_datagrabber(name="resting_output_datagrabber"):
+def func_datagrabber(c, name="resting_output_datagrabber"):
     # create a node to obtain the functional images
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id',
                                                              'fwhm'],
-                                                   outfields=['output',
+                                                   outfields=['inputs',
                                                               'meanfunc',
                                                               'fsl_mat']),
                          name=name)
-    datasource.inputs.base_directory = os.path.join(c.sink_dir, 'analyses',
-                                                   'func')
+    datasource.inputs.base_directory = os.path.join(c.sink_dir)
     datasource.inputs.template = '*'
     datasource.inputs.field_template = dict(
                                 inputs=c.inputs_template,
@@ -122,7 +122,7 @@ pickfirst = lambda x: x[0]
 
 def normalize_workflow(c):
     norm = get_full_norm_workflow()
-    datagrab = func_datagrabber()
+    datagrab = func_datagrabber(c)
 
     fssource = pe.Node(interface=FreeSurferSource(), name='fssource')
     fssource.inputs.subjects_dir = c.surf_dir
@@ -150,7 +150,7 @@ def normalize_workflow(c):
     norm.inputs.inputspec.template_file = c.norm_template
 
     sinkd = pe.Node(nio.DataSink(), name='sinkd')
-    sinkd.inputs.base_directory = os.path.join(c.sink_dir, 'analyses', 'func')
+    sinkd.inputs.base_directory = os.path.join(c.sink_dir)
 
     outputspec = norm.get_node('outputspec')
     norm.connect(infosource, 'subject_id', sinkd, 'container')

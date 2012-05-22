@@ -28,6 +28,7 @@ class config(baseconfig):
     filtering_algorithm = traits.Enum("fsl","IIR","FIR")
     reg_params = traits.BaseTuple(traits.Bool, traits.Bool, traits.Bool,
                                   traits.Bool, traits.Bool)
+    do_whitening = traits.Bool(False, usedefault=True)
 
 def create_config():
     c = config()
@@ -99,6 +100,7 @@ def prep_workflow(c, fieldmap):
 
     # inputs
     preproc.inputs.inputspec.motion_correct_node = c.motion_correct_node
+    preproc.inputs.inputspec.do_whitening = c.do_whitening
     preproc.inputs.inputspec.timepoints_to_remove = c.timepoints_to_remove
     preproc.inputs.inputspec.smooth_type = c.smooth_type
     preproc.inputs.inputspec.surface_fwhm = c.surface_fwhm
@@ -252,6 +254,7 @@ def create_view():
                 Group(Item(name='highpass_freq'),
                       Item(name='lowpass_freq'),
                       Item(name='filtering_algorithm'),
+                      Item(name='do_whitening'),
                       label='Bandpass Filter',show_border=True),
                 Group(Item(name='use_advanced_options'),
                     Item(name='advanced_script',enabled_when='use_advanced_options'),

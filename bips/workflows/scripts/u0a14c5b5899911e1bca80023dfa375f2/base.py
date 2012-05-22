@@ -2,12 +2,12 @@ import nipype.interfaces.fsl as fsl         # fsl
 import nipype.algorithms.rapidart as ra     # rapid artifact detection
 from nipype.interfaces.fsl.utils import EPIDeWarp
 from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
-from .modular_nodes import create_mod_smooth, mod_realign, mod_filter
+from .modular_nodes import create_mod_smooth, mod_realign, mod_filter, mod_regressor
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 
 from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
-                   getmeanscale, highpass_operand, pickfirst)
+                   getmeanscale, highpass_operand, pickfirst, whiten)
 
 
 def create_filter_matrix(motion_params, composite_norm,
@@ -87,9 +87,14 @@ def create_filter_matrix(motion_params, composite_norm,
             temp = np.zeros(a.shape)
             temp[1:, :] = np.diff(a, axis=0)
             out = np.hstack((out, temp))
-
-    np.savetxt(filter_file, out)
-    return filter_file
+    if out is not None:
+        np.savetxt(filter_file, out)
+        return filter_file
+    else:
+        filter_file = os.path.abspath("empty_file.txt")
+        a = open(filter_file,'w')
+        a.close()
+        return filter_file
 
 
 def create_prep(name='preproc'):
@@ -174,7 +179,8 @@ def create_prep(name='preproc'):
                                                       'smooth_type',
                                                       'surface_fwhm',
                                                       'filter_type',
-                                                      'timepoints_to_remove']),
+                                                      'timepoints_to_remove',
+                                                      'do_whitening']),
                         name='inputspec')
 
     # Separate input node for FWHM
@@ -585,9 +591,13 @@ def create_rest_prep(name='preproc',fieldmap=False):
                                        'art_outliers'])
 
     # regress out noise
-    remove_noise = pe.MapNode(fsl.FilterRegressor(filter_all=True),
-                       name='regress_nuisance',
-                       iterfield=['design_file','in_file'])
+    remove_noise = pe.MapNode(util.Function(input_names=["in_file","design_file","mask"],
+        output_names=["out_file"],function=mod_regressor),
+        name='regress_nuisance',iterfield=["in_file","design_file"])
+
+    #pe.MapNode(fsl.FilterRegressor(filter_all=True),
+                   #    name='regress_nuisance',
+                   #    iterfield=['design_file','in_file'])
 
     # bandpass filter
     #bandpass_filter = pe.MapNode(fsl.TemporalFilter(),
@@ -602,6 +612,12 @@ def create_rest_prep(name='preproc',fieldmap=False):
                                 output_names=['out_file'],
                                 function=mod_filter),
                       name='bandpass_filter',iterfield=['in_file'])
+
+    whitening = pe.MapNode(util.Function(input_names=['in_file',
+                                                      "do_whitening"],
+                                         output_names=["out_file"],
+                                         function=whiten),
+        name="whitening",iterfield=["in_file"])
 
     # Get old nodes
     inputnode = preproc.get_node('inputspec')
@@ -637,6 +653,8 @@ def create_rest_prep(name='preproc',fieldmap=False):
     preproc.remove_nodes([highpass])
 
     # connect nodes
+    preproc.connect(inputnode,'do_whitening',
+                    whitening, "do_whitening")
     preproc.connect(inputnode,'tr',
         bandpass_filter,'tr')
     preproc.connect(inputnode,'filter_type',
@@ -659,8 +677,12 @@ def create_rest_prep(name='preproc',fieldmap=False):
                     choosesusan, 'motion_files')
     preproc.connect(compcor, 'tsnr.detrended_file',
                     remove_noise, 'in_file')
+
     preproc.connect(meanscale, 'out_file',
+                    whitening, "in_file")
+    preproc.connect(whitening, "out_file",
                     bandpass_filter, 'in_file')
+
     preproc.connect(bandpass_filter, 'out_file',
                     outputnode, 'bandpassed_file')
     preproc.connect(choosesusan, 'cor_smoothed_files',

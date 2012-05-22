@@ -281,7 +281,8 @@ def prep_workflow(c, fieldmap):
                       sinkd, 'preproc.z_image')
     modelflow.connect(preproc, 'outputspec.noise_components',
                       sinkd, 'preproc.noise_components')
-    
+    modelflow.connect(preproc, 'outputspec.reg_fsl_file',
+                      sinkd, 'preproc.bbreg.@fsl')    
 
     modelflow.base_dir = os.path.join(c.working_dir, 'work_dir')
     return modelflow
@@ -300,6 +301,9 @@ def main(configfile):
 
     if c.use_advanced_options:
         exec c.advanced_script
+
+    if c.test_mode:
+        preprocess.write_graph()
 
     if c.run_using_plugin:
         preprocess.run(plugin=c.plugin, plugin_args = c.plugin_args)
