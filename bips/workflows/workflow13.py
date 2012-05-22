@@ -196,9 +196,7 @@ workflow
     poplist = lambda x: x.pop()
     #realign = pe.Node(spm.Realign(), name='realign')
     
-    sym_func = pe.Node(niu.Function(input_names=['in_file'],output_names=['out_link'],function=do_symlink),name='func_symlink')   
-
-    sym_struct = sym_func.clone(name='sym_struct')
+    sym_func = pe.Node(niu.Function(input_names=['in_file'],output_names=['out_link'],function=do_symlink),name='func_symlink')
 
     realign = pe.Node(niu.Function(input_names=['node','in_file','tr','do_slicetime','sliceorder'],
         output_names=['out_file','par_file'],
@@ -231,6 +229,7 @@ workflow
     smooth = pe.Node(spm.Smooth(), name='smooth')
 
     normalize = pe.Node(spm.Normalize(jobtype='write'),name='normalize')
+    normalize_struct = normalize.clone('normalize_struct')
     segment = pe.Node(spm.Segment(csf_output_type=[True,True,False],
                                   gm_output_type=[True,True,False],
                                   wm_output_type=[True,True,False]),name='segment')
@@ -266,13 +265,15 @@ workflow
     workflow.connect(convert2nii,'out_file',segment,'data')    
 
     workflow.connect(segment, 'transformation_mat', normalize, 'parameter_file')
+    workflow.connect(segment, 'transformation_mat', normalize_struct, 'parameter_file')
+    workflow.connect(convert2nii,'out_file',normalize_struct, 'apply_to_files')
     workflow.connect(realign,'out_file',normalize, 'apply_to_files')
     #normalize.inputs.template='/software/spm8/templates/EPI.nii'
     workflow.connect(normalize,'normalized_files',smooth,'in_files')
     #workflow.connect(realign, 'realigned_files', smooth, 'in_files')
 
     artdetect = pe.Node(ra.ArtifactDetect(mask_type='file',
-        parameter_source='SPM',
+        parameter_source='FSL',
         use_differences=[True,False],
         use_norm=True,
         save_plot=True),
@@ -298,13 +299,15 @@ Define the outputs of the workflow and connect the nodes to the outputnode
                                                        'outlier_files',
                                                        'outlier_stats',
                                                        'outlier_plots',
+                                                       'norm_components',
                                                        'mod_csf',
                                                        'unmod_csf',
                                                        'mod_wm',
                                                        'unmod_wm',
                                                        'mod_gm',
                                                        'unmod_gm',
-                                                       'mean'
+                                                       'mean',
+                                                       'normalized_struct'
     ]),
         name="outputspec")
     workflow.connect([
@@ -315,7 +318,8 @@ Define the outputs of the workflow and connect the nodes to the outputnode
         (smooth, outputnode, [('smoothed_files', 'smoothed_files')]),
         (artdetect, outputnode,[('outlier_files', 'outlier_files'),
             ('statistic_files','outlier_stats'),
-            ('plot_files','outlier_plots')])
+            ('plot_files','outlier_plots'),
+            ('norm_files','norm_components')])
     ])
     workflow.connect(segment,'modulated_csf_image',outputnode,'mod_csf')
     workflow.connect(segment,'modulated_wm_image',outputnode,'mod_wm')
@@ -324,6 +328,7 @@ Define the outputs of the workflow and connect the nodes to the outputnode
     workflow.connect(segment,'normalized_wm_image',outputnode,'unmod_wm')
     workflow.connect(segment,'normalized_gm_image',outputnode,'unmod_gm')
     workflow.connect(mean,'outputspec.mean_image',outputnode, 'mean')
+    workflow.connect(normalize_struct, 'normalized_files', outputnode, 'normalized_struct')
     return workflow
 
 def main(config_file):
@@ -367,6 +372,7 @@ def main(config_file):
     workflow.connect(outputspec,'outlier_files',sinker,'spm_preproc.art.@outlier_files')
     workflow.connect(outputspec,'outlier_stats',sinker,'spm_preproc.art.@outlier_stats')
     workflow.connect(outputspec,'outlier_plots',sinker,'spm_preproc.art.@outlier_plots')
+    workflow.connect(outputspec,'norm_components',sinker,'spm_preproc.art.@norm')
     workflow.connect(outputspec,'reg_file',sinker,'spm_preproc.bbreg.@reg_file')
     workflow.connect(outputspec,'reg_cost',sinker,'spm_preproc.bbreg.@reg_cost')
     workflow.connect(outputspec,'mask_file',sinker,'spm_preproc.mask.@mask_file')
@@ -377,6 +383,7 @@ def main(config_file):
     workflow.connect(outputspec,'unmod_wm',sinker,'spm_preproc.segment.unmod.@wm')
     workflow.connect(outputspec,'unmod_gm',sinker,'spm_preproc.segment.unmod.@gm')
     workflow.connect(outputspec,'mean',sinker,'spm_preproc.mean')
+    workflow.connect(outputspec,'normalized_struct', sinker, 'spm_preproc.normalized_struct')
 
     if c.run_using_plugin:
         workflow.run(plugin=c.plugin,plugin_args=c.plugin_args)

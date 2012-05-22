@@ -415,3 +415,16 @@ def mod_filter(in_file,algorithm,lowpass_freq, highpass_freq,tr):
         out_img.to_filename(out_file)
 
     return out_file
+
+def mod_regressor(design_file,in_file,mask):
+    import nipype.interfaces.fsl as fsl
+    if "empty_file.txt" in design_file:
+        return in_file
+    else:
+        reg = fsl.FilterRegressor(filter_all=True)
+        reg.inputs.in_file = in_file
+        reg.inputs.design_file = design_file
+        reg.inputs.mask = mask
+        res = reg.run()
+        out_file = res.outputs.out_file
+        return out_file
