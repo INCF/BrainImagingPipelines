@@ -120,6 +120,13 @@ def func_datagrabber(c, name="resting_output_datagrabber"):
 
 pickfirst = lambda x: x[0]
 
+def getsubstitutions(subject_id):
+    subs=[('_subject_id_%s'%subject_id, '')]
+    for i in range(200,-1,-1):
+        subs.append(('_warp_images%d'%i, ''))
+    subs.append(('_fwhm','fwhm'))
+    return subs
+
 def normalize_workflow(c):
     norm = get_full_norm_workflow()
     datagrab = func_datagrabber(c)
@@ -162,7 +169,7 @@ def normalize_workflow(c):
     norm.connect(outputspec, 'unwarped_brain',
                  sinkd, 'smri.unwarped_brain')
     norm.connect(outputspec, 'warped_brain', sinkd, 'smri.warped_brain')
-
+    norm.connect(infosource,('subject_id',getsubstitutions),sinkd,'substitutions')
     return norm
 
 

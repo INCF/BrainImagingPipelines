@@ -13,6 +13,7 @@ import workflow12
 import workflow13
 import synced_corr_display_h5
 import workflow14
+import workflow15
 
 from .base import (list_workflows, configure_workflow, run_workflow,
                    display_workflow_info)

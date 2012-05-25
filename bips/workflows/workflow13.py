@@ -307,7 +307,10 @@ Define the outputs of the workflow and connect the nodes to the outputnode
                                                        'mod_gm',
                                                        'unmod_gm',
                                                        'mean',
-                                                       'normalized_struct'
+                                                       'normalized_struct',
+                                                       'struct_in_functional_space',
+                                                       'normalization_parameters',
+                                                       'reverse_normalize_parameters'
     ]),
         name="outputspec")
     workflow.connect([
@@ -329,6 +332,9 @@ Define the outputs of the workflow and connect the nodes to the outputnode
     workflow.connect(segment,'normalized_gm_image',outputnode,'unmod_gm')
     workflow.connect(mean,'outputspec.mean_image',outputnode, 'mean')
     workflow.connect(normalize_struct, 'normalized_files', outputnode, 'normalized_struct')
+    workflow.connect(segment,'transformation_mat', outputnode,'normalization_parameters')
+    workflow.connect(segment,'inverse_transformation_mat',outputnode,'reverse_normalize_parameters')
+    workflow.connect(convert2nii,'out_file',outputnode,'struct_in_functional_space')
     return workflow
 
 def main(config_file):
@@ -384,6 +390,9 @@ def main(config_file):
     workflow.connect(outputspec,'unmod_gm',sinker,'spm_preproc.segment.unmod.@gm')
     workflow.connect(outputspec,'mean',sinker,'spm_preproc.mean')
     workflow.connect(outputspec,'normalized_struct', sinker, 'spm_preproc.normalized_struct')
+    workflow.connect(outputspec,'normalization_parameters',sinker,'spm_preproc.normalization_parameters.@forward')
+    workflow.connect(outputspec,'reverse_normalize_parameters',sinker,'spm_preproc.normalization_parameters.@reverse')
+    workflow.connect(outputspec,'struct_in_functional_space',sinker,'spm_preproc.struct_in_func_space')
 
     if c.run_using_plugin:
         workflow.run(plugin=c.plugin,plugin_args=c.plugin_args)
