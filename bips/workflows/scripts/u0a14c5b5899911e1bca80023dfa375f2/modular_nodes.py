@@ -111,8 +111,10 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder):
             boo = np.hstack((foo[:,3:],foo[:,:3]))
             np.savetxt(os.path.abspath('realignment_parameters_%d.par'%i),boo,delimiter='\t')
             par_file.append(os.path.abspath('realignment_parameters_%d.par'%i))
+        fsl.ImageMaths(in_file=res.outputs.realigned_files,
+                       out_file=res.outputs.realigned_files,
+                       op_string='-nan').run()
         out_file = res.outputs.realigned_files
-
     elif node == 'afni':
         import nipype.interfaces.afni as afni
         import nibabel as nib
