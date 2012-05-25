@@ -318,6 +318,10 @@ def create_prep(name='preproc'):
                     compcor, 'inputspec.fsaseg_file')
     preproc.connect(getmask, ('outputspec.reg_file', pickfirst),
                     compcor, 'inputspec.reg_file')
+    preproc.connect(ad, 'outlier_files',
+                    compcor, 'inputspec.outlier_files')
+    preproc.connect(motion_correct, 'par_file',
+                    compcor, 'inputspec.realignment_parameters')
     preproc.connect(motion_correct, 'out_file',
                     ad, 'realigned_files')
     preproc.connect(motion_correct, 'par_file',
@@ -677,9 +681,6 @@ def create_rest_prep(name='preproc',fieldmap=False):
                     addoutliers, 'selector')
     preproc.connect(addoutliers, 'filter_file',
                     outputnode, 'filter_file')
-    
-    
-    
     return preproc
 
 
