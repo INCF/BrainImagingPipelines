@@ -97,6 +97,7 @@ class config(HasTraits):
                                        both can be true")
     num_noise_components = traits.Int(6, usedefault=True, 
                                       desc="number of principle components of the noise to use")
+    regress_before_PCA = traits.Bool(True)
     # Highpass Filter
     hpcutoff = traits.Float(128., desc="highpass cutoff", usedefault=True)
 

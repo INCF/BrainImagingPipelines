@@ -94,7 +94,7 @@ def getusans(x):
 
 def extract_noise_components(realigned_file, noise_mask_file, num_components,
                              csf_mask_file, selector,
-                             realignment_parameters=None, outlier_file=None):
+                             realignment_parameters=None, outlier_file=None, regress_before_PCA=True):
     """Derive components most reflective of physiological noise
     
     Parameters
@@ -158,12 +158,13 @@ def extract_noise_components(realigned_file, noise_mask_file, num_components,
         noise_mask_file = options[selector][0]
         noise_mask = load(noise_mask_file)
         voxel_timecourses = imgseries.get_data()[np.nonzero(noise_mask.get_data())]
-    logger.debug('Regressing motion')
-    for timecourse in voxel_timecourses:
-        #timecourse[:] = detrend(timecourse, type='constant')
-        coef_, _, _, _ = np.linalg.lstsq(nuisance_matrix, timecourse[:, None])
-        timecourse[:] = (timecourse[:, None] - np.dot(nuisance_matrix,
-                                                      coef_)).ravel()
+    if regress_before_PCA:
+        logger.debug('Regressing motion')
+        for timecourse in voxel_timecourses:
+            #timecourse[:] = detrend(timecourse, type='constant')
+            coef_, _, _, _ = np.linalg.lstsq(nuisance_matrix, timecourse[:, None])
+            timecourse[:] = (timecourse[:, None] - np.dot(nuisance_matrix,
+                                                          coef_)).ravel()
 
     voxel_timecourses = voxel_timecourses.byteswap().newbyteorder()
     voxel_timecourses[np.isnan(np.sum(voxel_timecourses,axis=1)),:] = 0
@@ -259,7 +260,8 @@ def create_compcorr(name='CompCor'):
                                                        'fsaseg_file',
                                                       'realignment_parameters',
                                                        'outlier_files',
-                                                       'selector']),
+                                                       'selector',
+                                                       'regress_before_PCA']),
                         name='inputspec')
     # selector input is bool list [True,True] where first is referring to
     # tCompcorr and second refers to aCompcorr
@@ -293,7 +295,8 @@ def create_compcorr(name='CompCor'):
                                                     'csf_mask_file',
                                                     'realignment_parameters',
                                                     'outlier_file',
-                                                    'selector'],
+                                                    'selector',
+                                                    'regress_before_PCA'],
                                        output_names=['noise_components'],
                                        function=extract_noise_components),
                                        name='compcor_components',
@@ -338,6 +341,8 @@ def create_compcorr(name='CompCor'):
                      outputspec, 'tsnr_detrended')
     compproc.connect(compcor, 'noise_components',
                      outputspec, 'noise_components')
+    compproc.connect(inputspec, 'regress_before_PCA',
+                     compcor, 'regress_before_PCA')
     return compproc
 
 
