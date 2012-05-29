@@ -234,6 +234,8 @@ def prep_workflow(c, fieldmap):
     preproc.inputs.inputspec.ad_zthresh = c.z_thresh
     preproc.inputs.inputspec.tr = c.TR
     preproc.inputs.inputspec.do_slicetime = c.do_slicetiming
+    preproc.inputs.inputspec.regress_before_PCA = c.regress_before_PCA
+
     if c.do_slicetiming:
         preproc.inputs.inputspec.sliceorder = c.SliceOrder
     else:
@@ -368,6 +370,7 @@ def create_view():
                       label='Artifact Detection',show_border=True),
                 Group(Item(name='compcor_select'),
                       Item(name='num_noise_components'),
+                      Item(name='regress_before_PCA'),
                       label='CompCor',show_border=True),
                 Group(Item(name="smooth_type"),
                       Item(name='fwhm', editor=CSVListEditor()),

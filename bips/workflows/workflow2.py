@@ -109,6 +109,7 @@ def prep_workflow(c, fieldmap):
     preproc.inputs.inputspec.smooth_type = c.smooth_type
     preproc.inputs.inputspec.surface_fwhm = c.surface_fwhm
     preproc.inputs.inputspec.num_noise_components = c.num_noise_components
+    preproc.inputs.inputspec.regress_before_PCA = c.regress_before_PCA
     preproc.crash_dir = c.crash_dir
     modelflow.connect(infosource, 'subject_id', preproc, 'inputspec.fssubject_id')
     preproc.inputs.inputspec.fssubject_dir = c.surf_dir
@@ -253,6 +254,7 @@ def create_view():
                       label='Artifact Detection',show_border=True),
                 Group(Item(name='compcor_select'),
                       Item(name='num_noise_components'),
+                      Item(name='regress_before_PCA'),
                       label='CompCor',show_border=True),
                 Group(Item(name='reg_params'),
                       label='Nuisance Filtering',show_border=True),

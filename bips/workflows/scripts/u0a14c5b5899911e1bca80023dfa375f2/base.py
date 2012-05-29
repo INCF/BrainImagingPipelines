@@ -180,7 +180,8 @@ def create_prep(name='preproc'):
                                                       'surface_fwhm',
                                                       'filter_type',
                                                       'timepoints_to_remove',
-                                                      'do_whitening']),
+                                                      'do_whitening',
+                                                      'regress_before_PCA']),
                         name='inputspec')
 
     # Separate input node for FWHM
@@ -316,6 +317,8 @@ def create_prep(name='preproc'):
                     getmask, 'inputspec.source_file')
     preproc.connect(inputnode, 'num_noise_components',
                     compcor, 'inputspec.num_components')
+    preproc.connect(inputnode, 'regress_before_PCA',
+                    compcor, 'inputspec.regress_before_PCA')
     preproc.connect(motion_correct, 'out_file',
                     compcor, 'inputspec.realigned_file')
     preproc.connect(meanfunc, 'outputspec.mean_image',
