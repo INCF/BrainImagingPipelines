@@ -5,7 +5,7 @@ import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import nipype.interfaces.io as nio
 
-from .base import MetaWorkflow, load_config, register_workflow
+from .base import MetaWorkflow, load_config, register_workflow, debug_workflow
 
 mwf = MetaWorkflow()
 mwf.help = """
@@ -65,7 +65,11 @@ def prep_workflow(c, fieldmap):
     
     # generate preprocessing workflow
     preproc = create_rest_prep(fieldmap=fieldmap)
-    
+
+    if not c.do_zscore:
+        z_score = preproc.get_node('z_score')
+        preproc.remove_nodes([z_score])
+
     # make a data sink
     sinkd = get_datasink(c.sink_dir, c.fwhm)
     
@@ -169,8 +173,9 @@ def prep_workflow(c, fieldmap):
         sinkd, 'preproc.tsnr.@detrended')
     modelflow.connect(preproc, 'outputspec.filter_file',
                       sinkd, 'preproc.regressors')
-    modelflow.connect(preproc, 'outputspec.z_img', 
-                      sinkd, 'preproc.output.@zscored')
+    if c.do_zscore:
+        modelflow.connect(preproc, 'outputspec.z_img',
+                          sinkd, 'preproc.output.@zscored')
     modelflow.connect(preproc, 'outputspec.scaled_files',
                       sinkd, 'preproc.output.@fullspectrum')
     modelflow.connect(preproc, 'outputspec.bandpassed_file',
@@ -191,6 +196,10 @@ def main(config_file):
     if len(c.subjects) == 1:
         preprocess.write_graph(graph2use='exec',
                                dotfilename='single_subject_exec.dot')
+
+    if c.debug:
+        preprocess = debug_workflow(preprocess)
+
     if c.use_advanced_options:
         exec c.advanced_script
 
@@ -256,8 +265,10 @@ def create_view():
                       Item(name='filtering_algorithm'),
                       Item(name='do_whitening'),
                       label='Bandpass Filter',show_border=True),
-                Group(Item(name='use_advanced_options'),
+                Group(Item(name='do_zscore'),
+                    Item(name='use_advanced_options'),
                     Item(name='advanced_script',enabled_when='use_advanced_options'),
+                    Item(name='debug'),
                     label='Advanced',show_border=True),
                 buttons = [OKButton, CancelButton],
                 resizable=True,

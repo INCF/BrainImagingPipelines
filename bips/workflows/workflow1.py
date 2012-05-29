@@ -8,7 +8,7 @@ import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import nipype.interfaces.io as nio
 
-from .base import MetaWorkflow, load_config, register_workflow
+from .base import MetaWorkflow, load_config, register_workflow, debug_workflow
 
 mwf = MetaWorkflow()
 mwf.help = """
@@ -100,9 +100,13 @@ class config(HasTraits):
     # Highpass Filter
     hpcutoff = traits.Float(128., desc="highpass cutoff", usedefault=True)
 
+    #zscore
+    do_zscore = Bool(False)
+
     # Advanced Options
     use_advanced_options = traits.Bool()
     advanced_script = traits.Code()
+    debug = traits.Bool(False)
 
     # Buttons
     check_func_datagrabber = Button("Check")
@@ -212,6 +216,10 @@ def prep_workflow(c, fieldmap):
     else:
         preproc = create_prep()
 
+    if not c.do_zscore:
+        z_score = preproc.get_node('z_score')
+        preproc.remove_nodes([z_score])
+
     preproc.inputs.inputspec.motion_correct_node = c.motion_correct_node
     preproc.inputs.inputspec.timepoints_to_remove = c.timepoints_to_remove
     preproc.inputs.inputspec.smooth_type = c.smooth_type
@@ -277,8 +285,9 @@ def prep_workflow(c, fieldmap):
                       sinkd, 'preproc.tsnr.@detrended')
     modelflow.connect(preproc, 'outputspec.stddev_file',
                       sinkd, 'preproc.tsnr.@stddev')
-    modelflow.connect(preproc, 'outputspec.z_img', 
-                      sinkd, 'preproc.z_image')
+    if c.do_zscore:
+        modelflow.connect(preproc, 'outputspec.z_img',
+                          sinkd, 'preproc.z_image')
     modelflow.connect(preproc, 'outputspec.noise_components',
                       sinkd, 'preproc.noise_components')
     modelflow.connect(preproc, 'outputspec.reg_fsl_file',
@@ -298,6 +307,9 @@ def main(configfile):
     cc = preprocess.get_node('preproc.CompCor')
     cc.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
     preprocess.config = {'execution': {'crashdump_dir': c.crash_dir}}
+
+    if c.debug:
+        preprocess = debug_workflow(preprocess)
 
     if c.use_advanced_options:
         exec c.advanced_script
@@ -362,8 +374,10 @@ def create_view():
                       label='Smoothing',show_border=True),
                 Group(Item(name='hpcutoff'),
                       label='Highpass Filter',show_border=True),
-                Group(Item(name='use_advanced_options'),
+                Group(Item(name='do_zscore'),
+                    Item(name='use_advanced_options'),
                     Item(name='advanced_script',enabled_when='use_advanced_options'),
+                    Item(name='debug'),
                     label='Advanced',show_border=True),
                 buttons = [OKButton, CancelButton],
                 resizable=True,

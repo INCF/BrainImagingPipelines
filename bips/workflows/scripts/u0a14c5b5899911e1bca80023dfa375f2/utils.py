@@ -141,13 +141,14 @@ def extract_noise_components(realigned_file, noise_mask_file, num_components,
         if outliers.shape == ():  # 1 outlier
             art = np.zeros((imgseries.shape[-1], 1))
             art[np.int_(outliers), 0] = 1 #  art outputs 0 based indices
+            nuisance_matrix = np.hstack((nuisance_matrix, art))
         elif outliers.shape[0] == 0:  # empty art file
             pass
         else:  # >1 outlier
             art = np.zeros((imgseries.shape[-1], len(outliers)))
             for j, t in enumerate(outliers):
                 art[np.int_(t), j] = 1 #  art outputs 0 based indices
-        nuisance_matrix = np.hstack((nuisance_matrix, art))
+            nuisance_matrix = np.hstack((nuisance_matrix, art))
     if selector.all():  # both values of selector are true, need to concatenate
         tcomp = load(noise_mask_file)
         acomp = load(csf_mask_file)
