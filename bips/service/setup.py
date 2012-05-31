@@ -2,12 +2,10 @@
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 def configuration(parent_package='',top_path=None):
     from numpy.distutils.misc_util import Configuration
-    config = Configuration('bips', parent_package, top_path)
+    config = Configuration('service', parent_package, top_path)
 
     # List all packages to be loaded here
-    config.add_subpackage('workflows')
-    config.add_subpackage('service')
-    config.add_subpackage('utils')
+    config.add_subpackage('scripts')
 
     # List all data directories to be loaded here
     return config

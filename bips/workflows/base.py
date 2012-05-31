@@ -252,11 +252,13 @@ def get_config(uuid):
     wf = get_workflow(uuid)
     return wf.config_ui()
 
+def get_workflows():
+    return sorted(_workflow.items())
+
 def list_workflows():
-    for wf, value in sorted(_workflow.items()):
+    for wf, value in get_workflows():
         print('%s %s' % (wf,
                          value['object'].help.split('\n')[1]))
-
 
 def configure_workflow(uuid):
     wf = get_workflow(uuid)

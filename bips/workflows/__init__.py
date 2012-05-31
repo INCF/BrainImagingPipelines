@@ -14,5 +14,5 @@ import workflow13
 import synced_corr_display_h5
 import workflow14
 
-from .base import (list_workflows, configure_workflow, run_workflow,
-                   display_workflow_info)
+from .base import (get_workflow, get_workflows, list_workflows,
+                   configure_workflow, run_workflow, display_workflow_info)

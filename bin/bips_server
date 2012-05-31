@@ -1,0 +1,7 @@
+#!/usr/bin/env python
+"""Run a bips service using cherrypy
+"""
+
+from bips.service import start_service
+
+start_service()
