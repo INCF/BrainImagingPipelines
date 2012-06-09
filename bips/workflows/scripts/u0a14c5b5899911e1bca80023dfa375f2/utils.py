@@ -133,7 +133,7 @@ def extract_noise_components(realigned_file, noise_mask_file, num_components,
     voxel_timecourses[np.isnan(np.sum(voxel_timecourses,axis=1)),:] = 0
     _, _, v = sp.linalg.svd(voxel_timecourses, full_matrices=False)
     components_file = os.path.join(os.getcwd(), 'noise_components.txt')
-    np.savetxt(components_file, v[:, :num_components])
+    np.savetxt(components_file, v[:num_components, :].T)
     return components_file
 
 
