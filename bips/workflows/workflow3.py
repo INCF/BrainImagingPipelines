@@ -82,7 +82,7 @@ def preproc_datagrabber(c,name='preproc_datagrabber'):
                                             tsnr_stddev='%s/preproc/tsnr/*tsnr_stddev.nii*',
                                             reg_file='%s/preproc/bbreg/*.dat',
                                             mean_image='%s/preproc/mean*/*.nii*',
-                                            mask='%s/preproc/mask/*_brainmask.nii')
+                                            mask='%s/preproc/mask/*/*.nii*')
     datasource.inputs.template_args = dict(motion_parameters=[['subject_id']],
                                            outlier_files=[['subject_id']],
                                            art_norm=[['subject_id']],
@@ -97,7 +97,7 @@ def preproc_datagrabber(c,name='preproc_datagrabber'):
     return datasource
 
 
-def start_config_table(c):
+def start_config_table(c,c_qa):
     table = []
     table.append(['TR',str(c.TR)])
     table.append(['Slice Order',str(c.SliceOrder)])
@@ -110,9 +110,9 @@ def start_config_table(c):
     table.append(['Art: z thresh',str(c.z_thresh)])
     #table.append(['Smoothing Algorithm',c.smooth_type])
     table.append(['fwhm',str(c.fwhm)])
-    if c.task:
+    if c_qa.task:
         table.append(['Highpass cutoff',str(c.hpcutoff)])
-    if c.resting:
+    if c_qa.resting:
         table.append(['highpass freq',str(c.highpass_freq)])
         table.append(['lowpass freq',str(c.lowpass_freq)])
     return table
@@ -371,8 +371,8 @@ def main(config_file):
     if QA_config.test_mode:
         a.write_graph()
 
-    a.inputs.inputspec.config_params = start_config_table(c)
-    a.config = {'execution' : {'crashdump_dir' : QA_config.crash_dir}}
+    a.inputs.inputspec.config_params = start_config_table(c,QA_config)
+    a.config = {'execution' : {'crashdump_dir' : QA_config.crash_dir, 'job_finished_timeout' : 14}}
 
     if QA_config.use_advanced_options:
         exec QA_config.advanced_script

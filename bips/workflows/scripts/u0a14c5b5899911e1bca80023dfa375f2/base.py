@@ -181,7 +181,8 @@ def create_prep(name='preproc'):
                                                       'filter_type',
                                                       'timepoints_to_remove',
                                                       'do_whitening',
-                                                      'regress_before_PCA']),
+                                                      'regress_before_PCA',
+                                                      'nipy_realign_parameters']),
                         name='inputspec')
 
     # Separate input node for FWHM
@@ -204,7 +205,8 @@ def create_prep(name='preproc'):
     #motion_correct = pe.Node(interface=FmriRealign4d(),
     #                            name='realign')
 
-    motion_correct = pe.Node(util.Function(input_names=['node','in_file','tr','do_slicetime','sliceorder'],
+    motion_correct = pe.Node(util.Function(input_names=['node','in_file','tr',
+                                                        'do_slicetime','sliceorder',"nipy_dict"],
         output_names=['out_file','par_file'],
         function=mod_realign),
         name="mod_realign")
@@ -291,6 +293,8 @@ def create_prep(name='preproc'):
                     ad, 'zintensity_threshold')
     preproc.connect(inputnode, 'tr',
                     motion_correct, 'tr')
+    preproc.connect(inputnode, 'nipy_realign_parameters',
+        motion_correct, 'nipy_dict')
     preproc.connect(inputnode, 'do_slicetime',
                     motion_correct, 'do_slicetime')
     preproc.connect(inputnode, 'sliceorder',

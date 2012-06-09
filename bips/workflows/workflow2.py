@@ -248,6 +248,8 @@ def create_view():
                       Item(name='TR'),
                       Item(name='do_slicetiming'),
                       Item(name='SliceOrder',editor=CSVListEditor()),
+                      Item(name='loops',enabled_when="motion_correct_node=='nipy' ", editor=CSVListEditor()),
+                      Item(name='speedup',enabled_when="motion_correct_node=='nipy' ", editor=CSVListEditor()),
                       label='Motion Correction', show_border=True),
                 Group(Item(name='norm_thresh'),
                       Item(name='z_thresh'),
