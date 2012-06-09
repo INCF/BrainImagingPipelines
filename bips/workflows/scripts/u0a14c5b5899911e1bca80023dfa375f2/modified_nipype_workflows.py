@@ -172,6 +172,15 @@ def create_eddy_correct_pipeline(name="eddy_correct"):
 
     return pipeline
 
+"""
+Connect the nodes
+"""
+def get_aparc_aseg(files):
+    for name in files:
+        if 'aparc+aseg' in name:
+            return name
+    raise ValueError('aparc+aseg.mgz not found')
+
 def create_getmask_flow(name='getmask', dilate_mask=True):
     """Registers a source file to freesurfer space and create a brain mask in
 source space
@@ -261,7 +270,7 @@ Connect the nodes
             ('contrast_type', 'contrast_type')]),
         (inputnode, voltransform, [('subjects_dir', 'subjects_dir'),
             ('source_file', 'source_file')]),
-        (fssource, threshold, [('aseg', 'in_file')]),
+        (fssource, threshold, [(('aparc_aseg', get_aparc_aseg), 'in_file')]),
         (register, voltransform, [('out_reg_file','reg_file')]),
         (threshold, voltransform, [('binary_file','target_file')])
     ])
