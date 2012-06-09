@@ -400,6 +400,10 @@ def mod_filter(in_file, algorithm, lowpass_freq, highpass_freq, tr):
         import numpy as np
 
         T = io.time_series_from_file(in_file, TR=tr)
+        if highpass_freq < 0:
+            highpass_freq = 0
+        if lowpass_freq < 0:
+            lowpass_freq = None
         F = FilterAnalyzer(T, ub=lowpass_freq, lb=highpass_freq)
         if algorithm == 'IIR':
             Filtered_data = F.iir.data
@@ -420,7 +424,8 @@ def mod_filter(in_file, algorithm, lowpass_freq, highpass_freq, tr):
         out_file = fname_presuffix(in_file, suffix=suffix,
                                    newpath=os.getcwd())
 
-        out_img = nib.Nifti1Image(Filtered_data,nib.load(in_file).get_affine())
+        out_img = nib.Nifti1Image(Filtered_data,
+                                  nib.load(in_file).get_affine())
         out_img.to_filename(out_file)
 
     return out_file
