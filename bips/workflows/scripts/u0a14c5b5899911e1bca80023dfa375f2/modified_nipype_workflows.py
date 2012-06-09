@@ -287,17 +287,10 @@ threshold2 : binarize transformed file
         iterfield=['in_file'],
         name='threshold2')
     if dilate_mask:
-        dilate = pe.MapNode(fsl.maths.DilateImage(operation='max'),
-            iterfield=['in_file'],
-            name='dilate')
-        getmask.connect([
-            (voltransform, dilate, [('transformed_file', 'in_file')]),
-            (dilate, threshold2, [('out_file', 'in_file')]),
-        ])
-    else:
-        getmask.connect([
-            (voltransform, threshold2, [('transformed_file', 'in_file')])
-        ])
+        threshold2.inputs.dilate = 1
+    getmask.connect([
+        (voltransform, threshold2, [('transformed_file', 'in_file')])
+    ])
 
     """
 Setup an outputnode that defines relevant inputs of the workflow.
