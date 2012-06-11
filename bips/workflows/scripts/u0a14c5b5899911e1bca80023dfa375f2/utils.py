@@ -133,7 +133,7 @@ def extract_noise_components(realigned_file, noise_mask_file, num_components,
     voxel_timecourses[np.isnan(np.sum(voxel_timecourses,axis=1)),:] = 0
     _, _, v = sp.linalg.svd(voxel_timecourses, full_matrices=False)
     components_file = os.path.join(os.getcwd(), 'noise_components.txt')
-    np.savetxt(components_file, v[:, :num_components])
+    np.savetxt(components_file, v[:num_components, :].T)
     return components_file
 
 
@@ -163,7 +163,7 @@ def extract_csf_mask():
     bin = pe.Node(fs.Binarize(), name='binarize')
     bin.inputs.wm_ven_csf = True
     bin.inputs.match = [4, 5, 14, 15, 24, 31, 43, 44, 63]
-    bin.inputs.erode = 1
+    bin.inputs.erode = 2
     
     extract_csf.connect(inputspec, 'fsaseg_file',
                         bin, "in_file")
@@ -274,8 +274,6 @@ def create_compcorr(name='CompCor'):
                      tsnr, 'in_file')
     compproc.connect(inputspec, 'num_components',
                      compcor, 'num_components')
-    compproc.connect(inputspec, 'realigned_file',
-                     compcor, 'realigned_file')
     compproc.connect(getthresh, 'out_stat',
                      threshold_stddev, 'thresh')
     compproc.connect(threshold_stddev, 'out_file',
@@ -290,6 +288,8 @@ def create_compcorr(name='CompCor'):
                      outputspec, 'tsnr_file')
     compproc.connect(tsnr, 'detrended_file',
                      outputspec, 'tsnr_detrended')
+    compproc.connect(tsnr, 'detrended_file',
+                     compcor, 'realigned_file')
     compproc.connect(compcor, 'noise_components',
                      outputspec, 'noise_components')
     return compproc
@@ -527,7 +527,8 @@ def z_image(image,outliers):
 tolist = lambda x: [x]
 highpass_operand = lambda x: '-bptf %.10f -1' % x
 
-def whiten(in_file,do_whitening):
+def whiten(in_file, do_whitening):
+    out_file = in_file
     if do_whitening:
         import os
         from glob import glob
@@ -537,6 +538,4 @@ def whiten(in_file,do_whitening):
         os.system('film_gls -ac -output_pwdata %s'%in_file)
         result = glob(os.path.join(os.path.abspath('results'),'prewhitened_data.*'))[0]
         out_file=result
-    else:
-        out_file = in_file
     return out_file

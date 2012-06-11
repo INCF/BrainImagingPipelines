@@ -374,9 +374,9 @@ Define a function to get the brightness threshold for SUSAN
 
     return susan_smooth
 
-def mod_filter(in_file,algorithm,lowpass_freq, highpass_freq,tr):
+def mod_filter(in_file, algorithm, lowpass_freq, highpass_freq, tr):
     import os
-    from nipype.utils.filemanip import split_filename
+    from nipype.utils.filemanip import fname_presuffix
     if algorithm == 'fsl':
         import nipype.interfaces.fsl as fsl
         filter = fsl.TemporalFilter()
@@ -399,19 +399,33 @@ def mod_filter(in_file,algorithm,lowpass_freq, highpass_freq,tr):
         import nibabel as nib
         import numpy as np
 
-        T = io.time_series_from_file(in_file)
-        F = FilterAnalyzer(T,ub=lowpass_freq,lb=highpass_freq,filt_order=5)
-
-        print "going to filter data ..."
+        T = io.time_series_from_file(in_file, TR=tr)
+        if highpass_freq < 0:
+            highpass_freq = 0
+        if lowpass_freq < 0:
+            lowpass_freq = None
+        F = FilterAnalyzer(T, ub=lowpass_freq, lb=highpass_freq)
         if algorithm == 'IIR':
             Filtered_data = F.iir.data
-            print "Filtered!"
+            suffix = '_iir_filt'
+        elif algorithm == 'Boxcar':
+            Filtered_data = F.filtered_boxcar.data
+            suffix = '_boxcar_filt'
+        elif algorithm == 'Fourier':
+            Filtered_data = F.filtered_fourier.data
+            suffix = '_fourier_filt'
         elif algorithm == 'FIR':
             Filtered_data = F.fir.data
+            suffix = '_fir_filt'
+        else:
+            raise ValueError('Unknown Nitime filtering algorithm: %s' %
+                             algorithm)
 
-        out_file = os.path.abspath(split_filename(in_file)[1]+"_iir_filt"+split_filename(in_file)[2])
-        
-        out_img = nib.Nifti1Image(Filtered_data,nib.load(in_file).get_affine())
+        out_file = fname_presuffix(in_file, suffix=suffix,
+                                   newpath=os.getcwd())
+
+        out_img = nib.Nifti1Image(Filtered_data,
+                                  nib.load(in_file).get_affine())
         out_img.to_filename(out_file)
 
     return out_file
