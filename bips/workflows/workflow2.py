@@ -174,6 +174,11 @@ def prep_workflow(c, fieldmap):
         sinkd, 'preproc.tsnr.@detrended')
     modelflow.connect(preproc, 'outputspec.filter_file',
                       sinkd, 'preproc.regressors')
+    modelflow.connect(preproc, 'outputspec.csf_mask',
+        sinkd, 'preproc.compcor.@acompcor')
+    modelflow.connect(preproc, 'outputspec.noise_mask',
+        sinkd, 'preproc.compcor.@tcompcor')
+
     if c.do_zscore:
         modelflow.connect(preproc, 'outputspec.z_img',
                           sinkd, 'preproc.output.@zscored')

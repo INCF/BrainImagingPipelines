@@ -290,6 +290,10 @@ def prep_workflow(c, fieldmap):
                       sinkd, 'preproc.smooth')
     modelflow.connect(preproc, 'outputspec.tsnr_file',
                       sinkd, 'preproc.tsnr')
+    modelflow.connect(preproc, 'outputspec.csf_mask',
+        sinkd, 'preproc.compcor.@acompcor')
+    modelflow.connect(preproc, 'outputspec.noise_mask',
+        sinkd, 'preproc.compcor.@tcompcor')
     modelflow.connect(preproc, 'outputspec.tsnr_detrended',
                       sinkd, 'preproc.tsnr.@detrended')
     modelflow.connect(preproc, 'outputspec.stddev_file',

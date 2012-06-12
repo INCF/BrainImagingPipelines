@@ -402,7 +402,9 @@ def create_prep(name='preproc'):
                 'FM_unwarped_mean',
                 'vsm_file',
                 'bandpassed_file',
-                'intensity_files']),
+                'intensity_files',
+                'noise_mask',
+                'csf_mask']),
                         name='outputspec')
 
     # make output connection
@@ -424,6 +426,10 @@ def create_prep(name='preproc'):
                     outputnode, 'outlier_stat_files')
     preproc.connect(compcor, 'outputspec.noise_components',
                     outputnode, 'noise_components')
+    preproc.connect(compcor, 'outputspec.noise_mask',
+                    outputnode, 'noise_mask')
+    preproc.connect(compcor, 'outputspec.csf_mask',
+                    outputnode, 'csf_mask')
     preproc.connect(getmask, 'outputspec.mask_file',
                     outputnode, 'mask')
     preproc.connect(getmask, 'register.out_fsl_file',
