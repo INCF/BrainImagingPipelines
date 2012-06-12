@@ -67,7 +67,9 @@ def preproc_datagrabber(c,name='preproc_datagrabber'):
                                                                'reg_file',
                                                                'motion_plots',
                                                                'mean_image',
-                                                               'mask']),
+                                                               'mask',
+                                                               'tcompcor',
+                                                               'acompcor']),
                          name = name)
     datasource.inputs.base_directory = c.sink_dir
     datasource.inputs.template ='*'
@@ -82,7 +84,9 @@ def preproc_datagrabber(c,name='preproc_datagrabber'):
                                             tsnr_stddev='%s/preproc/tsnr/*tsnr_stddev.nii*',
                                             reg_file='%s/preproc/bbreg/*.dat',
                                             mean_image='%s/preproc/mean*/*.nii*',
-                                            mask='%s/preproc/mask/*_brainmask.nii')
+                                            mask='%s/preproc/mask/*.nii*',
+                                            acompcor='%s/preproc/compcor/aseg*.mgz',
+                                            tcompcor='%s/preproc/compcor/*tsnr*.nii')
     datasource.inputs.template_args = dict(motion_parameters=[['subject_id']],
                                            outlier_files=[['subject_id']],
                                            art_norm=[['subject_id']],
@@ -93,28 +97,31 @@ def preproc_datagrabber(c,name='preproc_datagrabber'):
                                            tsnr_detrended=[['subject_id']],
                                            reg_file=[['subject_id']],
                                            mean_image=[['subject_id']],
-                                           mask=[['subject_id']])
+                                           mask=[['subject_id']],
+                                           acompcor=[['subject_id']],
+                                           tcompcor=[['subject_id']])
     return datasource
 
 
-def start_config_table(c):
+def start_config_table(c,c_qa):
     table = []
     table.append(['TR',str(c.TR)])
     table.append(['Slice Order',str(c.SliceOrder)])
-    #table.append(['Realignment algorithm',c.motion_correct_node])
+    table.append(['Realignment algorithm',c.motion_correct_node])
     if c.use_fieldmap:
         table.append(['Echo Spacing',str(c.echospacing)])
         table.append(['Fieldmap Smoothing',str(c.sigma)])
         table.append(['TE difference',str(c.TE_diff)])
     table.append(['Art: norm thresh',str(c.norm_thresh)])
     table.append(['Art: z thresh',str(c.z_thresh)])
-    #table.append(['Smoothing Algorithm',c.smooth_type])
+    table.append(['Smoothing Algorithm',c.smooth_type])
     table.append(['fwhm',str(c.fwhm)])
-    if c.task:
+    if c_qa.task:
         table.append(['Highpass cutoff',str(c.hpcutoff)])
-    if c.resting:
+    if c_qa.resting:
         table.append(['highpass freq',str(c.highpass_freq)])
         table.append(['lowpass freq',str(c.lowpass_freq)])
+    table.append(['A-compcor, T-compcor',str(c.compcor_select)])
     return table
 
 
@@ -227,7 +234,8 @@ def QA_workflow(c,QAc,name='QA'):
                                       output_names=['images'],
                                       function=plot_anat),
                         name="plot_anat")
-        
+    plotmask = plotanat.clone('plot_mask')
+    workflow.connect(datagrabber,'mask', plotmask,'brain')
     roidevplot = tsnr_roi(plot=False,name='tsnr_stddev_roi',roi=['all'],onsets=False)
     roidevplot.inputs.inputspec.TR = c.TR
     roisnrplot = tsnr_roi(plot=False,name='SNR_roi',roi=['all'],onsets=False)
@@ -269,8 +277,13 @@ def QA_workflow(c,QAc,name='QA'):
     overlaymask = pe.Node(util.Function(input_names=['stat_image','background_image','threshold'],
                                           output_names=['fnames'], function=overlay_new), 
                                           name='overlay_mask')
-    overlaymask.inputs.threshold = 0
-    
+    overlaymask.inputs.threshold = 0.5
+    workflow.connect(convert,'out_file', overlaymask,'background_image')
+    overlaymask2 = overlaymask.clone('acompcor_image')
+    workflow.connect(convert,'out_file', overlaymask2,'background_image')
+    workflow.connect(datagrabber,'tcompcor',overlaymask,'stat_image')
+    workflow.connect(datagrabber,'acompcor',overlaymask2,'stat_image')
+
     workflow.connect(datagrabber, ('mean_image', sort), plotanat, 'brain')
 
     ts_and_spectra = pe.MapNode(util.Function(input_names=['stats_file',
@@ -298,10 +311,13 @@ def QA_workflow(c,QAc,name='QA'):
                                                           'Global_Intensity',
                                                           'Mean_Functional',
                                                           'Ribbon',
+                                                          'Mask',
                                                           'motion_plot_translations',
                                                           'motion_plot_rotations',
                                                           'tsdiffana',
                                                           'ADnorm',
+                                                          'A_CompCor',
+                                                          'T_CompCor',
                                                           'TSNR_Images',
                                                           'tsnr_roi_table']),
                                              name='report_sink')
@@ -352,6 +368,9 @@ def QA_workflow(c,QAc,name='QA'):
     workflow.connect(convert,'out_file', overlaynew,'background_image')
     
     workflow.connect(overlaynew, 'fnames', write_rep, 'TSNR_Images')
+    workflow.connect(overlaymask, 'fnames', write_rep, 'T_CompCor')
+    workflow.connect(overlaymask2, 'fnames', write_rep, 'A_CompCor')
+    workflow.connect(plotmask,'images',write_rep,'Mask')
     
     workflow.write_graph()
     return workflow
@@ -371,8 +390,8 @@ def main(config_file):
     if QA_config.test_mode:
         a.write_graph()
 
-    a.inputs.inputspec.config_params = start_config_table(c)
-    a.config = {'execution' : {'crashdump_dir' : QA_config.crash_dir}}
+    a.inputs.inputspec.config_params = start_config_table(c,QA_config)
+    a.config = {'execution' : {'crashdump_dir' : QA_config.crash_dir, 'job_finished_timeout' : 14}}
 
     if QA_config.use_advanced_options:
         exec QA_config.advanced_script

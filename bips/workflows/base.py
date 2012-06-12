@@ -277,3 +277,27 @@ def display_workflow_info(uuid):
 
 def query_workflows(query_str):
     pass
+
+def debug_workflow(workflow):
+    from traitsui.menu import OKButton, CancelButton
+    names=workflow.list_node_names()
+    print names
+    class debug(HasTraits):
+        pass
+    foo = debug()
+    for n in names:
+        foo.add_class_trait(n.replace('.','___'),traits.Bool)
+
+    view = foo.trait_view()
+    view.resizable = True
+    view.buttons = [OKButton, CancelButton]
+    view.scrollable= True
+    
+    foo.configure_traits(view=view)
+    bar = foo.get()
+    for key,item in bar.iteritems():
+        a = workflow.get_node(key.replace('___','.'))
+        if item:
+            a.run_without_submitting = True
+
+    return workflow

@@ -8,7 +8,7 @@ import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import nipype.interfaces.io as nio
 
-from .base import MetaWorkflow, load_config, register_workflow
+from .base import MetaWorkflow, load_config, register_workflow, debug_workflow
 
 mwf = MetaWorkflow()
 mwf.help = """
@@ -75,7 +75,9 @@ class config(HasTraits):
     motion_correct_node = traits.Enum('nipy','fsl','spm','afni',
                                       desc="motion correction algorithm to use",
                                       usedefault=True,)
-    
+    loops = traits.List([5],traits.Int(5),usedefault=True)
+    #between_loops = traits.Either("None",traits.List([5]),usedefault=True)
+    speedup = traits.List([5],traits.Int(5),usedefault=True)
     # Artifact Detection
     
     norm_thresh = traits.Float(1, min=0, usedefault=True, desc="norm thresh for art")
@@ -97,12 +99,17 @@ class config(HasTraits):
                                        both can be true")
     num_noise_components = traits.Int(6, usedefault=True, 
                                       desc="number of principle components of the noise to use")
+    regress_before_PCA = traits.Bool(True)
     # Highpass Filter
     hpcutoff = traits.Float(128., desc="highpass cutoff", usedefault=True)
+
+    #zscore
+    do_zscore = Bool(False)
 
     # Advanced Options
     use_advanced_options = traits.Bool()
     advanced_script = traits.Code()
+    debug = traits.Bool(False)
 
     # Buttons
     check_func_datagrabber = Button("Check")
@@ -212,7 +219,15 @@ def prep_workflow(c, fieldmap):
     else:
         preproc = create_prep()
 
+    if not c.do_zscore:
+        z_score = preproc.get_node('z_score')
+        preproc.remove_nodes([z_score])
+
     preproc.inputs.inputspec.motion_correct_node = c.motion_correct_node
+
+    preproc.inputs.inputspec.nipy_realign_parameters = {"loops":c.loops,
+                                                        "between_loops":None,
+                                                        "speedup":c.speedup}
     preproc.inputs.inputspec.timepoints_to_remove = c.timepoints_to_remove
     preproc.inputs.inputspec.smooth_type = c.smooth_type
     preproc.inputs.inputspec.surface_fwhm = c.surface_fwhm
@@ -225,6 +240,8 @@ def prep_workflow(c, fieldmap):
     preproc.inputs.inputspec.ad_zthresh = c.z_thresh
     preproc.inputs.inputspec.tr = c.TR
     preproc.inputs.inputspec.do_slicetime = c.do_slicetiming
+    preproc.inputs.inputspec.regress_before_PCA = c.regress_before_PCA
+
     if c.do_slicetiming:
         preproc.inputs.inputspec.sliceorder = c.SliceOrder
     else:
@@ -273,12 +290,17 @@ def prep_workflow(c, fieldmap):
                       sinkd, 'preproc.smooth')
     modelflow.connect(preproc, 'outputspec.tsnr_file',
                       sinkd, 'preproc.tsnr')
+    modelflow.connect(preproc, 'outputspec.csf_mask',
+        sinkd, 'preproc.compcor.@acompcor')
+    modelflow.connect(preproc, 'outputspec.noise_mask',
+        sinkd, 'preproc.compcor.@tcompcor')
     modelflow.connect(preproc, 'outputspec.tsnr_detrended',
                       sinkd, 'preproc.tsnr.@detrended')
     modelflow.connect(preproc, 'outputspec.stddev_file',
                       sinkd, 'preproc.tsnr.@stddev')
-    modelflow.connect(preproc, 'outputspec.z_img', 
-                      sinkd, 'preproc.z_image')
+    if c.do_zscore:
+        modelflow.connect(preproc, 'outputspec.z_img',
+                          sinkd, 'preproc.z_image')
     modelflow.connect(preproc, 'outputspec.noise_components',
                       sinkd, 'preproc.noise_components')
     modelflow.connect(preproc, 'outputspec.reg_fsl_file',
@@ -298,6 +320,9 @@ def main(configfile):
     cc = preprocess.get_node('preproc.CompCor')
     cc.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
     preprocess.config = {'execution': {'crashdump_dir': c.crash_dir}}
+
+    if c.debug:
+        preprocess = debug_workflow(preprocess)
 
     if c.use_advanced_options:
         exec c.advanced_script
@@ -349,12 +374,16 @@ def create_view():
                       Item(name='TR'),
                       Item(name='do_slicetiming'),
                       Item(name='SliceOrder', editor=CSVListEditor()),
+                      Item(name='loops',enabled_when="motion_correct_node=='nipy' ", editor=CSVListEditor()),
+                      #Item(name='between_loops',enabled_when="motion_correct_node=='nipy' "),
+                      Item(name='speedup',enabled_when="motion_correct_node=='nipy' ", editor=CSVListEditor()),
                       label='Motion Correction', show_border=True),
                 Group(Item(name='norm_thresh'),
                       Item(name='z_thresh'),
                       label='Artifact Detection',show_border=True),
                 Group(Item(name='compcor_select'),
                       Item(name='num_noise_components'),
+                      Item(name='regress_before_PCA'),
                       label='CompCor',show_border=True),
                 Group(Item(name="smooth_type"),
                       Item(name='fwhm', editor=CSVListEditor()),
@@ -362,8 +391,10 @@ def create_view():
                       label='Smoothing',show_border=True),
                 Group(Item(name='hpcutoff'),
                       label='Highpass Filter',show_border=True),
-                Group(Item(name='use_advanced_options'),
+                Group(Item(name='do_zscore'),
+                    Item(name='use_advanced_options'),
                     Item(name='advanced_script',enabled_when='use_advanced_options'),
+                    Item(name='debug'),
                     label='Advanced',show_border=True),
                 buttons = [OKButton, CancelButton],
                 resizable=True,

@@ -180,7 +180,9 @@ def create_prep(name='preproc'):
                                                       'surface_fwhm',
                                                       'filter_type',
                                                       'timepoints_to_remove',
-                                                      'do_whitening']),
+                                                      'do_whitening',
+                                                      'regress_before_PCA',
+                                                      'nipy_realign_parameters']),
                         name='inputspec')
 
     # Separate input node for FWHM
@@ -203,7 +205,8 @@ def create_prep(name='preproc'):
     #motion_correct = pe.Node(interface=FmriRealign4d(),
     #                            name='realign')
 
-    motion_correct = pe.Node(util.Function(input_names=['node','in_file','tr','do_slicetime','sliceorder'],
+    motion_correct = pe.Node(util.Function(input_names=['node','in_file','tr',
+                                                        'do_slicetime','sliceorder',"nipy_dict"],
         output_names=['out_file','par_file'],
         function=mod_realign),
         name="mod_realign")
@@ -290,6 +293,8 @@ def create_prep(name='preproc'):
                     ad, 'zintensity_threshold')
     preproc.connect(inputnode, 'tr',
                     motion_correct, 'tr')
+    preproc.connect(inputnode, 'nipy_realign_parameters',
+        motion_correct, 'nipy_dict')
     preproc.connect(inputnode, 'do_slicetime',
                     motion_correct, 'do_slicetime')
     preproc.connect(inputnode, 'sliceorder',
@@ -316,6 +321,8 @@ def create_prep(name='preproc'):
                     getmask, 'inputspec.source_file')
     preproc.connect(inputnode, 'num_noise_components',
                     compcor, 'inputspec.num_components')
+    preproc.connect(inputnode, 'regress_before_PCA',
+                    compcor, 'inputspec.regress_before_PCA')
     preproc.connect(motion_correct, 'out_file',
                     compcor, 'inputspec.realigned_file')
     preproc.connect(meanfunc, 'outputspec.mean_image',
@@ -324,6 +331,10 @@ def create_prep(name='preproc'):
                     compcor, 'inputspec.fsaseg_file')
     preproc.connect(getmask, ('outputspec.reg_file', pickfirst),
                     compcor, 'inputspec.reg_file')
+    preproc.connect(ad, 'outlier_files',
+                    compcor, 'inputspec.outlier_files')
+    preproc.connect(motion_correct, 'par_file',
+                    compcor, 'inputspec.realignment_parameters')
     preproc.connect(motion_correct, 'out_file',
                     ad, 'realigned_files')
     preproc.connect(motion_correct, 'par_file',
@@ -391,7 +402,9 @@ def create_prep(name='preproc'):
                 'FM_unwarped_mean',
                 'vsm_file',
                 'bandpassed_file',
-                'intensity_files']),
+                'intensity_files',
+                'noise_mask',
+                'csf_mask']),
                         name='outputspec')
 
     # make output connection
@@ -413,6 +426,10 @@ def create_prep(name='preproc'):
                     outputnode, 'outlier_stat_files')
     preproc.connect(compcor, 'outputspec.noise_components',
                     outputnode, 'noise_components')
+    preproc.connect(compcor, 'outputspec.noise_mask',
+                    outputnode, 'noise_mask')
+    preproc.connect(compcor, 'outputspec.csf_mask',
+                    outputnode, 'csf_mask')
     preproc.connect(getmask, 'outputspec.mask_file',
                     outputnode, 'mask')
     preproc.connect(getmask, 'register.out_fsl_file',
@@ -699,9 +716,6 @@ def create_rest_prep(name='preproc',fieldmap=False):
                     addoutliers, 'selector')
     preproc.connect(addoutliers, 'filter_file',
                     outputnode, 'filter_file')
-    
-    
-    
     return preproc
 
 

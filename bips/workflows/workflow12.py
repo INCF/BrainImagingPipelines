@@ -83,7 +83,9 @@ def create_prep(use_fieldmap):
                                                                   'MD',
                                                                   'reg_file',
                                                                   'FM_unwarped_mean',
-                                                                  'FM_unwarped_epi']),
+                                                                  'FM_unwarped_epi',
+                                                                  'eddy_corrected',
+                                                                  'mask']),
         name='outputspec')
     dtifit = pe.MapNode(interface=fsl.DTIFit(), name='dtifit', iterfield=['dwi',"mask","bvecs","bvals"])
 
@@ -121,8 +123,10 @@ def create_prep(use_fieldmap):
         gen_fa.connect(eddy_correct,'outputnode.mean_image',
             getmask,'inputspec.source_file')
         gen_fa.connect(eddy_correct, 'outputnode.eddy_corrected', dtifit, 'dwi')
+        gen_fa.connect(eddy_correct, 'outputnode.eddy_corrected', outputspec, 'eddy_corrected')
 
     gen_fa.connect(getmask,('outputspec.mask_file',pickfirst), dtifit, 'mask')
+    gen_fa.connect(getmask,('outputspec.mask_file',pickfirst), outputnode, 'mask')
 
     gen_fa.connect(inputspec,'subject_id',dtifit,'base_name')
 
@@ -238,14 +242,38 @@ def combine_prep(c):
     sinker = pe.Node(nio.DataSink(),name='sinker')
     sinker.inputs.base_directory = c.sink_dir
 
+    def getsubs(subject_id):
+        subs = [('_subject_id_%s'%subject_id,''),
+            ('_threshold20/aparc+aseg_thresh_warped_dil_thresh',
+             '%s_brainmask' % subject_id),
+            ('_register0','')]
+        for i in range(0,20):
+            subs.append(('_dewarper%d/vol0000_flirt_merged_unwarped.nii'%i,'dwi%d.nii'%i))
+        return subs
+
+    def get_regexpsubs(subject_id):
+        subs=[]
+        for i in range(0,20):
+            subs.append(('_dewarper%d/vol0000*.nii'%i,'dwi%d.nii'%i))
+        print subs
+        return subs
+
     modelflow.connect(infosource,'subject_id', sinker, 'container')
     modelflow.connect(prep,'outputspec.reg_file',sinker,'preproc.bbreg')
     modelflow.connect(prep, 'outputspec.FA', sinker, 'preproc.FA')
     modelflow.connect(prep,'outputspec.MD',sinker,'preproc.MD')
-    modelflow.connect(prep, 'outputspec.FM_unwarped_mean',
-        sinker, 'preproc.fieldmap.@unwarped_mean')
-    modelflow.connect(prep, 'outputspec.FM_unwarped_epi',
-        sinker, 'preproc.fieldmap.@unwarped_epi')
+    if c.use_fieldmap:
+        modelflow.connect(prep, 'outputspec.FM_unwarped_mean',
+            sinker, 'preproc.fieldmap.@unwarped_mean')
+        modelflow.connect(prep, 'outputspec.FM_unwarped_epi',
+            sinker, 'preproc.fieldmap.@unwarped_epi')
+        modelflow.connect(prep, 'outputspec.FM_unwarped_epi',
+            sinker, 'preproc.outputs.dwi')
+    else:
+        modelflow.connect(prep, 'outputspec.eddy_corrected', sinker, 'preproc.outputs.dwi')
+    modelflow.connect(prep, 'outputspec.mask', sinker, 'preproc.outputs.mask')
+    modelflow.connect(infosource,('subject_id',getsubs),sinker,'substitutions')
+    modelflow.connect(infosource,('subject_id',get_regexpsubs),sinker,'regexp_substitutions')
     return modelflow
 
 def main(config_file):
