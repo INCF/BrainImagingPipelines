@@ -193,10 +193,6 @@ def prep_workflow(c, fieldmap):
 def main(config_file):
     c = load_config(config_file, create_config)
     preprocess = prep_workflow(c, c.use_fieldmap)
-    realign = preprocess.get_node('preproc.mod_realign')
-    #realign.inputs.loops = 2
-    realign.inputs.speedup = 5
-    realign.plugin_args = c.plugin_args
     preprocess.config = {'execution': {'crashdump_dir': c.crash_dir}}
     
     if len(c.subjects) == 1:

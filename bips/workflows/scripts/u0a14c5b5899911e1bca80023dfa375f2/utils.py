@@ -316,6 +316,8 @@ def create_compcorr(name='CompCor'):
                      compcor, 'selector')
     compproc.connect(acomp, ('outputspec.csf_mask',pickfirst),
                      compcor, 'csf_mask_file')
+    compproc.connect(acomp, ('outputspec.csf_mask',pickfirst),
+        outputspec, 'csf_mask')
     compproc.connect(inputspec, 'realigned_file',
                      tsnr, 'in_file')
     compproc.connect(inputspec, 'num_components',
@@ -396,6 +398,7 @@ def get_substitutions(subject_id, use_fieldmap):
                      '%s_r%02d_' % (subject_id, i)))
         subs.append(('_tsnr%d/' % i, '%s_r%02d_' % (subject_id, i)))
         subs.append(('_z_score%d/' % i, '%s_r%02d_' % (subject_id, i)))
+        subs.append(('_threshold%d/'%i,'%s_r%02d_'%(subject_id, i)))
     return subs
 
 def get_regexp_substitutions(subject_id, use_fieldmap):
