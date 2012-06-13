@@ -21,7 +21,7 @@ Dicom Conversion
 ================
 
 """
-mwf.uuid = 'dcmstack'
+mwf.uuid = 'df490522b5ad11e19a4d001e4fb1404c'
 mwf.tags = ['convert','dicom']
 mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
 

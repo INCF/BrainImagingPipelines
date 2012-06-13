@@ -38,7 +38,7 @@ class config(HasTraits):
     # Directories
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
     base_dir = Directory(os.path.abspath('.'),mandatory=True, desc='Base directory of data. (Should be subject-independent)')
-    sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
+    sink_dir = Directory(os.path.abspath('.'),mandatory=True, desc="Location where the BIP will store the results")
     field_dir = Directory(desc="Base directory of field-map data (Should be subject-independent) \
                                                  Set this value to None if you don't want fieldmap distortion correction")
     crash_dir = Directory(mandatory=False, desc="Location to store crash files")
