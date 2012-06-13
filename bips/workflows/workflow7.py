@@ -14,6 +14,10 @@ from .scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import tsnr_roi, \
                                                                get_coords
 import traits.api as traits
 
+"""
+Part 1: Define a MetaWorkflow
+"""
+
 desc = """
 fMRI First Level or FixedFx QA workflow
 =======================================
@@ -23,6 +27,10 @@ mwf = MetaWorkflow()
 mwf.uuid = '9ecc82228b1d11e1b99a001e4fb1404c'
 mwf.tags = ['QA','first-level','activation','constrast images']
 mwf.help = desc
+
+"""
+Part 2: Define the config class & create_config function
+"""
 
 from .workflow3 import config as baseconfig
 
@@ -39,6 +47,12 @@ def create_config():
     c.uuid = mwf.uuid
     c.desc = mwf.help
     return c
+
+mwf.config_ui = create_config
+
+"""
+Part 3: Create a View
+"""
 
 def create_view():
     from traitsui.api import View, Item, Group, CSVListEditor
@@ -72,7 +86,10 @@ def create_view():
     return view
 
 mwf.config_view = create_view
-mwf.config_ui = create_config
+
+"""
+Part 4: Workflow Construction
+"""
 
 def img_wkflw(thr, csize, name='slice_image_generator'):
     inputspec = pe.Node(util.IdentityInterface(fields=['in_file',
@@ -218,8 +235,14 @@ def get_fx_data(c, name='fixedfx_datagrab'):
                                            des_mat = [['subject_id','fwhm']],
                                            des_mat_cov = [['subject_id','fwhm']])
     return datasource
-    
-def combine_report(c, first_c, prep_c, fx_c=None, thr=2.326,csize=30,fx=False):
+
+from .workflow10 import create_config as first_config
+from .workflow1 import create_config as prep_config
+
+foo0 = first_config()
+foo1 = prep_config()
+
+def combine_report(c, first_c=foo0, prep_c=foo1, fx_c=None, thr=2.326,csize=30,fx=False):
 
     if not fx:
         workflow = pe.Workflow(name='first_level_report')
@@ -365,12 +388,15 @@ def combine_report(c, first_c, prep_c, fx_c=None, thr=2.326,csize=30,fx=False):
     
     return workflow
 
+mwf.workflow_function = combine_report
+
+"""
+Part 5: Define the main function
+"""
 
 def main(config_file):
     c = load_config(config_file, create_config)
-    from .workflow10 import create_config as first_config
     first_c = load_config(c.first_level_config, first_config)
-    from .workflow1 import create_config as prep_config
     prep_c = load_config(first_c.preproc_config, prep_config)
     if c.is_fixed_fx:
         from .workflow11 import create_config as fx_config
@@ -396,4 +422,8 @@ def main(config_file):
             workflow.run()
         
 mwf.workflow_main_function = main
+
+"""
+Part 6: Register the Workflow
+"""
 register_workflow(mwf)

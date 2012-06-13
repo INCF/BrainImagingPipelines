@@ -8,13 +8,30 @@ from .base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
 
+"""
+Part 1: Define a MetaWorkflow
+"""
+
+desc = """
+Normalize Resting State Data to a Template
+==========================================
+
+"""
+mwf = MetaWorkflow()
+mwf.uuid = '21abfee68e2211e181190019b9f22493'
+mwf.tags = ['ants', 'normalize', 'warp']
+mwf.help = desc
+
+"""
+Part 2: Define the config class & create_config function
+"""
 
 class config(HasTraits):
     uuid = traits.Str(desc="UUID")
 
     # Directories
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
-    base_dir = Directory(mandatory=True, desc='Base directory of data. (Should be subject-independent)')
+    base_dir = Directory(os.path.abspath('.'),mandatory=True, desc='Base directory of data. (Should be subject-independent)')
     sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
     crash_dir = Directory(mandatory=False, desc="Location to store crash files")
     surf_dir = Directory(mandatory=True, desc="Freesurfer subjects directory")
@@ -55,6 +72,12 @@ def create_config():
     c.uuid = mwf.uuid
     return c
 
+mwf.config_ui = create_config
+
+"""
+Part 3: Create a View
+"""
+
 def create_view():
     from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
     from traitsui.menu import OKButton, CancelButton
@@ -86,18 +109,11 @@ def create_view():
                 width=1050)
     return view
 
-
-desc = """
-Normalize Resting State Data to a Template
-==========================================
+mwf.config_view = create_view
 
 """
-mwf = MetaWorkflow()
-mwf.uuid = '21abfee68e2211e181190019b9f22493'
-mwf.tags = ['ants', 'normalize', 'warp']
-mwf.config_ui = create_config
-mwf.help = desc
-mwf.config_view = create_view
+Part 4: Workflow Construction
+"""
 
 def func_datagrabber(c, name="resting_output_datagrabber"):
     # create a node to obtain the functional images
@@ -107,7 +123,7 @@ def func_datagrabber(c, name="resting_output_datagrabber"):
                                                               'meanfunc',
                                                               'fsl_mat']),
                          name=name)
-    datasource.inputs.base_directory = os.path.join(c.sink_dir)
+    datasource.inputs.base_directory = os.path.join(c.base_dir)
     datasource.inputs.template = '*'
     datasource.inputs.field_template = dict(
                                 inputs=c.inputs_template,
@@ -172,6 +188,11 @@ def normalize_workflow(c):
     norm.connect(infosource,('subject_id',getsubstitutions),sinkd,'substitutions')
     return norm
 
+mwf.workflow_function = normalize_workflow
+
+"""
+Part 5: Define the main function
+"""
 
 def main(config_file):
     c = load_config(config_file, create_config)
@@ -189,4 +210,9 @@ def main(config_file):
 
 
 mwf.workflow_main_function = main
+
+"""
+Part 6: Register the Workflow
+"""
+
 register_workflow(mwf)
