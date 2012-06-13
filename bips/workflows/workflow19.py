@@ -12,7 +12,7 @@ there is a need to revert to original state, please delete this edit.txt
 file and rerun the conversion
 
 """
-import argparse
+
 import os
 from glob import glob
 import subprocess
@@ -24,7 +24,6 @@ import nipype.interfaces.utility as util
 import nipype.interfaces.io as nio
 import nipype.interfaces.freesurfer as fs
 import nipype.pipeline.engine as pe
-from nipype.utils.filemanip import save_json, load_json
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
 
