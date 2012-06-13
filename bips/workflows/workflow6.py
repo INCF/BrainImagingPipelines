@@ -10,6 +10,9 @@ from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
 from workflow1 import get_dataflow
 
+"""
+Part 1: Define a MetaWorkflow
+"""
 
 desc = """
 Compare Realignment Nodes workflow
@@ -19,13 +22,18 @@ Compare Realignment Nodes workflow
 mwf = MetaWorkflow()
 mwf.uuid = '79755b1e8b1a11e1a2ae001e4fb1404c'
 mwf.tags = ['motion_correction', 'test', 'nipy', 'fsl', 'spm']
+mwf.help = desc
+
+"""
+Part 2: Define the config class & create_config function
+"""
 
 class config(HasTraits):
     uuid = traits.Str(desc="UUID")
     desc = traits.Str(desc='Workflow description')
     # Directories
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
-    base_dir = Directory(exists=True, desc='Base directory of data. (Should be subject-independent)')
+    base_dir = Directory(os.path.abspath('.'),exists=True, desc='Base directory of data. (Should be subject-independent)')
     sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
     field_dir = Directory(exists=True, desc="Base directory of field-map data (Should be subject-independent) \
                                                      Set this value to None if you don't want fieldmap distortion correction")
@@ -70,6 +78,17 @@ class config(HasTraits):
             else:
                 print os.path.join(self.base_dir,self.func_template % s), "exists!"
 
+def create_config():
+    c = config()
+    c.uuid = mwf.uuid
+    c.desc = mwf.help
+    return c
+
+mwf.config_ui = create_config
+
+"""
+Part 3: Create a View
+"""
 
 def create_view():
     from traitsui.api import View, Item, Group, CSVListEditor
@@ -101,16 +120,11 @@ def create_view():
         width=1050)
     return view
 
-def create_config():
-    c = config()
-    c.uuid = mwf.uuid
-    c.desc = mwf.help
-    return c
-
-mwf.config_ui = create_config
 mwf.config_view = create_view
 
-mwf.help = desc
+"""
+Part 4: Workflow Construction
+"""
 
 def plot_trans(nipy1,nipy2,fsl,spm):
     import matplotlib.pyplot as plt
@@ -187,12 +201,12 @@ def compare_workflow(c, name='compare_realignments'):
     realign_nipy = pe.Node(interface=FmriRealign4d(), name='realign_nipy')
     realign_nipy.inputs.tr = c.TR
     realign_nipy.inputs.slice_order = c.SliceOrder
-    realign_nipy.inputs.interleaved = False
+    realign_nipy.inputs.time_interp=True
 
-    realign_nipy_no_t = pe.Node(interface=FmriRealign4d(time_interp=False), name='realign_nipy_no_t')
+    realign_nipy_no_t = pe.Node(interface=FmriRealign4d(), name='realign_nipy_no_t')
     realign_nipy_no_t.inputs.tr = c.TR
-    realign_nipy_no_t.inputs.slice_order = c.SliceOrder
-    realign_nipy_no_t.inputs.interleaved = False
+    #realign_nipy_no_t.inputs.slice_order = c.SliceOrder
+
     
     realign_mflirt = pe.MapNode(interface=fsl.MCFLIRT(save_plots=True), name='mcflirt', iterfield=['in_file'])
     
@@ -239,6 +253,12 @@ def compare_workflow(c, name='compare_realignments'):
     
     return workflow
 
+mwf.workflow_function = compare_workflow
+
+"""
+Part 5: Define the main function
+"""
+
 def main(config_file):
 
     c = load_config(config_file, create_config)
@@ -251,4 +271,9 @@ def main(config_file):
         compare.run()
 
 mwf.workflow_main_function = main
+
+"""
+Part 6: Register the Workflow
+"""
+
 register_workflow(mwf)

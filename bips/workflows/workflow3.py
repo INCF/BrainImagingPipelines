@@ -477,9 +477,6 @@ mwf.workflow_function = QA_workflow
 
 """
 Part 5: Define the main function
-        - In the main function the path to a json file is passed as the only argument
-        - The json file is loaded into a config instance, c
-        - The workflow function is called with c and runs
 """
 
 def main(config_file):
