@@ -15,6 +15,10 @@ from .workflow10 import config as baseconfig
 
 import traits.api as traits
 
+"""
+Part 1: MetaWorkflow
+"""
+
 desc = """
 Fixed Effects fMRI workflow
 =====================================
@@ -24,6 +28,10 @@ mwf = MetaWorkflow()
 mwf.uuid = '7263507a8fe211e1b274001e4fb1404c'
 mwf.tags = ['fMRI','task','fixed effects']
 mwf.help = desc
+
+"""
+Part 2: Config
+"""
 
 class config(baseconfig):
     first_level_config = traits.File
@@ -37,6 +45,10 @@ def create_config():
     return c
 
 mwf.config_ui = create_config
+
+"""
+Part 3: View
+"""
 
 def create_view():
     from traitsui.api import View, Item, Group, CSVListEditor
@@ -68,6 +80,10 @@ def create_view():
     return view
 
 mwf.config_view = create_view
+
+"""
+Part 4: Construct Workflow
+"""
 
 def getinfo(cons, info):
     numruns = len(info)
@@ -145,9 +161,13 @@ def create_overlay_workflow(c,name='overlay'):
 
     return overlay
 
-# have to determine the total number of runs.
+from .workflow10 import create_config as first_config
+from .workflow1 import create_config as prep_config
 
-def create_fixedfx(c, first_c, prep_c, name='fixedfx'):
+foo0 = first_config()
+foo1 = prep_config()
+
+def create_fixedfx(c, first_c=foo0, prep_c=foo1, name='fixedfx'):
     selectnode = pe.Node(interface=util.IdentityInterface(fields=['runs']),
                          name='idselect')
 
@@ -247,6 +267,11 @@ def create_fixedfx(c, first_c, prep_c, name='fixedfx'):
     fixedfxflow.connect(overlay, 'slicestats.out_file', datasink, 'overlays')
     return fixedfxflow
 
+mwf.workflow_function = create_fixedfx
+
+"""
+Part 5: Main
+"""
 
 def main(config_file):
 
@@ -270,4 +295,8 @@ def main(config_file):
 
 
 mwf.workflow_main_function = main
+
+"""
+Part 6: Register
+"""
 register_workflow(mwf)
