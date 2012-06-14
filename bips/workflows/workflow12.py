@@ -13,6 +13,10 @@ from .base import MetaWorkflow, load_config, register_workflow
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import plot_motion
 import bips.utils.reportsink.io as io
 
+"""
+Part 1: MetaWorkflow
+"""
+
 mwf = MetaWorkflow()
 mwf.help = """
 Diffusion pre-processing workflow
@@ -22,6 +26,161 @@ Diffusion pre-processing workflow
 mwf.uuid = 'd9bee4cc987611e19b9b001e4fb1404c'
 mwf.tags = ['diffusion','dti','pre-processing']
 mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
+
+
+"""
+Part 2: Config
+"""
+
+class config(HasTraits):
+    uuid = traits.Str(desc="UUID")
+    desc = traits.Str(desc='Workflow description')
+    # Directories
+    working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
+    base_dir = Directory(os.path.abspath('.'),mandatory=True, desc='Base directory of data. (Should be subject-independent)')
+    sink_dir = Directory(os.path.abspath('.'),mandatory=True, desc="Location where the BIP will store the results")
+    field_dir = Directory(desc="Base directory of field-map data (Should be subject-independent) \
+                                                 Set this value to None if you don't want fieldmap distortion correction")
+    crash_dir = Directory(mandatory=False, desc="Location to store crash files")
+    json_sink = Directory(mandatory=False, desc= "Location to store json_files")
+    surf_dir = Directory(mandatory=True, desc= "Freesurfer subjects directory")
+
+    # Execution
+
+    run_using_plugin = Bool(False, usedefault=True, desc="True to run pipeline with plugin, False to run serially")
+    plugin = traits.Enum("PBS", "PBSGraph","MultiProc", "SGE", "Condor",
+        usedefault=True,
+        desc="plugin to use, if run_using_plugin=True")
+    plugin_args = traits.Dict({"qsub_args": "-q many"},
+        usedefault=True, desc='Plugin arguments.')
+    test_mode = Bool(False, mandatory=False, usedefault=True,
+        desc='Affects whether where and if the workflow keeps its \
+                            intermediary files. True to keep intermediary files. ')
+    # Subjects
+
+    subjects= traits.List(traits.Str, mandatory=True, usedefault=True,
+        desc="Subject id's. Note: These MUST match the subject id's in the \
+                                Freesurfer directory. For simplicity, the subject id's should \
+                                also match with the location of individual functional files.")
+    dwi_template = traits.String('%s/functional.nii.gz')
+    bval_template = traits.String('%s/bval')
+    bvec_template = traits.String('%s/fbvec')
+    run_datagrabber_without_submitting = traits.Bool(desc="Run the datagrabber without \
+    submitting to the cluster")
+    timepoints_to_remove = traits.Int(0,usedefault=True)
+
+    # Fieldmap
+
+    use_fieldmap = Bool(False, mandatory=False, usedefault=True,
+        desc='True to include fieldmap distortion correction. Note: field_dir \
+                                     must be specified')
+    magnitude_template = traits.String('%s/magnitude.nii.gz')
+    phase_template = traits.String('%s/phase.nii.gz')
+    TE_diff = traits.Float(desc='difference in B0 field map TEs')
+    sigma = traits.Int(2, desc='2D spatial gaussing smoothing stdev (default = 2mm)')
+    echospacing = traits.Float(desc="EPI echo spacing")
+
+    # Bvecs
+    do_rotate_bvecs = traits.Bool(True, usedefault=True)
+
+    # Advanced Options
+    use_advanced_options = traits.Bool()
+    advanced_script = traits.Code()
+
+    # Buttons
+    check_func_datagrabber = Button("Check")
+    check_field_datagrabber = Button("Check")
+
+    def _check_func_datagrabber_fired(self):
+        subs = self.subjects
+
+        for s in subs:
+            if not os.path.exists(os.path.join(self.base_dir,self.dwi_template % s)):
+                print "ERROR", os.path.join(self.base_dir,self.dwi_template % s), "does NOT exist!"
+                break
+            else:
+                print os.path.join(self.base_dir,self.dwi_template % s), "exists!"
+
+    def _check_field_datagrabber_fired(self):
+        subs = self.subjects
+
+        for s in subs:
+            if not os.path.exists(os.path.join(self.field_dir,self.magnitude_template % s)):
+                print "ERROR:", os.path.join(self.field_dir,self.magnitude_template % s), "does NOT exist!"
+                break
+            else:
+                print os.path.join(self.base_dir,self.magnitude_template % s), "exists!"
+            if not os.path.exists(os.path.join(self.field_dir,self.phase_template % s)):
+                print "ERROR:", os.path.join(self.field_dir,self.phase_template % s), "does NOT exist!"
+                break
+            else:
+                print os.path.join(self.base_dir,self.phase_template % s), "exists!"
+
+
+def create_config():
+    c = config()
+    c.uuid = mwf.uuid
+    c.desc = mwf.help
+    return c
+
+mwf.config_ui = create_config
+
+"""
+Part 3: View
+"""
+
+def create_view():
+    from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
+    from traitsui.menu import OKButton, CancelButton
+    view = View(Group(Item(name='uuid', style='readonly'),
+        Item(name='desc', style='readonly'),
+        label='Description', show_border=True),
+        Group(Item(name='working_dir'),
+            Item(name='sink_dir'),
+            Item(name='crash_dir'),
+            Item(name='json_sink'),
+            Item(name='surf_dir'),
+            label='Directories', show_border=True),
+        Group(Item(name='run_using_plugin'),
+            Item(name='plugin', enabled_when="run_using_plugin"),
+            Item(name='plugin_args', enabled_when="run_using_plugin"),
+            Item(name='test_mode'),
+            label='Execution Options', show_border=True),
+        Group(Item(name='subjects', editor=CSVListEditor()),
+            Item(name='base_dir'),
+            Item(name='dwi_template'),
+            Item(name='bval_template'),
+            Item(name='bvec_template'),
+            Item(name='check_func_datagrabber'),
+            Item(name='run_datagrabber_without_submitting'),
+            Item(name='timepoints_to_remove'),
+            label='Subjects', show_border=True),
+        Group(Item(name='use_fieldmap'),
+            Item(name='field_dir', enabled_when="use_fieldmap"),
+            Item(name='magnitude_template',
+                enabled_when="use_fieldmap"),
+            Item(name='phase_template', enabled_when="use_fieldmap"),
+            Item(name='check_field_datagrabber',
+                enabled_when="use_fieldmap"),
+            Item(name='echospacing',enabled_when="use_fieldmap"),
+            Item(name='TE_diff',enabled_when="use_fieldmap"),
+            Item(name='sigma',enabled_when="use_fieldmap"),
+            label='Fieldmap',show_border=True),
+        Group(Item('do_rotate_bvecs'),
+            label='Diffusion_Options',show_border=True),
+        Group(Item(name='use_advanced_options'),
+            Item(name='advanced_script',enabled_when='use_advanced_options'),
+            label='Advanced',show_border=True),
+        buttons = [OKButton, CancelButton],
+        resizable=True,
+        width=1050)
+    return view
+
+mwf.config_view = create_view
+
+"""
+Part 4: Construct Workflow
+"""
 
 
 def tolist(x):
@@ -276,6 +435,13 @@ def combine_prep(c):
     modelflow.connect(infosource,('subject_id',get_regexpsubs),sinker,'regexp_substitutions')
     return modelflow
 
+
+mwf.workflow_function = combine_prep
+
+"""
+Part 5: Main
+"""
+
 def main(config_file):
     c = load_config(config_file, create_config)
     workflow = combine_prep(c)
@@ -288,146 +454,10 @@ def main(config_file):
         workflow.run()
     return 0
 
-class config(HasTraits):
-    uuid = traits.Str(desc="UUID")
-    desc = traits.Str(desc='Workflow description')
-    # Directories
-    working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
-    base_dir = Directory(mandatory=True, desc='Base directory of data. (Should be subject-independent)')
-    sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
-    field_dir = Directory(desc="Base directory of field-map data (Should be subject-independent) \
-                                                 Set this value to None if you don't want fieldmap distortion correction")
-    crash_dir = Directory(mandatory=False, desc="Location to store crash files")
-    json_sink = Directory(mandatory=False, desc= "Location to store json_files")
-    surf_dir = Directory(mandatory=True, desc= "Freesurfer subjects directory")
-
-    # Execution
-
-    run_using_plugin = Bool(False, usedefault=True, desc="True to run pipeline with plugin, False to run serially")
-    plugin = traits.Enum("PBS", "PBSGraph","MultiProc", "SGE", "Condor",
-        usedefault=True,
-        desc="plugin to use, if run_using_plugin=True")
-    plugin_args = traits.Dict({"qsub_args": "-q many"},
-        usedefault=True, desc='Plugin arguments.')
-    test_mode = Bool(False, mandatory=False, usedefault=True,
-        desc='Affects whether where and if the workflow keeps its \
-                            intermediary files. True to keep intermediary files. ')
-    # Subjects
-
-    subjects= traits.List(traits.Str, mandatory=True, usedefault=True,
-        desc="Subject id's. Note: These MUST match the subject id's in the \
-                                Freesurfer directory. For simplicity, the subject id's should \
-                                also match with the location of individual functional files.")
-    dwi_template = traits.String('%s/functional.nii.gz')
-    bval_template = traits.String('%s/bval')
-    bvec_template = traits.String('%s/fbvec')
-    run_datagrabber_without_submitting = traits.Bool(desc="Run the datagrabber without \
-    submitting to the cluster")
-    timepoints_to_remove = traits.Int(0,usedefault=True)
-
-    # Fieldmap
-
-    use_fieldmap = Bool(False, mandatory=False, usedefault=True,
-        desc='True to include fieldmap distortion correction. Note: field_dir \
-                                     must be specified')
-    magnitude_template = traits.String('%s/magnitude.nii.gz')
-    phase_template = traits.String('%s/phase.nii.gz')
-    TE_diff = traits.Float(desc='difference in B0 field map TEs')
-    sigma = traits.Int(2, desc='2D spatial gaussing smoothing stdev (default = 2mm)')
-    echospacing = traits.Float(desc="EPI echo spacing")
-
-    # Bvecs
-    do_rotate_bvecs = traits.Bool(True, usedefault=True)
-
-    # Advanced Options
-    use_advanced_options = traits.Bool()
-    advanced_script = traits.Code()
-
-    # Buttons
-    check_func_datagrabber = Button("Check")
-    check_field_datagrabber = Button("Check")
-
-    def _check_func_datagrabber_fired(self):
-        subs = self.subjects
-
-        for s in subs:
-            if not os.path.exists(os.path.join(self.base_dir,self.dwi_template % s)):
-                print "ERROR", os.path.join(self.base_dir,self.dwi_template % s), "does NOT exist!"
-                break
-            else:
-                print os.path.join(self.base_dir,self.dwi_template % s), "exists!"
-
-    def _check_field_datagrabber_fired(self):
-        subs = self.subjects
-
-        for s in subs:
-            if not os.path.exists(os.path.join(self.field_dir,self.magnitude_template % s)):
-                print "ERROR:", os.path.join(self.field_dir,self.magnitude_template % s), "does NOT exist!"
-                break
-            else:
-                print os.path.join(self.base_dir,self.magnitude_template % s), "exists!"
-            if not os.path.exists(os.path.join(self.field_dir,self.phase_template % s)):
-                print "ERROR:", os.path.join(self.field_dir,self.phase_template % s), "does NOT exist!"
-                break
-            else:
-                print os.path.join(self.base_dir,self.phase_template % s), "exists!"
-
-
-def create_config():
-    c = config()
-    c.uuid = mwf.uuid
-    c.desc = mwf.help
-    return c
-
-def create_view():
-    from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
-    from traitsui.menu import OKButton, CancelButton
-    view = View(Group(Item(name='uuid', style='readonly'),
-        Item(name='desc', style='readonly'),
-        label='Description', show_border=True),
-        Group(Item(name='working_dir'),
-            Item(name='sink_dir'),
-            Item(name='crash_dir'),
-            Item(name='json_sink'),
-            Item(name='surf_dir'),
-            label='Directories', show_border=True),
-        Group(Item(name='run_using_plugin'),
-            Item(name='plugin', enabled_when="run_using_plugin"),
-            Item(name='plugin_args', enabled_when="run_using_plugin"),
-            Item(name='test_mode'),
-            label='Execution Options', show_border=True),
-        Group(Item(name='subjects', editor=CSVListEditor()),
-            Item(name='base_dir'),
-            Item(name='dwi_template'),
-            Item(name='bval_template'),
-            Item(name='bvec_template'),
-            Item(name='check_func_datagrabber'),
-            Item(name='run_datagrabber_without_submitting'),
-            Item(name='timepoints_to_remove'),
-            label='Subjects', show_border=True),
-        Group(Item(name='use_fieldmap'),
-            Item(name='field_dir', enabled_when="use_fieldmap"),
-            Item(name='magnitude_template',
-                enabled_when="use_fieldmap"),
-            Item(name='phase_template', enabled_when="use_fieldmap"),
-            Item(name='check_field_datagrabber',
-                enabled_when="use_fieldmap"),
-            Item(name='echospacing',enabled_when="use_fieldmap"),
-            Item(name='TE_diff',enabled_when="use_fieldmap"),
-            Item(name='sigma',enabled_when="use_fieldmap"),
-            label='Fieldmap',show_border=True),
-        Group(Item('do_rotate_bvecs'),
-            label='Diffusion_Options',show_border=True),
-        Group(Item(name='use_advanced_options'),
-            Item(name='advanced_script',enabled_when='use_advanced_options'),
-            label='Advanced',show_border=True),
-        buttons = [OKButton, CancelButton],
-        resizable=True,
-        width=1050)
-    return view
-
 mwf.workflow_main_function = main
-mwf.config_ui = create_config
-mwf.config_view = create_view
+
+"""
+Part 6: Register
+"""
 
 register_workflow(mwf)

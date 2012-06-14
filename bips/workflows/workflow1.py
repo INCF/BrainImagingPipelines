@@ -10,6 +10,13 @@ import nipype.interfaces.io as nio
 
 from .base import MetaWorkflow, load_config, register_workflow, debug_workflow
 
+"""
+Part 1: Define a MetaWorkflow
+        - help (description)
+        - uuid
+        - tags
+"""
+
 mwf = MetaWorkflow()
 mwf.help = """
 Task preprocessing workflow
@@ -20,14 +27,19 @@ mwf.uuid = '63fcbb0a890211e183d30023dfa375f2'
 mwf.tags = ['task','fMRI','preprocessing','fsl','freesurfer','nipy']
 mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
 
+"""
+Part 2: Define the config class & create_config function
+        - The config_ui attribute of MetaWorkflow is defined as the create_config function
+"""
+
 # create gui
 class config(HasTraits):
     uuid = traits.Str(desc="UUID")
     desc = traits.Str(desc='Workflow description')
     # Directories
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
-    base_dir = Directory(mandatory=True, desc='Base directory of data. (Should be subject-independent)')
-    sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
+    base_dir = Directory(os.path.abspath('.'),mandatory=True, desc='Base directory of data. (Should be subject-independent)')
+    sink_dir = Directory(os.path.abspath('.'),mandatory=True, desc="Location where the BIP will store the results")
     field_dir = Directory(desc="Base directory of field-map data (Should be subject-independent) \
                                                  Set this value to None if you don't want fieldmap distortion correction")
     crash_dir = Directory(mandatory=False, desc="Location to store crash files")
@@ -71,7 +83,7 @@ class config(HasTraits):
 
     do_slicetiming = Bool(True, usedefault=True, desc="Perform slice timing correction")
     SliceOrder = traits.List(traits.Int)
-    TR = traits.Float(mandatory=True, desc = "TR of functional")
+    TR = traits.Float(1.0,mandatory=True, desc = "TR of functional")
     motion_correct_node = traits.Enum('nipy','fsl','spm','afni',
                                       desc="motion correction algorithm to use",
                                       usedefault=True,)
@@ -146,6 +158,88 @@ def create_config():
     c.desc = mwf.help
     return c
 
+mwf.config_ui = create_config
+
+"""
+Part 3: Create a View
+        - MetaWorkflow.config_view is a function that returns a View object
+        - Make sure the View is organized into Groups
+"""
+
+def create_view():
+    from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
+    from traitsui.menu import OKButton, CancelButton
+    view = View(Group(Item(name='uuid', style='readonly'),
+        Item(name='desc', style='readonly'),
+        label='Description', show_border=True),
+        Group(Item(name='working_dir'),
+            Item(name='sink_dir'),
+            Item(name='crash_dir'),
+            Item(name='json_sink'),
+            Item(name='surf_dir'),
+            label='Directories', show_border=True),
+        Group(Item(name='run_using_plugin'),
+            Item(name='plugin', enabled_when="run_using_plugin"),
+            Item(name='plugin_args', enabled_when="run_using_plugin"),
+            Item(name='test_mode'),
+            label='Execution Options', show_border=True),
+        Group(Item(name='subjects', editor=CSVListEditor()),
+            Item(name='base_dir'),
+            Item(name='func_template'),
+            Item(name='check_func_datagrabber'),
+            Item(name='run_datagrabber_without_submitting'),
+            Item(name='timepoints_to_remove'),
+            label='Subjects', show_border=True),
+        Group(Item(name='use_fieldmap'),
+            Item(name='field_dir', enabled_when="use_fieldmap"),
+            Item(name='magnitude_template',
+                enabled_when="use_fieldmap"),
+            Item(name='phase_template', enabled_when="use_fieldmap"),
+            Item(name='check_field_datagrabber',
+                enabled_when="use_fieldmap"),
+            Item(name='echospacing',enabled_when="use_fieldmap"),
+            Item(name='TE_diff',enabled_when="use_fieldmap"),
+            Item(name='sigma',enabled_when="use_fieldmap"),
+            label='Fieldmap',show_border=True),
+        Group(Item(name="motion_correct_node"),
+            Item(name='TR'),
+            Item(name='do_slicetiming'),
+            Item(name='SliceOrder', editor=CSVListEditor()),
+            Item(name='loops',enabled_when="motion_correct_node=='nipy' ", editor=CSVListEditor()),
+            #Item(name='between_loops',enabled_when="motion_correct_node=='nipy' "),
+            Item(name='speedup',enabled_when="motion_correct_node=='nipy' ", editor=CSVListEditor()),
+            label='Motion Correction', show_border=True),
+        Group(Item(name='norm_thresh'),
+            Item(name='z_thresh'),
+            label='Artifact Detection',show_border=True),
+        Group(Item(name='compcor_select'),
+            Item(name='num_noise_components'),
+            Item(name='regress_before_PCA'),
+            label='CompCor',show_border=True),
+        Group(Item(name="smooth_type"),
+            Item(name='fwhm', editor=CSVListEditor()),
+            Item(name='surface_fwhm'),
+            label='Smoothing',show_border=True),
+        Group(Item(name='hpcutoff'),
+            label='Highpass Filter',show_border=True),
+        Group(Item(name='do_zscore'),
+            Item(name='use_advanced_options'),
+            Item(name='advanced_script',enabled_when='use_advanced_options'),
+            Item(name='debug'),
+            label='Advanced',show_border=True),
+        buttons = [OKButton, CancelButton],
+        resizable=True,
+        width=1050)
+    return view
+
+mwf.config_view = create_view
+
+"""
+Part 4: Workflow Construction
+        - Write a function that returns the workflow
+        - The workflow should take a config object as the first argument
+"""
+
 # create workflow
 
 from scripts.u0a14c5b5899911e1bca80023dfa375f2.base import (create_prep,
@@ -165,8 +259,8 @@ def get_dataflow(c):
     dataflow.inputs.template_args = dict(func=[['subject_id']])
     return dataflow
     
-def prep_workflow(c, fieldmap):
-    
+def prep_workflow(c):
+    fieldmap=c.use_fieldmap
     infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
                          name='subject_names')
     if not c.test_mode:
@@ -309,9 +403,18 @@ def prep_workflow(c, fieldmap):
     modelflow.base_dir = os.path.join(c.working_dir, 'work_dir')
     return modelflow
 
+mwf.workflow_function = prep_workflow
+
+"""
+Part 5: Define the main function
+        - In the main function the path to a json file is passed as the only argument
+        - The json file is loaded into a config instance, c
+        - The workflow function is called with c and runs
+"""
+
 def main(configfile):
     c = load_config(configfile, create_config)
-    preprocess = prep_workflow(c, c.use_fieldmap)
+    preprocess = prep_workflow(c)
     realign = preprocess.get_node('preproc.mod_realign')
     realign.plugin_args = {'qsub_args': '-l nodes=1:ppn=3'}
     #realign.inputs.loops = 2
@@ -335,74 +438,11 @@ def main(configfile):
     else:
         preprocess.run()
 
-def create_view():
-    from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
-    from traitsui.menu import OKButton, CancelButton
-    view = View(Group(Item(name='uuid', style='readonly'),
-                      Item(name='desc', style='readonly'),
-                      label='Description', show_border=True),
-                Group(Item(name='working_dir'),
-                      Item(name='sink_dir'),
-                      Item(name='crash_dir'),
-                      Item(name='json_sink'),
-                      Item(name='surf_dir'),
-                      label='Directories', show_border=True),
-                Group(Item(name='run_using_plugin'),
-                      Item(name='plugin', enabled_when="run_using_plugin"),
-                      Item(name='plugin_args', enabled_when="run_using_plugin"),
-                      Item(name='test_mode'),
-                      label='Execution Options', show_border=True),
-                Group(Item(name='subjects', editor=CSVListEditor()),
-                      Item(name='base_dir'),
-                      Item(name='func_template'),
-                      Item(name='check_func_datagrabber'),
-                      Item(name='run_datagrabber_without_submitting'),
-                      Item(name='timepoints_to_remove'),
-                      label='Subjects', show_border=True),
-                Group(Item(name='use_fieldmap'),
-                      Item(name='field_dir', enabled_when="use_fieldmap"),
-                      Item(name='magnitude_template',
-                           enabled_when="use_fieldmap"),
-                      Item(name='phase_template', enabled_when="use_fieldmap"),
-                      Item(name='check_field_datagrabber',
-                           enabled_when="use_fieldmap"),
-                      Item(name='echospacing',enabled_when="use_fieldmap"),
-                      Item(name='TE_diff',enabled_when="use_fieldmap"),
-                      Item(name='sigma',enabled_when="use_fieldmap"),
-                      label='Fieldmap',show_border=True),
-                Group(Item(name="motion_correct_node"),
-                      Item(name='TR'),
-                      Item(name='do_slicetiming'),
-                      Item(name='SliceOrder', editor=CSVListEditor()),
-                      Item(name='loops',enabled_when="motion_correct_node=='nipy' ", editor=CSVListEditor()),
-                      #Item(name='between_loops',enabled_when="motion_correct_node=='nipy' "),
-                      Item(name='speedup',enabled_when="motion_correct_node=='nipy' ", editor=CSVListEditor()),
-                      label='Motion Correction', show_border=True),
-                Group(Item(name='norm_thresh'),
-                      Item(name='z_thresh'),
-                      label='Artifact Detection',show_border=True),
-                Group(Item(name='compcor_select'),
-                      Item(name='num_noise_components'),
-                      Item(name='regress_before_PCA'),
-                      label='CompCor',show_border=True),
-                Group(Item(name="smooth_type"),
-                      Item(name='fwhm', editor=CSVListEditor()),
-                      Item(name='surface_fwhm'),
-                      label='Smoothing',show_border=True),
-                Group(Item(name='hpcutoff'),
-                      label='Highpass Filter',show_border=True),
-                Group(Item(name='do_zscore'),
-                    Item(name='use_advanced_options'),
-                    Item(name='advanced_script',enabled_when='use_advanced_options'),
-                    Item(name='debug'),
-                    label='Advanced',show_border=True),
-                buttons = [OKButton, CancelButton],
-                resizable=True,
-                width=1050)
-    return view
 
 mwf.workflow_main_function = main
-mwf.config_ui = create_config
-mwf.config_view = create_view
+
+"""
+Part 6: Register the Workflow
+"""
 
 register_workflow(mwf)

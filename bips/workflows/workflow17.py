@@ -8,6 +8,25 @@ from .base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
 
+"""
+MetaWorkflow
+"""
+
+desc = """
+Normalize Data to a standard template using a custom template
+=============================================================
+
+"""
+mwf = MetaWorkflow()
+mwf.uuid = 'df1551c4ac1511e191ea0019b9f22493'
+mwf.tags = ['ants', 'normalize', 'warp']
+
+mwf.help = desc
+
+"""
+Config
+"""
+
 class config(HasTraits):
     uuid = traits.Str(desc="UUID")
 
@@ -60,6 +79,12 @@ def create_config():
     c.uuid = mwf.uuid
     return c
 
+mwf.config_ui = create_config
+
+"""
+View
+"""
+
 def create_view():
     from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
     from traitsui.menu import OKButton, CancelButton
@@ -95,18 +120,11 @@ def create_view():
                 width=1050)
     return view
 
-
-desc = """
-Normalize Data to a standard template using a custom template 
-=============================================================
+mwf.config_view = create_view
 
 """
-mwf = MetaWorkflow()
-mwf.uuid = 'df1551c4ac1511e191ea0019b9f22493'
-mwf.tags = ['ants', 'normalize', 'warp']
-mwf.config_ui = create_config
-mwf.help = desc
-mwf.config_view = create_view
+Construct Workflow
+"""
 
 def func_datagrabber(c, name="resting_output_datagrabber"):
     # create a node to obtain the functional images
@@ -206,7 +224,13 @@ def normalize_workflow(c):
     #norm.connect(outputspec, 'warped_brain', sinkd, 'smri.warped_brain')
     norm.connect(infosource,('subject_id',getsubstitutions),sinkd,'substitutions')
     return norm
-    
+
+mwf.workflow_function = normalize_workflow
+
+"""
+Main
+"""
+
 def main(config_file):
     c = load_config(config_file, create_config)
 
@@ -226,4 +250,9 @@ def main(config_file):
 
 
 mwf.workflow_main_function = main
+
+"""
+Register
+"""
+
 register_workflow(mwf)

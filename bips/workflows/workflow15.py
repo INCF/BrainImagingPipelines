@@ -1,12 +1,14 @@
 from traits.api import HasTraits, Directory, Bool
 import traits.api as traits
-from .scripts.u0a14c5b5899911e1bca80023dfa375f2.diffusion_base import create_workflow
 from .base import MetaWorkflow, load_config, register_workflow
 import nipype.interfaces.io as nio
 import nipype.interfaces.utility as niu
 from .workflow12 import config as pconfig
 import nipype.pipeline.engine as pe
 
+"""
+Part 1: MetaWorkflow
+"""
 mwf = MetaWorkflow()
 mwf.help = """
 Diffusion tracking workflow
@@ -16,6 +18,10 @@ Diffusion tracking workflow
 mwf.uuid = 'fda82554a43511e1b507001e4fb1404c'
 mwf.tags = ['diffusion','dti','tracking']
 mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
+
+"""
+Part 2: Config
+"""
 
 class config(HasTraits):
     uuid = traits.Str(desc="UUID")
@@ -54,6 +60,12 @@ def create_config():
     c.desc = mwf.help
     return c
 
+mwf.config_ui = create_config
+
+"""
+Part 3: View
+"""
+
 def create_view():
     from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
     from traitsui.menu import OKButton, CancelButton
@@ -78,6 +90,14 @@ def create_view():
         width=1050)
     return view
 
+mwf.config_view = create_view
+
+"""
+Part 4: Construct Workflow
+"""
+
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.diffusion_base import create_workflow
+
 def get_dataflow(c):
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
         outfields=['dwi','mask']),
@@ -91,11 +111,9 @@ def get_dataflow(c):
         mask=[['subject_id']])
     return datasource
 
-def main(config_file):
-    c = load_config(config_file,config)
+foo = pconfig()
 
-    prep_c = load_config(c.preproc_config, pconfig)
-
+def get_wf(c, prep_c=foo):
     workflow = create_workflow()
     datagrabber = get_dataflow(prep_c)
     inputspec = workflow.get_node('inputspec')
@@ -103,12 +121,28 @@ def main(config_file):
     workflow.connect(datagrabber,'dwi',inputspec,'dwi')
     infosource = pe.Node(niu.IdentityInterface(fields=["subject_id"]),name='subject_names')
     workflow.connect(infosource,"subject_id",datagrabber, 'subject_id')
-    workflow.base_dir = c.working_dir
     if c.test_mode:
         infosource.iterables=("subject_id", [c.subjects[0]])
-        workflow.write_graph()
     else:
         infosource.iterables=("subject_id", c.subjects)
+    workflow.base_dir = c.working_dir
+    return workflow
+
+mwf.workflow_function = get_wf
+
+"""
+Part 5: Main
+"""
+
+def main(config_file):
+    c = load_config(config_file,config)
+
+    prep_c = load_config(c.preproc_config, pconfig)
+
+    workflow = get_wf(c,prep_c)
+
+    if c.test_mode:
+        workflow.write_graph()
 
     if c.run_using_plugin:
         workflow.run(plugin=c.plugin, plugin_args=c.plugin_args)
@@ -118,7 +152,9 @@ def main(config_file):
     return 1
 
 mwf.workflow_main_function = main
-mwf.config_ui = create_config
-mwf.config_view = create_view
+
+"""
+Part 6: Main
+"""
 
 register_workflow(mwf)

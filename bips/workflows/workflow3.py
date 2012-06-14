@@ -5,6 +5,10 @@ import os
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
 
+"""
+Part 1: Define a MetaWorkflow
+"""
+
 desc = """
 Task/Resting fMRI Quality Assurance workflow
 ============================================
@@ -16,7 +20,96 @@ mwf.tags = ['task','fMRI','preprocessing','QA', 'resting']
 mwf.uses_outputs_of = ['63fcbb0a890211e183d30023dfa375f2','7757e3168af611e1b9d5001e4fb1404c']
 mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
 mwf.help = desc
+
+"""
+Part 2: Define the config class & create_config function
+"""
+
 # config_ui
+class config(HasTraits):
+    uuid = traits.Str(desc="UUID")
+    desc = traits.Str(desc='Workflow description')
+    # Directories
+    working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
+    base_dir = Directory(exists=True, desc='Base directory of data. (Should be subject-independent)')
+    sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
+    field_dir = Directory(exists=True, desc="Base directory of field-map data (Should be subject-independent) \
+                                                 Set this value to None if you don't want fieldmap distortion correction")
+    crash_dir = Directory(mandatory=False, desc="Location to store crash files")
+    json_sink = Directory(mandatory=False, desc= "Location to store json_files")
+    surf_dir = Directory(mandatory=True, desc= "Freesurfer subjects directory")
+
+    # Execution
+
+    run_using_plugin = Bool(False, usedefault=True, desc="True to run pipeline with plugin, False to run serially")
+    plugin = traits.Enum("PBS", "PBSGraph","MultiProc", "SGE", "Condor",
+        usedefault=True,
+        desc="plugin to use, if run_using_plugin=True")
+    plugin_args = traits.Dict({"qsub_args": "-q many"},
+        usedefault=True, desc='Plugin arguments.')
+    test_mode = Bool(False, mandatory=False, usedefault=True,
+        desc='Affects whether where and if the workflow keeps its \
+                            intermediary files. True to keep intermediary files. ')
+    # Subjects
+
+    subjects= traits.List(traits.Str, mandatory=True, usedefault=True,
+        desc="Subject id's. These subjects must match the ones that have been run in your preproc config")
+
+    preproc_config = traits.File(desc="preproc config file")
+    resting = traits.Bool(desc="True if running QA for resting preproc")
+    task = traits.Bool(desc="True if running QA for task fmri preproc")
+    # Advanced Options
+    use_advanced_options = traits.Bool()
+    advanced_script = traits.Code()
+
+def create_config():
+    c = config()
+    c.uuid = mwf.uuid
+    c.desc = mwf.help
+    return c
+
+mwf.config_ui = create_config
+
+"""
+Part 3: Create a View
+"""
+
+def create_view():
+    from traitsui.api import View, Item, Group, CSVListEditor
+    from traitsui.menu import OKButton, CancelButton
+    view = View(Group(Item(name='uuid', style='readonly'),
+        Item(name='desc', style='readonly'),
+        label='Description', show_border=True),
+        Group(Item(name='working_dir'),
+            Item(name='sink_dir'),
+            Item(name='crash_dir'),
+            Item(name='json_sink'),
+            label='Directories', show_border=True),
+        Group(Item(name='run_using_plugin'),
+            Item(name='plugin', enabled_when="run_using_plugin"),
+            Item(name='plugin_args', enabled_when="run_using_plugin"),
+            Item(name='test_mode'),
+            label='Execution Options', show_border=True),
+        Group(Item(name='subjects', editor=CSVListEditor()),
+            label='Subjects', show_border=True),
+        Group(Item(name='preproc_config'),
+            Item(name='resting',enabled_when='not task'),
+            Item(name='task', enabled_when='not resting'),
+            label = 'Preprocessing Info'),
+        Group(Item(name='use_advanced_options'),
+            Item(name='advanced_script',enabled_when='use_advanced_options'),
+            label='Advanced',show_border=True),
+        buttons = [OKButton, CancelButton],
+        resizable=True,
+        width=1050)
+    return view
+
+mwf.config_view = create_view
+
+"""
+Part 4: Workflow Construction
+"""
+
 from workflow1 import get_dataflow
 
 # define workflow
@@ -124,8 +217,13 @@ def start_config_table(c,c_qa):
     table.append(['A-compcor, T-compcor',str(c.compcor_select)])
     return table
 
+# Workflow construction function should only take in 1 arg.
+# Create a dummy config for the second arg
 
-def QA_workflow(c,QAc,name='QA'):
+from .workflow2 import create_config as prep_config
+foo = prep_config()
+
+def QA_workflow(QAc,c=foo, name='QA'):
     """ Workflow that generates a Quality Assurance Report
     
     Parameters
@@ -375,7 +473,12 @@ def QA_workflow(c,QAc,name='QA'):
     workflow.write_graph()
     return workflow
 
-    
+mwf.workflow_function = QA_workflow
+
+"""
+Part 5: Define the main function
+"""
+
 def main(config_file):
     
     QA_config = load_config(config_file, create_config)
@@ -385,7 +488,7 @@ def main(config_file):
         from .workflow2 import create_config as prep_config
 
     c = load_config(QA_config.preproc_config, prep_config)
-    a = QA_workflow(c,QA_config)
+    a = QA_workflow(QA_config,c)
     a.base_dir = QA_config.working_dir
     if QA_config.test_mode:
         a.write_graph()
@@ -401,80 +504,10 @@ def main(config_file):
     else:
         a.run()
 
-def create_view():
-    from traitsui.api import View, Item, Group, CSVListEditor
-    from traitsui.menu import OKButton, CancelButton
-    view = View(Group(Item(name='uuid', style='readonly'),
-                      Item(name='desc', style='readonly'),
-                      label='Description', show_border=True),
-                Group(Item(name='working_dir'),
-                    Item(name='sink_dir'),
-                    Item(name='crash_dir'),
-                    Item(name='json_sink'),
-                    label='Directories', show_border=True),
-                Group(Item(name='run_using_plugin'),
-                    Item(name='plugin', enabled_when="run_using_plugin"),
-                    Item(name='plugin_args', enabled_when="run_using_plugin"),
-                    Item(name='test_mode'),
-                    label='Execution Options', show_border=True),
-                Group(Item(name='subjects', editor=CSVListEditor()),
-                    label='Subjects', show_border=True),
-                Group(Item(name='preproc_config'),
-                      Item(name='resting',enabled_when='not task'),
-                      Item(name='task', enabled_when='not resting'),
-                      label = 'Preprocessing Info'),
-                Group(Item(name='use_advanced_options'),
-                    Item(name='advanced_script',enabled_when='use_advanced_options'),
-                    label='Advanced',show_border=True),
-                buttons = [OKButton, CancelButton],
-                resizable=True,
-                width=1050)
-    return view
-
-class config(HasTraits):
-    uuid = traits.Str(desc="UUID")
-    desc = traits.Str(desc='Workflow description')
-    # Directories
-    working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
-    base_dir = Directory(exists=True, desc='Base directory of data. (Should be subject-independent)')
-    sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
-    field_dir = Directory(exists=True, desc="Base directory of field-map data (Should be subject-independent) \
-                                                 Set this value to None if you don't want fieldmap distortion correction")
-    crash_dir = Directory(mandatory=False, desc="Location to store crash files")
-    json_sink = Directory(mandatory=False, desc= "Location to store json_files")
-    surf_dir = Directory(mandatory=True, desc= "Freesurfer subjects directory")
-
-    # Execution
-
-    run_using_plugin = Bool(False, usedefault=True, desc="True to run pipeline with plugin, False to run serially")
-    plugin = traits.Enum("PBS", "PBSGraph","MultiProc", "SGE", "Condor",
-        usedefault=True,
-        desc="plugin to use, if run_using_plugin=True")
-    plugin_args = traits.Dict({"qsub_args": "-q many"},
-        usedefault=True, desc='Plugin arguments.')
-    test_mode = Bool(False, mandatory=False, usedefault=True,
-        desc='Affects whether where and if the workflow keeps its \
-                            intermediary files. True to keep intermediary files. ')
-    # Subjects
-
-    subjects= traits.List(traits.Str, mandatory=True, usedefault=True,
-        desc="Subject id's. These subjects must match the ones that have been run in your preproc config")
-
-    preproc_config = traits.File(desc="preproc config file")
-    resting = traits.Bool(desc="True if running QA for resting preproc")
-    task = traits.Bool(desc="True if running QA for task fmri preproc")
-    # Advanced Options
-    use_advanced_options = traits.Bool()
-    advanced_script = traits.Code()
-
-def create_config():
-    c = config()
-    c.uuid = mwf.uuid
-    c.desc = mwf.help
-    return c
-
-
 mwf.workflow_main_function = main
-mwf.config_ui = create_config
-mwf.config_view = create_view
+
+"""
+Part 6: Register the Workflow
+"""
+
 register_workflow(mwf)

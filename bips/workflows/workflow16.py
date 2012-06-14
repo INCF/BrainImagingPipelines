@@ -8,12 +8,29 @@ from .base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
 
+"""
+Part 1: MetaWorkflow
+"""
+
+desc = """
+Normalize Data to a Template (functional only)
+==============================================
+
+"""
+mwf = MetaWorkflow()
+mwf.uuid = '3a2e211eab1f11e19fab0019b9f22493'
+mwf.tags = ['ants', 'normalize', 'warp']
+mwf.help = desc
+
+"""
+Part 2: Config
+"""
 class config(HasTraits):
     uuid = traits.Str(desc="UUID")
 
     # Directories
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
-    base_dir = Directory(mandatory=True, desc='Base directory of data. (Should be subject-independent)')
+    base_dir = Directory(os.path.abspath('.'),mandatory=True, desc='Base directory of data. (Should be subject-independent)')
     sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
     crash_dir = Directory(mandatory=False, desc="Location to store crash files")
 
@@ -55,6 +72,12 @@ def create_config():
     c.uuid = mwf.uuid
     return c
 
+mwf.config_ui = create_config
+
+"""
+Part 3: View
+"""
+
 def create_view():
     from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
     from traitsui.menu import OKButton, CancelButton
@@ -88,18 +111,11 @@ def create_view():
                 width=1050)
     return view
 
-
-desc = """
-Normalize Data to a Template (functional only)
-==============================================
+mwf.config_view = create_view
 
 """
-mwf = MetaWorkflow()
-mwf.uuid = '3a2e211eab1f11e19fab0019b9f22493'
-mwf.tags = ['ants', 'normalize', 'warp']
-mwf.config_ui = create_config
-mwf.help = desc
-mwf.config_view = create_view
+Part 4: Construct Workflow
+"""
 
 def func_datagrabber(c, name="resting_output_datagrabber"):
     # create a node to obtain the functional images
@@ -183,7 +199,13 @@ def normalize_workflow(c):
     #norm.connect(outputspec, 'warped_brain', sinkd, 'smri.warped_brain')
     norm.connect(infosource,('subject_id',getsubstitutions),sinkd,'substitutions')
     return norm
-    
+
+mwf.workflow_function = normalize_workflow
+
+"""
+Part 5: Main
+"""
+
 def main(config_file):
     c = load_config(config_file, create_config)
 
@@ -203,4 +225,8 @@ def main(config_file):
 
 
 mwf.workflow_main_function = main
+
+"""
+Part 6: Register
+"""
 register_workflow(mwf)

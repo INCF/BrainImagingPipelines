@@ -13,6 +13,10 @@ from .base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
 
+"""
+Part 1: MetaWorkflow
+"""
+
 mwf = MetaWorkflow()
 mwf.help = """
 SPM preprocessing workflow
@@ -23,13 +27,17 @@ mwf.uuid = '731520e29b6911e1bd2d001e4fb1404c'
 mwf.tags = ['task','fMRI','preprocessing','SPM','freesurfer']
 mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
 
+"""
+Part 2: Config
+"""
+
 class config(HasTraits):
     uuid = traits.Str(desc="UUID")
     desc = traits.Str(desc='Workflow description')
     # Directories
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
-    base_dir = Directory(mandatory=True, desc='Base directory of data. (Should be subject-independent)')
-    sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
+    base_dir = Directory(os.path.abspath('.'),mandatory=True, desc='Base directory of data. (Should be subject-independent)')
+    sink_dir = Directory(os.path.abspath('.'),mandatory=True, desc="Location where the BIP will store the results")
     field_dir = Directory(desc="Base directory of field-map data (Should be subject-independent) \
                                                  Set this value to None if you don't want fieldmap distortion correction")
     crash_dir = Directory(mandatory=False, desc="Location to store crash files")
@@ -94,6 +102,61 @@ def create_config():
     c.desc = mwf.help
     return c
 
+mwf.config_ui = create_config
+
+"""
+Part 3: View
+"""
+
+def create_view():
+    from traitsui.api import View, Item, Group, CSVListEditor
+    from traitsui.menu import OKButton, CancelButton
+    view = View(Group(Item(name='uuid', style='readonly'),
+        Item(name='desc', style='readonly'),
+        label='Description', show_border=True),
+        Group(Item(name='working_dir'),
+            Item(name='sink_dir'),
+            Item(name='crash_dir'),
+            Item(name='surf_dir'),
+            label='Directories', show_border=True),
+        Group(Item(name='run_using_plugin'),
+            Item(name='plugin', enabled_when="run_using_plugin"),
+            Item(name='plugin_args', enabled_when="run_using_plugin"),
+            Item(name='test_mode'),
+            label='Execution Options', show_border=True),
+        Group(Item(name='subjects', editor=CSVListEditor()),
+            Item(name='base_dir'),
+            Item(name='func_template'),
+            Item(name='check_func_datagrabber'),
+            Item(name='run_datagrabber_without_submitting'),
+            Item(name='timepoints_to_remove'),
+            label='Subjects', show_border=True),
+        Group(Item(name="motion_correct_node"),
+            Item(name='TR'),
+            Item(name='do_slicetiming'),
+            Item(name='SliceOrder', editor=CSVListEditor()),
+            label='Motion Correction', show_border=True),
+        Group(Item('csf_prob'),
+            Item('grey_prob'),
+            Item('white_prob'),
+            label='normalize',
+            show_border=True),
+        Group(Item(name='norm_thresh'),
+            Item(name='z_thresh'),
+            label='Artifact Detection',show_border=True),
+        Group(Item(name='fwhm'),
+            label='Smoothing',show_border=True),
+        buttons = [OKButton, CancelButton],
+        resizable=True,
+        width=1050)
+    return view
+
+mwf.config_view = create_view
+
+"""
+Part 4: Construct Workflow
+"""
+
 def get_dataflow(c):
     dataflow = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
         outfields=['func']),
@@ -124,7 +187,7 @@ def do_symlink(in_file):
         out_link = out_links	
     return out_link
 
-def create_spm_preproc(name='preproc'):
+def create_spm_preproc(c, name='preproc'):
     """Create an spm preprocessing workflow with freesurfer registration and
 artifact detection.
 
@@ -335,14 +398,7 @@ Define the outputs of the workflow and connect the nodes to the outputnode
     workflow.connect(segment,'transformation_mat', outputnode,'normalization_parameters')
     workflow.connect(segment,'inverse_transformation_mat',outputnode,'reverse_normalize_parameters')
     workflow.connect(convert2nii,'out_file',outputnode,'struct_in_functional_space')
-    return workflow
 
-def main(config_file):
-    c = load_config(config_file,config)
-    workflow = create_spm_preproc('spm_preproc')
-    datagrabber = get_dataflow(c)
-    inputspec = workflow.get_node('inputspec')
-    workflow.connect(datagrabber,'func',inputspec,'functionals')
     workflow.inputs.inputspec.fwhm = c.fwhm
     workflow.inputs.inputspec.subjects_dir = c.surf_dir
     workflow.inputs.inputspec.norm_threshold = c.norm_thresh
@@ -356,15 +412,20 @@ def main(config_file):
     workflow.inputs.inputspec.wm_prob = c.white_prob
     workflow.base_dir = c.working_dir
     workflow.config = {'execution': {'crashdump_dir': c.crash_dir}}
+
+    datagrabber = get_dataflow(c)
+
+    workflow.connect(datagrabber,'func',inputnode,'functionals')
+
     infosource = pe.Node(niu.IdentityInterface(fields=['subject_id']),
         name='subject_names')
     if not c.test_mode:
         infosource.iterables = ('subject_id', c.subjects)
     else:
         infosource.iterables = ('subject_id', c.subjects[:1])
-        workflow.write_graph()
 
-    workflow.connect(infosource,'subject_id',inputspec,'subject_id')
+
+    workflow.connect(infosource,'subject_id',inputnode,'subject_id')
     workflow.connect(infosource,'subject_id',datagrabber,'subject_id')
     sub = lambda x: [('_subject_id_%s'%x,'')]
 
@@ -394,6 +455,19 @@ def main(config_file):
     workflow.connect(outputspec,'reverse_normalize_parameters',sinker,'spm_preproc.normalization_parameters.@reverse')
     workflow.connect(outputspec,'struct_in_functional_space',sinker,'spm_preproc.struct_in_func_space')
 
+    return workflow
+
+mwf.workflow_function = create_spm_preproc
+
+"""
+Part 5: Main
+"""
+
+def main(config_file):
+    c = load_config(config_file,config)
+    workflow = create_spm_preproc('spm_preproc')
+    if c.test_mode:
+        workflow.write_graph()
     if c.run_using_plugin:
         workflow.run(plugin=c.plugin,plugin_args=c.plugin_args)
     else:
@@ -401,51 +475,10 @@ def main(config_file):
 
     return None
 
-def create_view():
-    from traitsui.api import View, Item, Group, CSVListEditor
-    from traitsui.menu import OKButton, CancelButton
-    view = View(Group(Item(name='uuid', style='readonly'),
-        Item(name='desc', style='readonly'),
-        label='Description', show_border=True),
-        Group(Item(name='working_dir'),
-            Item(name='sink_dir'),
-            Item(name='crash_dir'),
-            Item(name='surf_dir'),
-            label='Directories', show_border=True),
-        Group(Item(name='run_using_plugin'),
-            Item(name='plugin', enabled_when="run_using_plugin"),
-            Item(name='plugin_args', enabled_when="run_using_plugin"),
-            Item(name='test_mode'),
-            label='Execution Options', show_border=True),
-        Group(Item(name='subjects', editor=CSVListEditor()),
-            Item(name='base_dir'),
-            Item(name='func_template'),
-            Item(name='check_func_datagrabber'),
-            Item(name='run_datagrabber_without_submitting'),
-            Item(name='timepoints_to_remove'),
-            label='Subjects', show_border=True),
-        Group(Item(name="motion_correct_node"),
-            Item(name='TR'),
-            Item(name='do_slicetiming'),
-            Item(name='SliceOrder', editor=CSVListEditor()),
-            label='Motion Correction', show_border=True),
-        Group(Item('csf_prob'),
-            Item('grey_prob'),
-            Item('white_prob'),
-            label='normalize', 
-            show_border=True),
-        Group(Item(name='norm_thresh'),
-            Item(name='z_thresh'),
-            label='Artifact Detection',show_border=True),
-        Group(Item(name='fwhm'),
-            label='Smoothing',show_border=True),
-        buttons = [OKButton, CancelButton],
-        resizable=True,
-        width=1050)
-    return view
-
 mwf.workflow_main_function = main
-mwf.config_ui = create_config
-mwf.config_view = create_view
+
+"""
+Part 6: Register
+"""
 
 register_workflow(mwf)

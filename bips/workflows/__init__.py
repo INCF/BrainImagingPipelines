@@ -17,6 +17,7 @@ import workflow15
 import workflow16
 import workflow17
 import workflow18
+import workflow19
 
-from .base import (list_workflows, configure_workflow, run_workflow,
-                   display_workflow_info)
+from .base import (get_workflow, get_workflows, list_workflows,
+                   configure_workflow, run_workflow, display_workflow_info)

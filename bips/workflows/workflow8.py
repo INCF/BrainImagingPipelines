@@ -11,6 +11,9 @@ import traits.api as traits
 
 from .base import MetaWorkflow, load_config, register_workflow
 
+"""
+Part 1: Define a MetaWorkflow
+"""
 
 desc = """
 Map resting timeseries to surface correlations
@@ -21,7 +24,13 @@ Map resting timeseries to surface correlations
 mwf = MetaWorkflow()
 mwf.uuid = '2b00d9ee8bde11e1a0960023dfa375f2'
 mwf.tags = ['surface', 'resting', 'correlation']
+mwf.help = desc
 
+"""
+Part 2: Define the config class & create_config function
+"""
+
+# create gui
 
 def check_path(path):
     fl = glob(path)
@@ -30,31 +39,29 @@ def check_path(path):
     else:
         print "Exists:", fl
 
-
-# create gui
 class config(HasTraits):
     uuid = traits.Str(desc="UUID")
 
     # Directories
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
-    base_dir = Directory(exists=True, desc='Base directory of data. (Should be subject-independent)')
+    base_dir = Directory(os.path.abspath('.'),exists=True, desc='Base directory of data. (Should be subject-independent)')
     sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
     crash_dir = Directory(mandatory=False, desc="Location to store crash files")
-    surf_dir = Directory(mandatory=True, desc="Freesurfer subjects directory")
+    surf_dir = Directory(os.path.abspath('.'),mandatory=True, desc="Freesurfer subjects directory")
 
     # Execution
     run_using_plugin = Bool(False, usedefault=True, desc="True to run pipeline with plugin, False to run serially")
     plugin = traits.Enum("PBS", "MultiProc", "SGE", "Condor",
-                         usedefault=True,
-                         desc="plugin to use, if run_using_plugin=True")
+        usedefault=True,
+        desc="plugin to use, if run_using_plugin=True")
     plugin_args = traits.Dict({"qsub_args": "-q many"},
-                                                      usedefault=True, desc='Plugin arguments.')
+        usedefault=True, desc='Plugin arguments.')
     test_mode = Bool(False, mandatory=False, usedefault=True,
-                     desc='Affects whether where and if the workflow keeps its \
+        desc='Affects whether where and if the workflow keeps its \
                             intermediary files. True to keep intermediary files. ')
     # Subjects
     subjects = traits.List(traits.Str, mandatory=True, usedefault=True,
-                          desc="Subject id's. Note: These MUST match the subject id's in the \
+        desc="Subject id's. Note: These MUST match the subject id's in the \
                                 Freesurfer directory. For simplicity, the subject id's should \
                                 also match with the location of individual functional files.")
     func_template = traits.String('%s/cleaned_resting.nii.gz')
@@ -63,18 +70,18 @@ class config(HasTraits):
 
     # Target surface
     target_surf = traits.Enum('fsaverage5', 'fsaverage', 'fsaverage3',
-                              'fsaverage4', 'fsaverage6',
-                              desc='which average surface to map to')
+        'fsaverage4', 'fsaverage6',
+        desc='which average surface to map to')
     surface_fwhm = traits.List([5], traits.Float(), mandatory=True,
-                               usedefault=True,
-                               desc="How much to smooth on target surface")
+        usedefault=True,
+        desc="How much to smooth on target surface")
     projection_stem = traits.Str('-projfrac-avg 0 1 0.1',
-                                 desc='how to project data onto the surface')
+        desc='how to project data onto the surface')
 
     # Saving output
     out_type = traits.Enum('mat', 'hdf5', desc='mat or hdf5')
     hdf5_package = traits.Enum('h5py', 'pytables',
-                               desc='which hdf5 package to use')
+        desc='which hdf5 package to use')
     # Advanced Options
     use_advanced_options = traits.Bool()
     advanced_script = traits.Code()
@@ -99,8 +106,10 @@ def create_config():
     return c
 
 mwf.config_ui = create_config
-mwf.help = desc
 
+"""
+Part 3: Create a View
+"""
 
 def create_view():
     from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
@@ -140,6 +149,9 @@ def create_view():
 
 mwf.config_view = create_view
 
+"""
+Part 4: Workflow Construction
+"""
 
 def create_correlation_matrix(infile, out_type, package):
     import os
@@ -223,6 +235,11 @@ def create_workflow(c):
     workflow.connect(corrmat, 'corrmatfile', datasink, '@corrmat')
     return workflow
 
+mwf.workflow_function = create_workflow
+
+"""
+Part 5: Define the main function
+"""
 
 def main(config_file):
     c = load_config(config_file, create_config)
@@ -238,4 +255,9 @@ def main(config_file):
 
 
 mwf.workflow_main_function = main
+
+"""
+Part 6: Register the Workflow
+"""
+
 register_workflow(mwf)

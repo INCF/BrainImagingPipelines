@@ -10,12 +10,31 @@ from .base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
 
+"""
+MetaWorkflow
+"""
+desc = """
+Group Analysis: One Sample T-Test (FSL)
+=====================================
+
+"""
+mwf = MetaWorkflow()
+mwf.uuid = 'f08f0a22ac0511e195e90019b9f22493'
+mwf.tags = ['FSL', 'second level', 'one sample T test']
+
+mwf.help = desc
+
+
+"""
+Config
+"""
+
 class config(HasTraits):
     uuid = traits.Str(desc="UUID")
 
     # Directories
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
-    base_dir = Directory(mandatory=True, desc='Base directory of data. (Should be subject-independent)')
+    base_dir = Directory(os.path.abspath('.'),mandatory=True, desc='Base directory of data. (Should be subject-independent)')
     sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
     crash_dir = Directory(mandatory=False, desc="Location to store crash files")
 
@@ -53,6 +72,12 @@ def create_config():
     c.uuid = mwf.uuid
     return c
 
+mwf.config_ui = create_config
+
+"""
+View
+"""
+
 def create_view():
     from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
     from traitsui.menu import OKButton, CancelButton
@@ -83,18 +108,11 @@ def create_view():
                 width=1050)
     return view
 
-
-desc = """
-Group Analysis: One Sample T-Test (FSL)
-=====================================
+mwf.config_view = create_view
 
 """
-mwf = MetaWorkflow()
-mwf.uuid = 'f08f0a22ac0511e195e90019b9f22493'
-mwf.tags = ['FSL', 'second level', 'one sample T test']
-mwf.config_ui = create_config
-mwf.help = desc
-mwf.config_view = create_view
+Construct Workflow
+"""
 
 get_len = lambda x: len(x)
 
@@ -184,6 +202,11 @@ def connect_to_config(c):
     wk.connect(outputspec,'mask',sinkd,c.name_of_project+'.@bet_mask')
     return wk
 
+mwf.workflow_function = connect_to_config
+
+"""
+Main
+"""
 
 def main(config_file):
     c = load_config(config_file, config)
@@ -199,4 +222,9 @@ def main(config_file):
     return 1
     
 mwf.workflow_main_function = main
+
+"""
+Register
+"""
+
 register_workflow(mwf)

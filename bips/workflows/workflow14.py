@@ -8,6 +8,10 @@ from .workflow13 import config as prep_config
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.matlab_utils import ConnImport
 import os
 
+"""
+Part 1: MetaWorkflow
+"""
+
 mwf = MetaWorkflow()
 mwf.help = """
 Import files to Conn
@@ -19,6 +23,10 @@ mwf.uuid = '19d774a8a36111e1b495001e4fb1404c'
 mwf.tags = ['SPM','conn','import']
 mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
 mwf.uses_outputs_of = ['731520e29b6911e1bd2d001e4fb1404c']
+
+"""
+Part 2: Config
+"""
 
 class config(HasTraits):
     uuid = traits.Str(desc="UUID")
@@ -58,6 +66,12 @@ def create_config():
     c.desc = mwf.help
     return c
 
+mwf.config_ui = create_config
+
+"""
+Part 3: View
+"""
+
 def create_view():
     from traitsui.api import View, Item, Group, CSVListEditor
     from traitsui.menu import OKButton, CancelButton
@@ -84,6 +98,12 @@ def create_view():
         resizable=True,
         width=1050)
     return view
+
+mwf.config_view = create_view
+
+"""
+Part 4: Construct Workflow
+"""
 
 def get_datagrabber(c):
     dataflow = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
@@ -149,11 +169,9 @@ def get_outliers(art_outliers,motion):
 
     return out_file
 
-def main(config_file):
+foo = prep_config()
 
-    c = load_config(config_file,config)
-    c_prep = load_config(c.config_file,prep_config)
-
+def import_workflow(c,c_prep=foo):
     workflow = pe.Workflow(name='import_conn')
 
     datagrabber = get_datagrabber(c_prep)
@@ -190,6 +208,20 @@ def main(config_file):
     sinker.inputs.base_directory = c.sink_dir
     copier.inputs.out = os.path.join(c.sink_dir,'Conn')
     workflow.base_dir = c.working_dir
+    return workflow
+
+mwf.workflow_function = import_workflow
+
+"""
+Part 5: Main
+"""
+
+def main(config_file):
+
+    c = load_config(config_file,config)
+    c_prep = load_config(c.config_file,prep_config)
+
+    workflow = import_workflow(c,c_prep)
 
     if c.run_using_plugin:
         workflow.run(plugin=c.plugin,plugin_args=c.plugin_args)
@@ -199,7 +231,9 @@ def main(config_file):
     return 1
 
 mwf.workflow_main_function = main
-mwf.config_ui = create_config
-mwf.config_view = create_view
+
+"""
+Part 6: Register
+"""
 
 register_workflow(mwf)

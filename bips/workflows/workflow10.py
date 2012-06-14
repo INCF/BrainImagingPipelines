@@ -9,25 +9,29 @@ from .base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
 
-# Define MetaWorkflow
+"""
+Part 1: Define a MetaWorkflow
+"""
 
 mwf = MetaWorkflow()
 mwf.uuid = '8efdb2a08f1711e1b160001e4fb1404c'
 mwf.help="""
- First-Level Workflow
- ====================
+First-Level Workflow
+====================
 
  """
 mwf.tags=['fMRI','First Level']
 
-# Define Config
+"""
+Part 2: Define the config class & create_config function
+"""
 
 class config(HasTraits):
     uuid = traits.Str(desc="UUID")
     desc = traits.Str(desc="Workflow Description")
     # Directories
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
-    sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
+    sink_dir = Directory(os.path.abspath('.'), mandatory=True, desc="Location where the BIP will store the results")
     crash_dir = Directory(mandatory=False, desc="Location to store crash files")
     json_sink = Directory(mandatory=False, desc= "Location to store json_files")
     surf_dir = Directory(mandatory=True, desc= "Freesurfer subjects directory")
@@ -71,6 +75,50 @@ def create_config():
     return c
 
 mwf.config_ui = create_config
+
+"""
+Part 3: Create a View
+"""
+
+def create_view():
+    from traitsui.api import View, Item, Group, CSVListEditor
+    from traitsui.menu import OKButton, CancelButton
+    view = View(Group(Item(name='uuid', style='readonly'),
+        Item(name='desc', style='readonly'),
+        label='Description', show_border=True),
+        Group(Item(name='working_dir'),
+            Item(name='sink_dir'),
+            Item(name='crash_dir'),
+            Item(name='json_sink'),
+            label='Directories', show_border=True),
+        Group(Item(name='run_using_plugin'),
+            Item(name='plugin', enabled_when="run_using_plugin"),
+            Item(name='plugin_args', enabled_when="run_using_plugin"),
+            Item(name='test_mode'),
+            label='Execution Options', show_border=True),
+        Group(Item(name='subjects', editor=CSVListEditor()),
+            label='Subjects', show_border=True),
+        Group(Item(name='interscan_interval'),
+            Item(name='film_threshold'),
+            Item(name='input_units'),
+            Item(name='subjectinfo'),
+            Item(name='contrasts'),
+            label = 'First Level'),
+        Group(Item(name='preproc_config'),
+            label = 'Preprocessing Info'),
+        Group(Item(name='use_advanced_options'),
+            Item(name="advanced_options", enabled_when="use_advanced_options"),
+            label="Advanced Options", show_border=True),
+        buttons = [OKButton, CancelButton],
+        resizable=True,
+        width=1050)
+    return view
+
+mwf.config_view = create_view
+
+"""
+Part 4: Workflow Construction
+"""
 
 def preproc_datagrabber(c, name='preproc_datagrabber'):
     # create a node to obtain the preproc files
@@ -137,7 +185,10 @@ def noise_mot(subinfo,files,num_noise_components):
 
 # First level modeling
 
-def combine_wkflw(c,prep_c, name='work_dir'):
+from .workflow1 import create_config as prep_config
+foo = prep_config()
+
+def combine_wkflw(c,prep_c=foo, name='work_dir'):
     
     modelflow = pe.Workflow(name=name)
     modelflow.base_dir = os.path.join(c.working_dir)
@@ -290,11 +341,17 @@ def combine_wkflw(c,prep_c, name='work_dir'):
     modelflow.connect(modelfit, 'outputspec.design_cov',            sinkd,      'modelfit.design.@cov')
     modelflow.connect(modelfit, 'outputspec.design_file',           sinkd,      'modelfit.design.@matrix')
     return modelflow
-    
+
+mwf.workflow_function = combine_wkflw
+
+"""
+Part 5: Define the main function
+"""
+
 def main(config_file):
 
     c = load_config(config_file, create_config)
-    from .workflow1 import create_config as prep_config
+
     prep_c = load_config(c.preproc_config, prep_config)
 
     first_level = combine_wkflw(c, prep_c)
@@ -313,40 +370,10 @@ def main(config_file):
         first_level.run()
 
 
-def create_view():
-    from traitsui.api import View, Item, Group, CSVListEditor
-    from traitsui.menu import OKButton, CancelButton
-    view = View(Group(Item(name='uuid', style='readonly'),
-        Item(name='desc', style='readonly'),
-        label='Description', show_border=True),
-        Group(Item(name='working_dir'),
-            Item(name='sink_dir'),
-            Item(name='crash_dir'),
-            Item(name='json_sink'),
-            label='Directories', show_border=True),
-        Group(Item(name='run_using_plugin'),
-            Item(name='plugin', enabled_when="run_using_plugin"),
-            Item(name='plugin_args', enabled_when="run_using_plugin"),
-            Item(name='test_mode'),
-            label='Execution Options', show_border=True),
-        Group(Item(name='subjects', editor=CSVListEditor()),
-            label='Subjects', show_border=True),
-        Group(Item(name='interscan_interval'),
-              Item(name='film_threshold'),
-              Item(name='input_units'),
-              Item(name='subjectinfo'),
-              Item(name='contrasts'),
-            label = 'First Level'),
-        Group(Item(name='preproc_config'),
-            label = 'Preprocessing Info'),
-        Group(Item(name='use_advanced_options'),
-              Item(name="advanced_options", enabled_when="use_advanced_options"),
-                  label="Advanced Options", show_border=True),
-        buttons = [OKButton, CancelButton],
-        resizable=True,
-        width=1050)
-    return view
-
 mwf.workflow_main_function = main
-mwf.config_view = create_view
+
+"""
+Part 6: Register the Workflow
+"""
+
 register_workflow(mwf)

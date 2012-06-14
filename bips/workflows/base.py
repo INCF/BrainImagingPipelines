@@ -76,6 +76,8 @@ class MetaWorkflow(HasStrictTraits):
     supercedes = traits.List(traits.UUID)
     # script dir
     script_dir = traits.Str()
+    # Workflow function
+    workflow_function = traits.Function
 
 
 def OpenFileDialog(action, wildcard, self):
@@ -122,6 +124,7 @@ class ConfigUI(HasTraits):
     load_button = Button("Load")
     run_button = Button("Run")
     py_button = Button("Save to Python script")
+    graph_button = Button("Graph")
 
     # Wildcard pattern to be used in file dialogs.
     file_wildcard = Str(("json file (*.json)|*.json|Data file (*.json)"
@@ -174,6 +177,10 @@ class ConfigUI(HasTraits):
                 print "could not write %s" %key
         f.close()
 
+    def _graph_button_fired(self):
+        mwf = get_workflow(self.config_class().uuid)
+        wf= mwf.workflow_function(self.config_class())
+        wf.write_graph()
     #-----------------------------------------------
     # Private API
     #-----------------------------------------------
@@ -189,7 +196,7 @@ class ConfigUI(HasTraits):
 
 def create_bips_config(workflow):
     from pyface.api import confirm, YES
-    from traitsui.api import Handler, View, Item, UItem, HGroup
+    from traitsui.api import Handler, View, Item, UItem, HGroup, VGroup
     config = ConfigUI()
     class FooHandler(Handler):
         """Handler for the Foo class.
@@ -204,7 +211,7 @@ def create_bips_config(workflow):
             filename = info.object.Configuration_File
             if filename is "":
                 filename = "<no file>"
-            info.ui.title = "Editing: " + filename
+            info.ui.title = "BIPS: " + filename
 
         def close(self, info, isok):
             # Return True to indicate that it is OK to close the window.
@@ -219,12 +226,15 @@ def create_bips_config(workflow):
                     UItem('save_button', enabled_when='not saved and filename is not ""'),
                     UItem('save_as_button', enabled_when='not saved and filename is not ""'),
                     UItem('new_button'),
-                    UItem('load_button', enabled_when='not config_changed'),
+                    UItem('load_button', enabled_when='not config_changed')),
+                VGroup(
                     UItem('run_button', enabled_when='saved and filename is not ""'),
-                    UItem('py_button', enabled_when='saved and filename is not ""')
+                    UItem('py_button', enabled_when='saved and filename is not ""'),
+                    UItem('graph_button')  #, enabled_when='filename is not ""')
                 ),
                 resizable=True,
-                width=600,
+                width=355,
+                height=165,
                 handler=FooHandler(),
                 title="File Dialog")
     config.config_class = workflow.config_ui
@@ -252,11 +262,13 @@ def get_config(uuid):
     wf = get_workflow(uuid)
     return wf.config_ui()
 
+def get_workflows():
+    return sorted(_workflow.items())
+
 def list_workflows():
-    for wf, value in sorted(_workflow.items()):
+    for wf, value in get_workflows():
         print('%s %s' % (wf,
                          value['object'].help.split('\n')[1]))
-
 
 def configure_workflow(uuid):
     wf = get_workflow(uuid)

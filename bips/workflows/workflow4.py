@@ -3,6 +3,12 @@ import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import nipype.interfaces.io as nio
 
+"""
+Part 1: Define MetaWorkflow
+        - help (description)
+        - uuid
+        - tags
+"""
 
 desc = """
 Test Freesurfer workflow
@@ -18,6 +24,11 @@ mwf = MetaWorkflow()
 mwf.uuid = '4ba509108afb11e18b5e001e4fb1404c'
 mwf.tags = ['TEST','Freesurfer']
 mwf.help = desc
+
+"""
+Part 2: Define the config class & create_config function
+        - The config_ui attribute of MetaWorkflow is defined as the create_config function
+"""
 # Define Config
 from .workflow1 import config
 
@@ -28,6 +39,12 @@ def create_config():
     return c
 
 mwf.config_ui = create_config
+
+"""
+Part 3: Create a View
+        - MetaWorkflow.config_view is a function that returns a View object
+        - Make sure the View is organized into Groups
+"""
 
 def create_view():
     from traitsui.api import View, Item, Group
@@ -54,18 +71,27 @@ def create_view():
 
 mwf.config_view = create_view
 
+"""
+Part 4: Workflow Construction
+        - Write a function that returns the workflow
+        - The workflow should take a config object as the first argument
+"""
 
 # Define workflow
 import nipype.interfaces.freesurfer as fs
 from nipype.interfaces.io import FreeSurferSource
 
-def test_fs(name='test_fs'):
+def test_fs(c,name='test_fs'):
 
     workflow = pe.Workflow(name=name)
     
     # Define Nodes
     inputspec = pe.Node(interface=util.IdentityInterface(fields=['subject_id', 'sd']), name='inputspec')
-    
+
+    inputnode = pe.Node(interface=util.IdentityInterface(fields=["subject_id"]),name="subject_names")
+    inputnode.iterables = ("subject_id",c.subjects)
+    workflow.connect(inputnode,"subject_id",inputspec,"subject_id")
+
     fssource = pe.Node(interface = FreeSurferSource(),name='fssource')
     
     convert1 = pe.Node(interface=fs.MRIConvert(),name='converter1')
@@ -87,25 +113,38 @@ def test_fs(name='test_fs'):
     workflow.connect(fssource, 'brainmask', convert1, 'in_file')
     workflow.connect(convert1, 'out_file', convert2, 'in_file')
     workflow.connect(convert2, 'out_file', outputspec, 'outfile')
-    
-    return workflow
-    
-def main(config):
-    c = load_config(config,create_config)
-    wk = test_fs()
-    wk.base_dir = c.working_dir
-    wk.inputs.inputspec.subject_id = c.subjects[0]
-    wk.inputs.inputspec.sd = c.surf_dir
+
+    workflow.base_dir = c.working_dir
+    workflow.inputs.inputspec.sd = c.surf_dir
     sinker = pe.Node(nio.DataSink(), name='sinker')
     sinker.inputs.base_directory = c.sink_dir
-    sinker.inputs.container = c.subjects[0]
-    out = wk.get_node('outputspec')
-    wk.connect(out, 'outfile', sinker, 'test_fs.result')
-    wk.config = {'execution' : {'crashdump_dir' : c.crash_dir}}
+    workflow.connect(inputnode,"subject_id",sinker,"container")
+    workflow.connect(outputspec, 'outfile', sinker, 'test_fs.result')
+    workflow.config = {'execution' : {'crashdump_dir' : c.crash_dir}}
+
+    return workflow
+
+mwf.workflow_function = test_fs
+
+"""
+Part 5: Define the main function
+        - In the main function the path to a json file is passed as the only argument
+        - The json file is loaded into a config instance, c
+        - The workflow function is called with c and runs
+"""
+
+def main(config):
+    c = load_config(config,create_config)
+    wk = test_fs(c)
+
     if c.run_using_plugin:
         wk.run(plugin=c.plugin,plugin_args=c.plugin_args)
     else:
         wk.run()
-    
+
 mwf.workflow_main_function = main
+
+"""
+Part 6: Register the Workflow
+"""
 register_workflow(mwf)
