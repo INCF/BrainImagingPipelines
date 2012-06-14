@@ -1,6 +1,7 @@
 #REST webservice
 import json
-import os.path
+import os
+import shutil
 import webbrowser
 
 import cherrypy
@@ -8,6 +9,9 @@ from cherrypy.lib.static import serve_file
 from cherrypy import expose
 
 from ..workflows import get_workflows, get_workflow
+
+MEDIA_DIR = os.path.join(os.path.dirname(__file__), 'scripts')
+FILE_DIR = os.path.join(os.getcwd(), 'files')
 
 class MyEncoder(json.JSONEncoder):
     def default(self, o):
@@ -39,7 +43,8 @@ class BIPS:
         msg = ["<h2>Welcome to BIPS</h2>"]
         msg.append('<ul>')
         for wf, value in get_workflows():
-            msg += ['<li><a href="info?uuid=%s">%s</a> %s</li>' % (wf, wf,
+            msg += [('<li><a href="info?uuid=%s">%s</a> <a href="configure'
+                     '?uuid=%s">Configure</a> %s</li>') % (wf, wf, wf,
                                         value['object'].help.split('\n')[1])]
         msg.append('</li>')
         return '\n'.join(msg)
@@ -106,16 +111,82 @@ document.write('<img src="%s" />')
 """ % (json_str, config_str, img_file)
         return msg
 
+    @expose
+    def configure(self, uuid):
+        wf = get_workflow(uuid)
+        val = wf.get()
+
+    @expose
+    def test(self):
+        with open(os.path.join(MEDIA_DIR, 'upload.html')) as fp:
+            msg = fp.readlines()
+        return msg
+
+    @expose
+    def upload(self, **kwargs):
+        if 'files[]' not in kwargs:
+            return
+        myFile = kwargs['files[]']
+        outfile = os.path.join(FILE_DIR, myFile.filename)
+        with open(outfile, 'wb') as fp:
+            shutil.copyfileobj(myFile.file, fp)
+        cherrypy.log('Saved file: %s' % outfile)
+        if os.path.isfile(outfile):
+            print "getting info: %s" % outfile
+            size = os.path.getsize(outfile)
+            from nibabel import load
+            import Image
+            import numpy as np
+            data = load(outfile).get_data()
+            if len(data.shape) == 4:
+                slice = data[data.shape[0]/2,:,:,0]
+            else:
+                slice = data[data.shape[0]/2,:,:]
+            print slice.shape
+            im = Image.fromarray(np.squeeze(255.*slice/np.max(np.abs(slice))).astype(np.uint8))
+            outpng = outfile+'.png'
+            im.save(outpng)
+            out = {"name": myFile.filename,
+                   "size": size,
+                   "url": "files\/%s" % myFile.filename,
+                   "thumbnail_url":"thumbnails\/%s.png" % myFile.filename,
+                   "delete_url": "delete?file=%s" % myFile.filename,
+                   "delete_type": "DELETE"
+            }
+        else:
+            out = {}
+        cherrypy.response.headers['Content-Type'] = 'application/json'
+        return json.dumps([out])
+
+    @expose
+    def delete(self, file):
+        outfile = os.path.join(FILE_DIR, file)
+        if os.path.isfile(outfile):
+            cherrypy.log('Deleting file: %s' % outfile)
+            os.unlink(outfile)
+            os.unlink(outfile+'.png')
+
 def open_page():
-    webbrowser.open("http://127.0.0.1:8080/")
+    webbrowser.open("http://127.0.0.1:8080/test")
 
 def start_service():
-    MEDIA_DIR=os.path.join(os.path.dirname(__file__), 'scripts')
     #configure ip address and port for web service
-    config = {'/scripts':
-                      {'tools.staticdir.on': True,
-                       'tools.staticdir.dir': MEDIA_DIR,
-                       }
+    if not os.path.exists(FILE_DIR):
+        os.mkdir(FILE_DIR)
+    config = {'/': {'tools.staticdir.on': True,
+                    'tools.staticdir.dir': os.getcwd()},
+              '/css': {'tools.staticdir.on': True,
+                       'tools.staticdir.dir': os.path.join(MEDIA_DIR, 'css')},
+              '/js': {'tools.staticdir.on': True,
+                      'tools.staticdir.dir': os.path.join(MEDIA_DIR, 'js')},
+              '/cors': {'tools.staticdir.on': True,
+                        'tools.staticdir.dir': os.path.join(MEDIA_DIR, 'cors')},
+              '/img': {'tools.staticdir.on': True,
+                       'tools.staticdir.dir': os.path.join(MEDIA_DIR, 'img')},
+              '/thumbnails': {'tools.staticdir.on': True,
+                       'tools.staticdir.dir': FILE_DIR},
+              '/files': {'tools.staticdir.on': True,
+                         'tools.staticdir.dir': FILE_DIR},
               }
     #start webservice
     cherrypy.engine.subscribe('start', open_page)
