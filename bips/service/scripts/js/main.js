@@ -28,17 +28,17 @@ $(function () {
         )
     );
 
-    if (window.location.hostname === 'blueimp.github.com') {
+    if (window.location.hostname === 'bips.incf.org') {
         // Demo settings:
         $('#fileupload').fileupload('option', {
-            url: '//jquery-file-upload.appspot.com/',
-            maxFileSize: 5000000,
-            acceptFileTypes: /(\.|\/)(gif|jpe?g|png)$/i,
+            url: '//bips.incf.org/',
+            maxFileSize: 100000000,
+            acceptFileTypes: /(\.|\/)(nii|nii.gz)$/i,
             process: [
                 {
                     action: 'load',
-                    fileTypes: /^image\/(gif|jpeg|png)$/,
-                    maxFileSize: 20000000 // 20MB
+                    fileTypes: /^image\/(nii|nii.gz)$/,
+                    maxFileSize: 100000000 // 20MB
                 },
                 {
                     action: 'resize',

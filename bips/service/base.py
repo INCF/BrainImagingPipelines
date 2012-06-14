@@ -123,7 +123,7 @@ document.write('<img src="%s" />')
         return msg
 
     @expose
-    def upload(self, **kwargs):
+    def uploadhandler(self, **kwargs):
         if 'files[]' not in kwargs:
             return
         myFile = kwargs['files[]']
