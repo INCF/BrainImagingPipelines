@@ -13,6 +13,9 @@ from tables import openFile
 
 from .base import MetaWorkflow, load_config, register_workflow
 
+"""
+MetaWorkflow
+"""
 mwf = MetaWorkflow()
 mwf.help = """
 Resting State Visualization
@@ -22,6 +25,9 @@ Resting State Visualization
 mwf.uuid = '974a6910992311e18318001e4fb1404c'
 mwf.tags = ['resting','visualization','correlation']
 
+"""
+Config
+"""
 from traits.api import HasTraits, Directory
 import traits.api as traits
 
@@ -33,6 +39,18 @@ class config(HasTraits):
     hemi = traits.Enum('lh','rh')
     surface = traits.Enum('white','inflated')
     target = traits.Enum('fsaverage5','fsaverage4','fsaverage')
+
+def create_config():
+    c = config()
+    c.uuid = mwf.uuid
+    c.desc = mwf.help
+    return c
+
+mwf.config_ui = create_config
+
+"""
+View
+"""
 
 def create_view():
     from traitsui.api import View, Item, Group
@@ -52,11 +70,11 @@ def create_view():
         width=1050)
     return view
 
-def create_config():
-    c = config()
-    c.uuid = mwf.uuid
-    c.desc = mwf.help
-    return c
+mwf.config_view = create_view
+
+"""
+Workflow
+"""
 
 overlay_added = False
 brains = []
@@ -110,6 +128,10 @@ def display_matrices(filenames, target, hemi, surface):
         br._f.on_mouse_pick(picker_callback)
     mlab.show()
 
+"""
+Main
+"""
+
 def main(config_file):
 
     args = load_config(config_file,config)
@@ -124,7 +146,9 @@ def main(config_file):
     display_matrices(files, args.target, args.hemi, args.surface)
 
 mwf.workflow_main_function = main
-mwf.config_ui = create_config
-mwf.config_view = create_view
+
+"""
+Register
+"""
 
 register_workflow(mwf)
