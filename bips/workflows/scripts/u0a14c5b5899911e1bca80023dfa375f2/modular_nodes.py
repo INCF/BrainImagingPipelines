@@ -4,7 +4,7 @@ import nipype.interfaces.fsl as fsl
 
 
 def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
-                nipy_dict={"loops": 5, "speedup": 5, "between_loops":None}):
+                nipy_dict={"loops": 5, "speedup": 5, "between_loops": 5}):
     import nipype.interfaces.fsl as fsl
     import nipype.interfaces.spm as spm
     import nipype.interfaces.nipy as nipy
