@@ -31,8 +31,8 @@ Part 2: Define the config class & create_config function
 """
 
 # create_gui
-from workflow1 import config as baseconfig
-from workflow1 import get_dataflow
+from bips.workflows.scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import config as baseconfig
+from bips.workflows.scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import get_dataflow
 
 class config(baseconfig):
     highpass_freq = traits.Float()
@@ -278,14 +278,16 @@ def prep_workflow(c):
         sinkd, 'preproc.compcor.@acompcor')
     modelflow.connect(preproc, 'outputspec.noise_mask',
         sinkd, 'preproc.compcor.@tcompcor')
+    modelflow.connect(preproc, 'outputspec.noise_components',
+        sinkd, 'preproc.noise_components')
 
     if c.do_zscore:
         modelflow.connect(preproc, 'outputspec.z_img',
-                          sinkd, 'preproc.output.@zscored')
+                          sinkd, 'preproc.output.zscored')
     modelflow.connect(preproc, 'outputspec.scaled_files',
-                      sinkd, 'preproc.output.@fullspectrum')
+                      sinkd, 'preproc.output.fullspectrum')
     modelflow.connect(preproc, 'outputspec.bandpassed_file',
-                      sinkd, 'preproc.output.@bandpassed')
+                      sinkd, 'preproc.output.bandpassed')
 
     modelflow.base_dir = os.path.abspath(c.working_dir)
     return modelflow

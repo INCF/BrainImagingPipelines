@@ -8,7 +8,7 @@ import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import nipype.interfaces.io as nio
 
-from .base import MetaWorkflow, load_config, register_workflow, debug_workflow
+#from .base import MetaWorkflow, load_config, register_workflow, debug_workflow
 
 """
 Part 1: Define a MetaWorkflow
@@ -17,20 +17,20 @@ Part 1: Define a MetaWorkflow
         - tags
 """
 
-mwf = MetaWorkflow()
-mwf.help = """
-Task preprocessing workflow
-===========================
+#mwf = MetaWorkflow()
+#mwf.help = """
+#Task preprocessing workflow
+#===========================
 
-"""
-mwf.uuid = '63fcbb0a890211e183d30023dfa375f2'
-mwf.tags = ['task','fMRI','preprocessing','fsl','freesurfer','nipy']
-mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
+#"""
+#mwf.uuid = '63fcbb0a890211e183d30023dfa375f2'
+#mwf.tags = ['task','fMRI','preprocessing','fsl','freesurfer','nipy']
+#mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
 
-"""
-Part 2: Define the config class & create_config function
-        - The config_ui attribute of MetaWorkflow is defined as the create_config function
-"""
+#"""
+#Part 2: Define the config class & create_config function
+#        - The config_ui attribute of MetaWorkflow is defined as the create_config function
+#"""
 
 # create gui
 class config(HasTraits):
@@ -154,11 +154,11 @@ class config(HasTraits):
 
 def create_config():
     c = config()
-    c.uuid = mwf.uuid
-    c.desc = mwf.help
+    #c.uuid = mwf.uuid
+    #c.desc = mwf.help
     return c
 
-mwf.config_ui = create_config
+#mwf.config_ui = create_config
 
 """
 Part 3: Create a View
@@ -206,7 +206,6 @@ def create_view():
             Item(name='do_slicetiming'),
             Item(name='SliceOrder', editor=CSVListEditor()),
             Item(name='loops',enabled_when="motion_correct_node=='nipy' ", editor=CSVListEditor()),
-            #Item(name='between_loops',enabled_when="motion_correct_node=='nipy' "),
             Item(name='speedup',enabled_when="motion_correct_node=='nipy' ", editor=CSVListEditor()),
             label='Motion Correction', show_border=True),
         Group(Item(name='norm_thresh'),
@@ -232,7 +231,7 @@ def create_view():
         width=1050)
     return view
 
-mwf.config_view = create_view
+#mwf.config_view = create_view
 
 """
 Part 4: Workflow Construction
@@ -242,9 +241,9 @@ Part 4: Workflow Construction
 
 # create workflow
 
-from scripts.u0a14c5b5899911e1bca80023dfa375f2.base import (create_prep,
+from .base import (create_prep,
                                                             create_prep_fieldmap)
-from scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import (get_datasink,
+from .utils import (get_datasink,
                                                              get_substitutions)
 
 def get_dataflow(c):
@@ -402,14 +401,14 @@ def prep_workflow(c):
     modelflow.base_dir = os.path.join(c.working_dir, 'work_dir')
     return modelflow
 
-mwf.workflow_function = prep_workflow
+#mwf.workflow_function = prep_workflow
 
 """
 Part 5: Define the main function
         - In the main function the path to a json file is passed as the only argument
         - The json file is loaded into a config instance, c
         - The workflow function is called with c and runs
-"""
+
 
 def main(configfile):
     c = load_config(configfile, create_config)
@@ -436,12 +435,12 @@ def main(configfile):
         preprocess.run(plugin=c.plugin, plugin_args = c.plugin_args)
     else:
         preprocess.run()
+"""
 
-
-mwf.workflow_main_function = main
+#mwf.workflow_main_function = main
 
 """
 Part 6: Register the Workflow
 """
 
-register_workflow(mwf)
+#register_workflow(mwf)

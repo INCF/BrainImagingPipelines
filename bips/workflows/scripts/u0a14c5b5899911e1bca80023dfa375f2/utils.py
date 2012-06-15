@@ -391,8 +391,9 @@ def get_substitutions(subject_id, use_fieldmap):
     subs = [('_subject_id_%s/' % subject_id, ''),
             ('_fwhm', 'fwhm'),
             ('_register0/', ''),
-            ('_threshold20/aseg_thresh_warped_dil_thresh',
+            ('_threshold20/aparc+aseg_thresh_warped_dil_thresh',
              '%s_brainmask' % subject_id),
+            ('st.','.'),
             ]
     if use_fieldmap:
         subs.append(('vsm.nii', '%s_vsm.nii' % subject_id))
@@ -405,6 +406,7 @@ def get_substitutions(subject_id, use_fieldmap):
         subs.append(('_tsnr%d/' % i, '%s_r%02d_' % (subject_id, i)))
         subs.append(('_z_score%d/' % i, '%s_r%02d_' % (subject_id, i)))
         subs.append(('_threshold%d/'%i,'%s_r%02d_'%(subject_id, i)))
+        subs.append(('_compcor_components%d/'%i, '%s_r%02d_'%(subject_id, i)))
     return subs
 
 def get_regexp_substitutions(subject_id, use_fieldmap):
@@ -412,9 +414,11 @@ def get_regexp_substitutions(subject_id, use_fieldmap):
             ('corr.*_gms', 'fullspectrum'),
             ('corr.*%s' % subject_id, '%s_register' % subject_id),
             ('corr.*_tsnr', 'tsnr'),
-            ('motion/.*dtype', 'motion/%s' % subject_id),
+            #('motion/.*dtype', 'motion/%s' % subject_id),
             ('mean/corr.*nii', 'mean/%s_mean.nii' % subject_id),
-            ('corr', '')
+            ('corr', ''),
+            ('_roi_dtype_',''),
+            ('__','_')
             ]
     return subs
 

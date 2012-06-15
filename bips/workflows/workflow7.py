@@ -237,7 +237,7 @@ def get_fx_data(c, name='fixedfx_datagrab'):
     return datasource
 
 from .workflow10 import create_config as first_config
-from .workflow1 import create_config as prep_config
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import create_config as prep_config
 
 foo0 = first_config()
 foo1 = prep_config()

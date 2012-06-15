@@ -1,4 +1,3 @@
-import workflow1
 import workflow2
 import workflow3
 import workflow4
@@ -18,6 +17,5 @@ import workflow16
 import workflow17
 import workflow18
 import workflow19
-
 from .base import (get_workflow, get_workflows, list_workflows,
                    configure_workflow, run_workflow, display_workflow_info)

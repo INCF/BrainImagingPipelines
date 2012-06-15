@@ -30,7 +30,7 @@ Part 2: Define the config class & create_config function
         - The config_ui attribute of MetaWorkflow is defined as the create_config function
 """
 # Define Config
-from .workflow1 import config
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import config
 
 def create_config():
     c = config()

@@ -3,7 +3,6 @@
 """Perform fixed effects analysis on runs processed by preproc.py
 """
 
-import os                                    # system functions
 from nipype.workflows.fmri.fsl.estimate import create_fixed_effects_flow
 import nipype.interfaces.io as nio           # i/o routines
 import nipype.interfaces.fsl as fsl          # fsl
@@ -162,7 +161,7 @@ def create_overlay_workflow(c,name='overlay'):
     return overlay
 
 from .workflow10 import create_config as first_config
-from .workflow1 import create_config as prep_config
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import create_config as prep_config
 
 foo0 = first_config()
 foo1 = prep_config()
@@ -278,7 +277,7 @@ def main(config_file):
     c = load_config(config_file, create_config)
     from .workflow10 import create_config as first_config
     first_c = load_config(c.first_level_config, first_config)
-    from .workflow1 import create_config as prep_config
+    from .bips.workflows.scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import create_config as prep_config
     prep_c = load_config(first_c.preproc_config, prep_config)
 
     fixedfxflow = create_fixedfx(c,first_c, prep_c)

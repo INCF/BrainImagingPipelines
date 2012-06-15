@@ -2,7 +2,7 @@ from .base import MetaWorkflow, load_config, register_workflow
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import os
-from traits.api import HasTraits, Directory, Bool, Button
+from traits.api import HasTraits, Directory, Bool
 import traits.api as traits
 
 """
@@ -110,7 +110,7 @@ mwf.config_view = create_view
 Part 4: Workflow Construction
 """
 
-from workflow1 import get_dataflow
+from bips.workflows.scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import get_dataflow
 
 # define workflow
 import nipype.interfaces.io as nio
@@ -483,7 +483,7 @@ def main(config_file):
     
     QA_config = load_config(config_file, create_config)
     if QA_config.task:
-        from .workflow1 import create_config as prep_config
+        from .bips.workflows.scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import create_config as prep_config
     else:
         from .workflow2 import create_config as prep_config
 

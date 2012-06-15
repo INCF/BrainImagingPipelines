@@ -6,7 +6,7 @@ from nipype.algorithms.modelgen import SpecifyModel
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.base import create_first
 import os
 from .base import MetaWorkflow, load_config, register_workflow
-from traits.api import HasTraits, Directory, Bool, Button
+from traits.api import HasTraits, Directory, Bool
 import traits.api as traits
 
 """
@@ -130,9 +130,9 @@ def preproc_datagrabber(c, name='preproc_datagrabber'):
                          name = name)
     datasource.inputs.base_directory = os.path.join(c.sink_dir)
     datasource.inputs.template ='*'
-    datasource.inputs.field_template = dict(noise_components='%s/preproc/noise_components/*/noise_components.txt',
+    datasource.inputs.field_template = dict(noise_components='%s/preproc/noise_components/*noise_components.txt',
                                             motion_parameters='%s/preproc/motion/*.par',
-                                            highpassed_files='%s/preproc/highpass/fwhm_%s/*/*.nii*',
+                                            highpassed_files='%s/preproc/output/bandpassed/fwhm_%s/*.nii*',
                                             outlier_files='%s/preproc/art/*_outliers.txt')
     datasource.inputs.template_args = dict(noise_components=[['subject_id']],
                                            motion_parameters=[['subject_id']],
@@ -185,7 +185,7 @@ def noise_mot(subinfo,files,num_noise_components):
 
 # First level modeling
 
-from .workflow1 import create_config as prep_config
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import create_config as prep_config
 foo = prep_config()
 
 def combine_wkflw(c,prep_c=foo, name='work_dir'):
