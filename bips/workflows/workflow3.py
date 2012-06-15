@@ -2,7 +2,7 @@ from .base import MetaWorkflow, load_config, register_workflow
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import os
-from traits.api import HasTraits, Directory, Bool, Button
+from traits.api import HasTraits, Directory, Bool
 import traits.api as traits
 
 """
@@ -56,8 +56,7 @@ class config(HasTraits):
         desc="Subject id's. These subjects must match the ones that have been run in your preproc config")
 
     preproc_config = traits.File(desc="preproc config file")
-    resting = traits.Bool(desc="True if running QA for resting preproc")
-    task = traits.Bool(desc="True if running QA for task fmri preproc")
+
     # Advanced Options
     use_advanced_options = traits.Bool()
     advanced_script = traits.Code()
@@ -93,8 +92,6 @@ def create_view():
         Group(Item(name='subjects', editor=CSVListEditor()),
             label='Subjects', show_border=True),
         Group(Item(name='preproc_config'),
-            Item(name='resting',enabled_when='not task'),
-            Item(name='task', enabled_when='not resting'),
             label = 'Preprocessing Info'),
         Group(Item(name='use_advanced_options'),
             Item(name='advanced_script',enabled_when='use_advanced_options'),
@@ -110,7 +107,7 @@ mwf.config_view = create_view
 Part 4: Workflow Construction
 """
 
-from workflow1 import get_dataflow
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import get_dataflow
 
 # define workflow
 import nipype.interfaces.io as nio
@@ -209,11 +206,8 @@ def start_config_table(c,c_qa):
     table.append(['Art: z thresh',str(c.z_thresh)])
     table.append(['Smoothing Algorithm',c.smooth_type])
     table.append(['fwhm',str(c.fwhm)])
-    if c_qa.task:
-        table.append(['Highpass cutoff',str(c.hpcutoff)])
-    if c_qa.resting:
-        table.append(['highpass freq',str(c.highpass_freq)])
-        table.append(['lowpass freq',str(c.lowpass_freq)])
+    table.append(['highpass freq',str(c.highpass_freq)])
+    table.append(['lowpass freq',str(c.lowpass_freq)])
     table.append(['A-compcor, T-compcor',str(c.compcor_select)])
     return table
 
@@ -372,9 +366,9 @@ def QA_workflow(QAc,c=foo, name='QA'):
     overlaynew.inputs.dB = False
     overlaynew.inputs.threshold = 20
                                  
-    overlaymask = pe.Node(util.Function(input_names=['stat_image','background_image','threshold'],
+    overlaymask = pe.MapNode(util.Function(input_names=['stat_image','background_image','threshold'],
                                           output_names=['fnames'], function=overlay_new), 
-                                          name='overlay_mask')
+                                          name='overlay_mask',iterfield=['stat_image'])
     overlaymask.inputs.threshold = 0.5
     workflow.connect(convert,'out_file', overlaymask,'background_image')
     overlaymask2 = overlaymask.clone('acompcor_image')
@@ -482,10 +476,7 @@ Part 5: Define the main function
 def main(config_file):
     
     QA_config = load_config(config_file, create_config)
-    if QA_config.task:
-        from .workflow1 import create_config as prep_config
-    else:
-        from .workflow2 import create_config as prep_config
+    from .workflow2 import create_config as prep_config
 
     c = load_config(QA_config.preproc_config, prep_config)
     a = QA_workflow(QA_config,c)

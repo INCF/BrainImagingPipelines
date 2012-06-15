@@ -182,7 +182,7 @@ def create_prep(name='preproc'):
                                                       'timepoints_to_remove',
                                                       'do_whitening',
                                                       'regress_before_PCA',
-                                                      'nipy_realign_parameters']),
+                                                      'realign_parameters']),
                         name='inputspec')
 
     # Separate input node for FWHM
@@ -206,8 +206,8 @@ def create_prep(name='preproc'):
     #                            name='realign')
 
     motion_correct = pe.Node(util.Function(input_names=['node','in_file','tr',
-                                                        'do_slicetime','sliceorder',"nipy_dict"],
-        output_names=['out_file','par_file'],
+                                                        'do_slicetime','sliceorder',"parameters"],
+        output_names=['out_file','par_file','parameter_source'],
         function=mod_realign),
         name="mod_realign")
 
@@ -276,7 +276,7 @@ def create_prep(name='preproc'):
     # declare some node inputs...
     #plot_motion.iterables = ('plot_type', ['rotations', 'translations'])
 
-    ad.inputs.parameter_source = 'FSL'
+    #ad.inputs.parameter_source = 'FSL'
     meanfunc.inputs.inputspec.parameter_source = 'FSL'
     ad.inputs.mask_type = 'file'
     ad.inputs.use_differences = [True, False]
@@ -293,8 +293,10 @@ def create_prep(name='preproc'):
                     ad, 'zintensity_threshold')
     preproc.connect(inputnode, 'tr',
                     motion_correct, 'tr')
-    preproc.connect(inputnode, 'nipy_realign_parameters',
-        motion_correct, 'nipy_dict')
+    preproc.connect(inputnode, 'realign_parameters',
+        motion_correct, 'parameters')
+    preproc.connect(motion_correct,'parameter_source',
+        ad,'parameter_source')
     preproc.connect(inputnode, 'do_slicetime',
                     motion_correct, 'do_slicetime')
     preproc.connect(inputnode, 'sliceorder',

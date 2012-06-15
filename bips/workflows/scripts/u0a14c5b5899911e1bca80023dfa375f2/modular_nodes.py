@@ -4,19 +4,23 @@ import nipype.interfaces.fsl as fsl
 
 
 def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
-                nipy_dict={"loops": 5, "speedup": 5, "between_loops":None}):
+                parameters={}):
     import nipype.interfaces.fsl as fsl
     import nipype.interfaces.spm as spm
     import nipype.interfaces.nipy as nipy
     import os
-
+    parameter_source = "FSL"
+    keys=parameters.keys()
     if node=="nipy":
         realign = nipy.FmriRealign4d()
         realign.inputs.in_file = in_file
         realign.inputs.tr = tr
-        realign.inputs.loops = nipy_dict["loops"]
-        realign.inputs.speedup = nipy_dict["speedup"]
-        realign.inputs.between_loops = nipy_dict["between_loops"]
+        if "loops" in keys:
+            realign.inputs.loops = parameters["loops"]
+        if "speedup" in keys:
+            realign.inputs.speedup = parameters["speedup"]
+        if "between_loops" in keys:
+            realign.inputs.between_loops = parameters["between_loops"]
         if do_slicetime:
             realign.inputs.slice_order = sliceorder
             realign.inputs.time_interp = True
@@ -107,11 +111,13 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
         parameters = res.outputs.realignment_parameters
         if not isinstance(parameters,list):
             parameters = [parameters]
-        for i, p in enumerate(parameters):
-            foo = np.genfromtxt(p)
-            boo = np.hstack((foo[:,3:],foo[:,:3]))
-            np.savetxt(os.path.abspath('realignment_parameters_%d.par'%i),boo,delimiter='\t')
-            par_file.append(os.path.abspath('realignment_parameters_%d.par'%i))
+        #for i, p in enumerate(parameters):
+        #    foo = np.genfromtxt(p)
+        #    boo = np.hstack((foo[:,3:],foo[:,:3]))
+        #    np.savetxt(os.path.abspath('realignment_parameters_%d.par'%i),boo,delimiter='\t')
+        #    par_file.append(os.path.abspath('realignment_parameters_%d.par'%i))
+        par_file = parameters
+        parameter_source='SPM'
         fsl.ImageMaths(in_file=res.outputs.realigned_files,
                        out_file=res.outputs.realigned_files,
                        op_string='-nan').run()
@@ -185,7 +191,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
             #par_file.append(Realign_res.outputs.oned_file)
 
 
-    return out_file, par_file
+    return out_file, par_file, parameter_source
 
 def mod_smooth(in_file,brightness_threshold,usans,fwhm,
                smooth_type, reg_file, surface_fwhm, subjects_dir):
