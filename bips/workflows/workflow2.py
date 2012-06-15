@@ -202,6 +202,8 @@ def prep_workflow(c):
 
     # inputs
     preproc.inputs.inputspec.motion_correct_node = c.motion_correct_node
+    preproc.inputs.inputspec.realign_parameters = {"loops":c.loops,
+                                                   "speedup":c.speedup}
     preproc.inputs.inputspec.do_whitening = c.do_whitening
     preproc.inputs.inputspec.timepoints_to_remove = c.timepoints_to_remove
     preproc.inputs.inputspec.smooth_type = c.smooth_type

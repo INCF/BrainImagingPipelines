@@ -319,8 +319,7 @@ def prep_workflow(c):
 
     preproc.inputs.inputspec.motion_correct_node = c.motion_correct_node
 
-    preproc.inputs.inputspec.nipy_realign_parameters = {"loops":c.loops,
-                                                        "between_loops":None,
+    preproc.inputs.inputspec.realign_parameters = {"loops":c.loops,
                                                         "speedup":c.speedup}
     preproc.inputs.inputspec.timepoints_to_remove = c.timepoints_to_remove
     preproc.inputs.inputspec.smooth_type = c.smooth_type
