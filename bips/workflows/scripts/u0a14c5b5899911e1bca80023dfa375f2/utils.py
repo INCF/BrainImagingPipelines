@@ -158,6 +158,9 @@ def extract_noise_components(realigned_file, noise_mask_file, num_components,
         noise_mask_file = options[selector][0]
         noise_mask = load(noise_mask_file)
         voxel_timecourses = imgseries.get_data()[np.nonzero(noise_mask.get_data())]
+
+    voxel_timecourses = voxel_timecourses.byteswap().newbyteorder()
+    voxel_timecourses[np.isnan(np.sum(voxel_timecourses,axis=1)),:] = 0
     if regress_before_PCA:
         logger.debug('Regressing motion')
         for timecourse in voxel_timecourses:
@@ -166,12 +169,12 @@ def extract_noise_components(realigned_file, noise_mask_file, num_components,
             timecourse[:] = (timecourse[:, None] - np.dot(nuisance_matrix,
                                                           coef_)).ravel()
 
-    voxel_timecourses = voxel_timecourses.byteswap().newbyteorder()
-    voxel_timecourses[np.isnan(np.sum(voxel_timecourses,axis=1)),:] = 0
+    pre_svd = os.path.abspath('pre_svd.npz')
+    np.savez(pre_svd,voxel_timecourses=voxel_timecourses)
     _, _, v = sp.linalg.svd(voxel_timecourses, full_matrices=False)
     components_file = os.path.join(os.getcwd(), 'noise_components.txt')
     np.savetxt(components_file, v[:num_components, :].T)
-    return components_file
+    return components_file, pre_svd
 
 
 def extract_csf_mask():
@@ -270,7 +273,8 @@ def create_compcorr(name='CompCor'):
                                                         'tsnr_file',
                                                         'csf_mask',
                                                         'noise_mask',
-                                                        'tsnr_detrended']),
+                                                        'tsnr_detrended',
+                                                        'pre_svd']),
                          name='outputspec')
     # extract the principal components of the noise
     tsnr = pe.MapNode(TSNR(regress_poly=2),  #SG: advanced parameter
@@ -298,7 +302,7 @@ def create_compcorr(name='CompCor'):
                                                     'outlier_file',
                                                     'selector',
                                                     'regress_before_PCA'],
-                                       output_names=['noise_components'],
+                                       output_names=['noise_components','pre_svd'],
                                        function=extract_noise_components),
                                        name='compcor_components',
                                        iterfield=['realigned_file',
@@ -348,6 +352,8 @@ def create_compcorr(name='CompCor'):
                      compcor, 'realigned_file')
     compproc.connect(compcor, 'noise_components',
                      outputspec, 'noise_components')
+    compproc.connect(compcor, 'pre_svd',
+                      outputspec, 'pre_svd')
     compproc.connect(inputspec, 'regress_before_PCA',
                      compcor, 'regress_before_PCA')
     return compproc
