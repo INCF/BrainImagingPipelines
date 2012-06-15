@@ -16,13 +16,13 @@ Part 1: Define a MetaWorkflow
 
 mwf = MetaWorkflow()
 mwf.help = """
-Resting State preprocessing workflow
-====================================
+fMRI preprocessing workflow
+===========================
 
 """
 
 mwf.uuid = '7757e3168af611e1b9d5001e4fb1404c'
-mwf.tags = ['resting-state','fMRI','preprocessing','fsl','freesurfer','nipy']
+mwf.tags = ['resting','fMRI','preprocessing','fsl','freesurfer','nipy','task']
 mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
 
 """
