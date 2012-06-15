@@ -31,7 +31,7 @@ $(function () {
     if (window.location.hostname === 'bips.incf.org') {
         // Demo settings:
         $('#fileupload').fileupload('option', {
-            url: '//bips.incf.org/',
+            url: '//bips.incf.org:8080/uploadhandler',
             maxFileSize: 100000000,
             acceptFileTypes: /(\.|\/)(nii|nii.gz)$/i,
             process: [
@@ -53,7 +53,7 @@ $(function () {
         // Upload server status check for browsers with CORS support:
         if ($.support.cors) {
             $.ajax({
-                url: '//jquery-file-upload.appspot.com/',
+                url: '//bips.incf.org:8080/',
                 type: 'HEAD'
             }).fail(function () {
                 $('<span class="alert alert-error"/>')

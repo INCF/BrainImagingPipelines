@@ -146,11 +146,12 @@ document.write('<img src="%s" />')
             im = Image.fromarray(np.squeeze(255.*slice/np.max(np.abs(slice))).astype(np.uint8))
             outpng = outfile+'.png'
             im.save(outpng)
+            url_prefix = '\/\/bips.incf.org:8080\/'
             out = {"name": myFile.filename,
                    "size": size,
-                   "url": "files\/%s" % myFile.filename,
-                   "thumbnail_url":"thumbnails\/%s.png" % myFile.filename,
-                   "delete_url": "delete?file=%s" % myFile.filename,
+                   "url": "%sfiles\/%s" % (url_prefix, myFile.filename),
+                   "thumbnail_url":"%sthumbnails\/%s.png" % (url_prefix, myFile.filename),
+                   "delete_url": "%sdeletehandler?file=%s" % (url_prefix, myFile.filename),
                    "delete_type": "DELETE"
             }
         else:
@@ -159,7 +160,7 @@ document.write('<img src="%s" />')
         return json.dumps([out])
 
     @expose
-    def delete(self, file):
+    def deletehandler(self, file):
         outfile = os.path.join(FILE_DIR, file)
         if os.path.isfile(outfile):
             cherrypy.log('Deleting file: %s' % outfile)
@@ -167,7 +168,8 @@ document.write('<img src="%s" />')
             os.unlink(outfile+'.png')
 
 def open_page():
-    webbrowser.open("http://127.0.0.1:8080/test")
+    pass
+    #webbrowser.open("http://127.0.0.1:8080/test")
 
 def start_service():
     #configure ip address and port for web service
@@ -189,6 +191,12 @@ def start_service():
                          'tools.staticdir.dir': FILE_DIR},
               }
     #start webservice
+    certfile = os.path.join(os.environ['HOME'], 'certinfo')
+    if os.path.exists(certfile):
+        cherrypy.log('Loading cert info: %s' % certfile)
+        cherrypy.config.update(json.load(open(certfile)))
+    else:
+        cherrypy.log('Cert info unavailable')
     cherrypy.engine.subscribe('start', open_page)
     cherrypy.tree.mount(BIPS(), '/', config=config)
     cherrypy.engine.start()
