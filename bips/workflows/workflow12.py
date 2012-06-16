@@ -282,7 +282,7 @@ def create_prep(use_fieldmap):
         gen_fa.connect(eddy_correct,'outputnode.mean_image',
             getmask,'inputspec.source_file')
         gen_fa.connect(eddy_correct, 'outputnode.eddy_corrected', dtifit, 'dwi')
-        gen_fa.connect(eddy_correct, 'outputnode.eddy_corrected', outputspec, 'eddy_corrected')
+        gen_fa.connect(eddy_correct, 'outputnode.eddy_corrected', outputnode, 'eddy_corrected')
 
     gen_fa.connect(getmask,('outputspec.mask_file',pickfirst), dtifit, 'mask')
     gen_fa.connect(getmask,('outputspec.mask_file',pickfirst), outputnode, 'mask')

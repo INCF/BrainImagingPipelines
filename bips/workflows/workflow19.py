@@ -164,7 +164,7 @@ def isMoco(dcmfile):
 
 
 def convert_dicoms(sid, dicom_dir_template, outputdir, queue=None, heuristic_func=None,
-                   extension = None):
+                   extension = None,embed=False):
 
     import os
     from nipype.utils.filemanip import load_json,save_json
@@ -189,13 +189,16 @@ def convert_dicoms(sid, dicom_dir_template, outputdir, queue=None, heuristic_fun
             for idx, ext in enumerate(info[key]):
                 convertcmd = ['dcmstack', sdir,'--dest-dir', os.path.join(tdir,key),
                               '--file-ext', '*-%d-*'%ext, '--force-read', '-v', '--output-name', key+'%03d'%(idx+1)]
-                print convertcmd
+                if embed:
+                    convertcmd.append('--embed-meta')
                 convertcmd = ' '.join(convertcmd)
                 print convertcmd
                 os.system(convertcmd)
     else:
         convertcmd = ['dcmstack', sdir, '--dest-dir', os.path.join(outputdir,sid),
-                      '--force-read','-v','--embed-meta']
+                      '--force-read','-v']
+        if embed:
+            convertcmd.append('--embed-meta')
         convertcmd = ' '.join(convertcmd)
         print convertcmd
         os.system(convertcmd)
@@ -207,7 +210,7 @@ def convert_wkflw(c,heuristic_func=None):
     infosource=pe.Node(util.IdentityInterface(fields=['subject_id']),name='subject_names')
     convert = pe.Node(util.Function(input_names=['sid', 'dicom_dir_template',
                                                  'outputdir', 'queue',
-                                                 'heuristic_func','extension'],
+                                                 'heuristic_func','extension','embed'],
                                     output_names=['out'],
                                     function=convert_dicoms),
                       name='converter')
@@ -222,6 +225,7 @@ def convert_wkflw(c,heuristic_func=None):
     convert.inputs.queue = None
     convert.inputs.heuristic_func = heuristic_func
     convert.inputs.extension= None
+    convert.inputs.embed=c.embed_meta
     wk.base_dir = c.working_dir
     return wk
 

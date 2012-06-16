@@ -8,7 +8,7 @@ from .base import MetaWorkflow, load_config, register_workflow
 from ..utils.reportsink.io import ReportSink
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
-from workflow1 import get_dataflow
+from bips.workflows.scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import get_dataflow
 
 """
 Part 1: Define a MetaWorkflow
