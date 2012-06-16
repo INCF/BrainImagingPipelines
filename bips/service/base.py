@@ -48,6 +48,13 @@ class BIPS:
         with open(os.path.join(MEDIA_DIR, 'index.html')) as fp:
             msg = fp.readlines()
         return msg
+
+    @expose
+    def workflows(self):
+        with open(os.path.join(MEDIA_DIR, 'workflows.html')) as fp:
+            msg = fp.readlines()
+        return msg
+
     """
         msg = ["<h2>Welcome to BIPS</h2>"]
         msg.append('<ul>')
