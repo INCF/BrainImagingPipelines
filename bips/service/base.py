@@ -2,6 +2,7 @@
 import json
 import os
 import shutil
+from socket import gethostname
 import webbrowser
 
 import cherrypy
@@ -12,6 +13,10 @@ from ..workflows import get_workflows, get_workflow
 
 MEDIA_DIR = os.path.join(os.path.dirname(__file__), 'scripts')
 FILE_DIR = os.path.join(os.getcwd(), 'files')
+if 'bips' in gethostname():
+    url_prefix = '\/\/bips.incf.org:8080\/'
+else:
+    url_prefix = ''
 
 class MyEncoder(json.JSONEncoder):
     def default(self, o):
@@ -40,6 +45,10 @@ class MyEncoder(json.JSONEncoder):
 class BIPS:
     @expose
     def index(self):
+        with open(os.path.join(MEDIA_DIR, 'index.html')) as fp:
+            msg = fp.readlines()
+        return msg
+    """
         msg = ["<h2>Welcome to BIPS</h2>"]
         msg.append('<ul>')
         for wf, value in get_workflows():
@@ -48,6 +57,7 @@ class BIPS:
                                         value['object'].help.split('\n')[1])]
         msg.append('</li>')
         return '\n'.join(msg)
+    """
 
     @expose
     def info(self, uuid):
@@ -117,8 +127,8 @@ document.write('<img src="%s" />')
         val = wf.get()
 
     @expose
-    def test(self):
-        with open(os.path.join(MEDIA_DIR, 'upload.html')) as fp:
+    def demo(self):
+        with open(os.path.join(MEDIA_DIR, 'demo.html')) as fp:
             msg = fp.readlines()
         return msg
 
@@ -146,7 +156,6 @@ document.write('<img src="%s" />')
             im = Image.fromarray(np.squeeze(255.*slice/np.max(np.abs(slice))).astype(np.uint8))
             outpng = outfile+'.png'
             im.save(outpng)
-            url_prefix = '\/\/bips.incf.org:8080\/'
             out = {"name": myFile.filename,
                    "size": size,
                    "url": "%sfiles\/%s" % (url_prefix, myFile.filename),
@@ -168,8 +177,8 @@ document.write('<img src="%s" />')
             os.unlink(outfile+'.png')
 
 def open_page():
-    pass
-    #webbrowser.open("http://127.0.0.1:8080/test")
+    #pass
+    webbrowser.open("http://127.0.0.1:8080")
 
 def start_service():
     #configure ip address and port for web service

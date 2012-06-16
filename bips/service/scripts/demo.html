@@ -14,39 +14,50 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>BIPS Demo</title>
-<meta name="description" content="BIPS is a Python framework for brain imaging to host reusable, queriable and uniquely identifiable workflows. This demo allows users to upload a structural and a resting state functional image and get back a quality assessment report and a view of their statistics relative to other datasets.">
+<title>Demo · BIPS</title>
+<meta name="description" content="">
 <meta name="viewport" content="width=device-width">
 <!-- Bootstrap CSS Toolkit styles -->
 <link rel="stylesheet" href="css/bootstrap.min.css">
 <!-- Generic page styles -->
 <link rel="stylesheet" href="css/style.css">
+<link href="css/docs.css" rel="stylesheet">
 <!-- CSS to style the file input field as button and adjust the Bootstrap progress bars -->
 <link rel="stylesheet" href="css/jquery.fileupload-ui.css">
 <!-- Shim to make HTML5 elements usable in older Internet Explorer versions -->
 <!--[if lt IE 9]><script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
 </head>
-<body>
+
+<body data-spy="scroll" data-target=".subnav" data-offset="50">
+
+<!-- Navbar
+================================================== -->
 <div class="navbar navbar-fixed-top">
-    <div class="navbar-inner">
-        <div class="container">
-            <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
-                <span class="icon-bar"></span>
-                <span class="icon-bar"></span>
-                <span class="icon-bar"></span>
-            </a>
-            <a class="brand" href="https://bips.incf.org:8080">BIPS demo</a>
-            <div class="nav-collapse">
-                <ul class="nav">
-                    <li class="active"><a href="#">Demo</a></li>
-                </ul>
-            </div>
+<div class="navbar-inner">
+    <div class="container">
+        <button type="button"class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+        </button>
+        <a class="brand" href="./index">BIPS</a>
+        <div class="nav-collapse">
+            <ul class="nav">
+                <li class=""><a href="./index">Overview</a></li>
+                <li class="active"><a href="./demo">Demo</a></li>
+                <li class=""><a href="./workflows">Workflows</a></li>
+                <li class=""><a href="./database">Database</a></li>
+                <li class=""><a href="./publications">Publications</a></li>
+                <li class=""><a href="./neuroview">Neuroview</a></li>
+                <li class=""><a href="./links">Links</a></li>
+            </ul>
         </div>
     </div>
 </div>
+
 <div class="container">
     <div class="page-header">
-        <h1>BIPS demo</h1>
+        <h1>Demo</h1>
     </div>
     <blockquote>
         <p>File Upload widget with multiple file selection, drag&amp;drop support, progress bars and preview images for jQuery.<br>
