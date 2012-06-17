@@ -59,17 +59,22 @@
 
 <div class="container">
 
+<div class="alert alert-info">
+    <button type="button" class="close" data-dismiss="alert">&times;</button>
+    <h4 class="alert-heading">Tip!</h4>
+    The search box autocompletes based on tags associated with the workflows.
+</div>
 <div class="well-large">
     <form>
         <div class="input-append">
-        <input id="wsearchinput" type="text" data-provide="typeahead" class="span10">
+        <input id="wsearchinput" type="text" autocomplete="off" data-provide="typeahead" class="span10">
         <button type="submit" class="btn"><i class="icon-search"></i></button>
         </div>
     </form>
     <script type="text/javascript">
         function myfunc () {
         var autocomplete = $('#wsearchinput').typeahead({
-            items: 5,
+            items: 10,
             source: function(query, process){
                 console.log(query);
                 return $.post('/tags', { query: query }, process);
