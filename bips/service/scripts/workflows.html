@@ -44,13 +44,13 @@
             <div class="nav-collapse">
                 <ul class="nav">
                     <li class=""><a href="./index">Overview</a></li>
-                    <li class=""><a href="./demo">Demo</a></li>
                     <li class="active"><a href="./workflows">Workflows</a></li>
                     <li class=""><a href="./database">Database</a></li>
                     <li class=""><a href="./publications">Publications</a></li>
                     <li class=""><a href="./neuroview">Neuroview</a></li>
                     <li class=""><a href="./links">Links</a></li>
                     <li class="divider-vertical"></li>
+                    <li class=""><a href="./demo">Demo</a></li>
                     <li class=""><a href="./status">Status</a></li>
                 </ul>
         </div>
@@ -58,6 +58,28 @@
 </div>
 
 <div class="container">
+
+<div class="well-large">
+    <form>
+        <div class="input-append">
+        <input id="wsearchinput" type="text" data-provide="typeahead" class="span10">
+        <button type="submit" class="btn"><i class="icon-search"></i></button>
+        </div>
+    </form>
+    <script type="text/javascript">
+        function myfunc () {
+        var autocomplete = $('#wsearchinput').typeahead({
+            items: 5,
+            source: function(query, process){
+                console.log(query);
+                return $.post('/tags', { query: query }, process);
+            }
+            })
+        }
+        window.onload = myfunc;
+    </script>
+</div>
+
 <!-- Footer
 ================================================== -->
 <footer class="footer">
@@ -80,6 +102,7 @@
 <script src="http://blueimp.github.com/JavaScript-Canvas-to-Blob/canvas-to-blob.min.js"></script>
 <!-- Bootstrap JS and Bootstrap Image Gallery are not required, but included for the demo -->
 <script src="js/bootstrap.min.js"></script>
+<script src="js/bootstrap-typeahead.js"></script>
 <!-- The Iframe Transport is required for browsers without support for XHR file uploads -->
 <script src="js/jquery.iframe-transport.js"></script>
 <!-- The basic File Upload plugin -->

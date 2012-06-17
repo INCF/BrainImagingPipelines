@@ -8,6 +8,7 @@ import webbrowser
 import cherrypy
 from cherrypy.lib.static import serve_file
 from cherrypy import expose
+import numpy as np
 
 from ..workflows import get_workflows, get_workflow
 
@@ -42,7 +43,20 @@ class MyEncoder(json.JSONEncoder):
         except TypeError:
             return ""
 
-class BIPS:
+class BIPS(object):
+    def __init__(self, *args, **kwargs):
+        tags = []
+        mapper = {}
+        for wf, value in get_workflows():
+            wf_tags = sorted(np.unique([tag.lower() for tag in value['object'].tags]).tolist())
+            for tag in wf_tags:
+                if tag not in mapper:
+                    mapper[tag] = []
+                mapper[tag].append(wf)
+            tags.extend(wf_tags)
+        self.tags_ = mapper.keys()
+        self.mapper_ = mapper
+
     @expose
     def index(self):
         with open(os.path.join(MEDIA_DIR, 'index.html')) as fp:
@@ -54,6 +68,20 @@ class BIPS:
         with open(os.path.join(MEDIA_DIR, 'workflows.html')) as fp:
             msg = fp.readlines()
         return msg
+
+    @expose
+    def tags(self, query):
+        tags = self.tags_
+        if query:
+            query = query.split()
+            if len(query):
+                pre = ' '.join(query[:-1])
+                query = query[-1]
+            else:
+                query = ' '
+            tags = [pre + ' ' + tag for tag in self.tags_ if query.lower() in tag]
+        cherrypy.response.headers['Content-Type'] = 'application/json'
+        return json.dumps(tags)
 
     """
         msg = ["<h2>Welcome to BIPS</h2>"]
