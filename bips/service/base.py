@@ -47,6 +47,7 @@ class BIPS(object):
     def __init__(self, *args, **kwargs):
         tags = []
         mapper = {}
+        workflows = {}
         for wf, value in get_workflows():
             wf_tags = sorted(np.unique([tag.lower() for tag in value['object'].tags]).tolist())
             for tag in wf_tags:
@@ -54,8 +55,10 @@ class BIPS(object):
                     mapper[tag] = []
                 mapper[tag].append(wf)
             tags.extend(wf_tags)
+            workflows[wf] = value['object'].help.split('\n')[1]
         self.tags_ = mapper.keys()
         self.mapper_ = mapper
+        self.wf_ = workflows
 
     @expose
     def index(self):
@@ -64,10 +67,22 @@ class BIPS(object):
         return msg
 
     @expose
-    def workflows(self):
+    def workflows(self, tags=None):
         with open(os.path.join(MEDIA_DIR, 'workflows.html')) as fp:
             msg = fp.readlines()
         return msg
+
+    @expose
+    def queryworkflows(self, tags=None):
+        print tags
+        cherrypy.response.headers['Content-Type'] = 'application/json'
+        if tags:
+            wfs = []
+            for tag in tags.split():
+                wfs.extend(self.mapper_[tag])
+            return json.dumps([{'uuid': wf, 'desc': self.wf_[wf]} for wf in wfs])
+        else:
+            return json.dumps([{'uuid': uuid, 'desc': desc} for uuid, desc in self.wf_.items()])
 
     @expose
     def tags(self, query):
@@ -76,10 +91,13 @@ class BIPS(object):
             query = query.split()
             if len(query):
                 pre = ' '.join(query[:-1])
+                if pre:
+                    pre += ' '
                 query = query[-1]
             else:
                 query = ' '
-            tags = [pre + ' ' + tag for tag in self.tags_ if query.lower() in tag]
+                pre=''
+            tags = [pre + tag for tag in self.tags_ if query.lower() in tag]
         cherrypy.response.headers['Content-Type'] = 'application/json'
         return json.dumps(tags)
 

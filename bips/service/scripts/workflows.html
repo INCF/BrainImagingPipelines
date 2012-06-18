@@ -64,15 +64,38 @@
     <h4 class="alert-heading">Tip!</h4>
     The search box autocompletes based on tags associated with the workflows.
 </div>
+<div class="row"></div>
 <div class="well-large">
-    <form>
-        <div class="input-append">
+    <form id="wsearchform" class="form-inline" action="#" method="post">
         <input id="wsearchinput" type="text" autocomplete="off" data-provide="typeahead" class="span10">
         <button type="submit" class="btn"><i class="icon-search"></i></button>
-        </div>
+        <!-- The table listing the files available for upload/download -->
     </form>
+
+    <table class="table table-striped span10">
+        <thead><tr><th>Info</th><th>UUID</th><th>Description</th></tr></thead>
+        <tbody id="wftable" class="files" data-toggle="modal-gallery" data-target="#modal-gallery">
+        </tbody>
+    </table>
+
     <script type="text/javascript">
+        function getworkflows() {
+            // post the form values via AJAX…
+            var postdata = {tags: $("#wsearchinput").val()} ;
+            $.post('/queryworkflows', postdata, function(data) {
+                // and set the title with the result
+                var tdata="";
+                console.log(data);
+                for(var i=0;i<data.length;i++){
+                    btninfo = "<a href=\"./info?uuid="+data[i].uuid+"\"><i class=\"icon-info-sign\"></i></a>"
+                    tdata += "<tr><td>"+btninfo+"</td><td>"+data[i].uuid+"</td><td>"+data[i].desc+"</td></tr>"
+                }
+                $("#wftable").html(tdata);
+            });
+            return false ;
+        }
         function myfunc () {
+            console.log('setting up typeahead')
         var autocomplete = $('#wsearchinput').typeahead({
             items: 10,
             source: function(query, process){
@@ -80,13 +103,19 @@
                 return $.post('/tags', { query: query }, process);
             }
             })
+
+            console.log('submitting form')
+            // When the testform is submitted…
+            $("#wsearchform").submit(getworkflows);
+            getworkflows();
+
         }
         window.onload = myfunc;
     </script>
 </div>
 
-<!-- Footer
-================================================== -->
+    <!-- Footer
+   ================================================== -->
 <footer class="footer">
     <p class="pull-right"><a href="#">Back to top</a></p>
     <p>Brewed at <a href="http://gablab.mit.edu" target="_blank">Gablab@MIT</a> and TankThink Labs LLC. Supported by <a href="http://incf.org>" target="_blank">INCF</a>.</p>
