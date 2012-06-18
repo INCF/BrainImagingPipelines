@@ -80,6 +80,7 @@
 
     <script type="text/javascript">
         function getworkflows() {
+            // Populate table with workflows with or without scripting
             // post the form values via AJAX…
             var postdata = {tags: $("#wsearchinput").val()} ;
             $.post('/queryworkflows', postdata, function(data) {
@@ -94,7 +95,7 @@
             });
             return false ;
         }
-        function myfunc () {
+        function setupTypeahead () {
             console.log('setting up typeahead')
         var autocomplete = $('#wsearchinput').typeahead({
             items: 10,
@@ -105,12 +106,13 @@
             })
 
             console.log('submitting form')
-            // When the testform is submitted…
+            // Attach get workflows to form submission
             $("#wsearchform").submit(getworkflows);
+            // Call it during initialization
             getworkflows();
 
         }
-        window.onload = myfunc;
+        window.onload = setupTypeahead;
     </script>
 </div>
 </div>
