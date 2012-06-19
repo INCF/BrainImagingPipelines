@@ -16,9 +16,10 @@
     <meta charset="utf-8">
     <title>BIPS</title>
     <meta name="description" content="BIPS is a Python framework for brain imaging to host reusable, queriable and uniquely identifiable workflows. This demo allows users to upload a structural and a resting state functional image and get back a quality assessment report and a view of their statistics relative to other datasets.">
-    <meta name="viewport" content="width=device-width">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Bootstrap CSS Toolkit styles -->
     <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/bootstrap-responsive.css">
     <!-- Generic page styles -->
     <link rel="stylesheet" href="css/style.css">
     <link href="css/docs.css" rel="stylesheet">
@@ -26,6 +27,15 @@
     <link rel="stylesheet" href="css/jquery.fileupload-ui.css">
     <!-- Shim to make HTML5 elements usable in older Internet Explorer versions -->
     <!--[if lt IE 9]><script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+    <style type='text/css'>
+        pre {outline: 1px solid #ccc; padding: 5px; margin: 5px; }
+        .string { color: green; }
+        .number { color: darkorange; }
+        .boolean { color: blue; }
+        .null { color: magenta; }
+        .key { color: red; }
+
+    </style>
 </head>
 
 <body data-spy="scroll" data-target=".subnav" data-offset="50">
@@ -53,6 +63,7 @@
                     <li class=""><a href="./demo">Demo</a></li>
                     <li class=""><a href="./status">Status</a></li>
                 </ul>
+            </div>
         </div>
     </div>
 </div>
@@ -65,9 +76,28 @@
     The search box autocompletes based on tags associated with the workflows.
 </div>
 <div class="row">
-<div class="well-large">
+    <div class="modal hide fade" id="myModal">
+        <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal">x</button>
+            <h3>Workflow Info</h3>
+        </div>
+        <div class="modal-body">
+            <h4>Workflow config</h4>
+            <pre id="jsonconfig">
+
+            </pre>
+            <h4>Workflow options</h4>
+            <pre id="workflowoptions">
+
+            </pre>
+        </div>
+        <div class="modal-footer">
+            <a href="#" class="btn" data-dismiss="modal">Close</a>
+        </div>
+    </div>
+    <div class="well-large">
     <form id="wsearchform" class="form-inline" action="#" method="post">
-        <input id="wsearchinput" type="text" autocomplete="off" data-provide="typeahead" class="span10">
+        <input id="wsearchinput" type="text" autocomplete="off" data-provide="typeahead" class="span11">
         <button type="submit" class="btn"><i class="icon-search"></i></button>
         <!-- The table listing the files available for upload/download -->
     </form>
@@ -79,33 +109,63 @@
     </table>
 
     <script type="text/javascript">
+        function syntaxHighlight(json) {
+            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                var cls = 'number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'key';
+                    } else {
+                        cls = 'string';
+                    }
+                } else if (/true|false/.test(match)) {
+                    cls = 'boolean';
+                } else if (/null/.test(match)) {
+                    cls = 'null';
+                }
+                return '<span class="' + cls + '">' + match + '</span>';
+            });
+        }
+
         function getworkflows() {
             // Populate table with workflows with or without scripting
             // post the form values via AJAX…
             var postdata = {tags: $("#wsearchinput").val()} ;
             $.post('/queryworkflows', postdata, function(data) {
                 // and set the title with the result
-                var tdata="";
-                console.log(data);
+                $("#wftable").empty();
                 for(var i=0;i<data.length;i++){
-                    btninfo = "<a href=\"./info?uuid="+data[i].uuid+"\"><i class=\"icon-info-sign\"></i></a>"
-                    tdata += "<tr><td>"+btninfo+"</td><td>"+data[i].uuid+"</td><td>"+data[i].desc+"</td></tr>"
+                    var btninfo = "<a id=\"to_modal"+i+"\" href=\"./info?uuid="+data[i].uuid+"\"><i class=\"icon-info-sign\"></i></a>";
+                    //btninfo = "<a data-toggle=\"modal\" href=\"#myModal\"><i class=\"icon-info-sign\"></i></a>"
+                    var tdata = "<tr><td>"+btninfo+"</td><td>"+data[i].uuid+"</td><td>"+data[i].desc+"</td></tr>";
+                    $("#wftable").append(tdata);
+                    $("#to_modal"+i).click(function(e) {
+                        e.preventDefault();
+                        var href = $(e.currentTarget).attr('href');
+                        $.getJSON(href, function(infodata) {
+                            $("#jsonconfig").empty();
+                            $("#jsonconfig")[0].innerHTML =
+                                    syntaxHighlight(JSON.stringify(infodata["jsonconfig"], null, 2));
+                            $("#workflowoptions").empty();
+                            $("#workflowoptions")[0].innerHTML =
+                                    syntaxHighlight(JSON.stringify(infodata["workflowconfig"], null, 2));
+                            $('#myModal').modal();
+                            });
+                    });
                 }
-                $("#wftable").html(tdata);
+                //$("#wftable").html(tdata);
             });
             return false ;
         }
         function setupTypeahead () {
-            console.log('setting up typeahead')
         var autocomplete = $('#wsearchinput').typeahead({
             items: 10,
             source: function(query, process){
-                console.log(query);
                 return $.post('/tags', { query: query }, process);
             }
             })
 
-            console.log('submitting form')
             // Attach get workflows to form submission
             $("#wsearchform").submit(getworkflows);
             // Call it during initialization
@@ -129,30 +189,10 @@
 </div><!-- /container -->
 
 <script src="//ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
-<!-- The jQuery UI widget factory, can be omitted if jQuery UI is already included -->
-<script src="js/vendor/jquery.ui.widget.js"></script>
-<!-- The Templates plugin is included to render the upload/download listings -->
-<script src="http://blueimp.github.com/JavaScript-Templates/tmpl.min.js"></script>
-<!-- The Load Image plugin is included for the preview images and image resizing functionality -->
-<script src="http://blueimp.github.com/JavaScript-Load-Image/load-image.min.js"></script>
-<!-- The Canvas to Blob plugin is included for image resizing functionality -->
-<script src="http://blueimp.github.com/JavaScript-Canvas-to-Blob/canvas-to-blob.min.js"></script>
-<!-- Bootstrap JS and Bootstrap Image Gallery are not required, but included for the demo -->
-<script src="js/bootstrap.min.js"></script>
+<script src="js/bootstrap.js"></script>
 <script src="js/bootstrap-typeahead.js"></script>
-<!-- The Iframe Transport is required for browsers without support for XHR file uploads -->
-<script src="js/jquery.iframe-transport.js"></script>
-<!-- The basic File Upload plugin -->
-<script src="js/jquery.fileupload.js"></script>
-<!-- The File Upload file processing plugin -->
-<script src="js/jquery.fileupload-fp.js"></script>
-<!-- The File Upload user interface plugin -->
-<script src="js/jquery.fileupload-ui.js"></script>
-<!-- The localization script -->
-<script src="js/locale.js"></script>
-<!-- The main application script -->
-<script src="js/main.js"></script>
+<script src="js/bootstrap-modal.js"></script>
 <!-- The XDomainRequest Transport is included for cross-domain file deletion for IE8+ -->
-<!--[if gte IE 8]><script src="js/cors/jquery.xdr-transport.js"></script><![endif]-->
+    <!--[if gte IE 8]><script src="js/cors/jquery.xdr-transport.js"></script><![endif]-->
 </body>
 </html>
