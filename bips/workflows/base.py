@@ -53,6 +53,9 @@ def load_config(configfile, config_class):
     return c
 
 class MetaWorkflow(HasStrictTraits):
+    """MetaWorkflow class blah blah
+
+    """
     version = traits.Constant(1)
     # uuid of workflow
     uuid = traits.String(mandatory=True)

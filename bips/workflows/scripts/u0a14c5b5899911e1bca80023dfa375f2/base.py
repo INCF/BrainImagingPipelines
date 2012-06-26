@@ -2,7 +2,7 @@ import nipype.interfaces.fsl as fsl         # fsl
 import nipype.algorithms.rapidart as ra     # rapid artifact detection
 from nipype.interfaces.fsl.utils import EPIDeWarp
 from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
-from .modular_nodes import create_mod_smooth, mod_realign, mod_filter, mod_regressor
+from .modular_nodes import create_mod_smooth, mod_realign, mod_filter, mod_regressor, mod_despike
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 
@@ -182,7 +182,8 @@ def create_prep(name='preproc'):
                                                       'timepoints_to_remove',
                                                       'do_whitening',
                                                       'regress_before_PCA',
-                                                      'realign_parameters']),
+                                                      'realign_parameters',
+                                                      'do_despike']),
                         name='inputspec')
 
     # Separate input node for FWHM
@@ -201,6 +202,12 @@ def create_prep(name='preproc'):
                            iterfield=['in_file'],
                            name='img2float')
 
+    #afni despike
+    despike=pe.MapNode(util.Function(input_names=['in_file',"do_despike"],
+                                     output_names=["out_file"],
+                                     function=mod_despike),
+        name="despike",iterfield=["in_file"])
+    preproc.connect(inputnode,"do_despike",despike,"do_despike")
     # define the motion correction node
     #motion_correct = pe.Node(interface=FmriRealign4d(),
     #                            name='realign')
@@ -311,8 +318,8 @@ def create_prep(name='preproc'):
     preproc.connect(inputnode, 'func', strip_rois, 'in_file')
     preproc.connect(strip_rois, 'roi_file', img2float, 'in_file')
 
-    preproc.connect(img2float, 'out_file',
-                    motion_correct, 'in_file')
+    preproc.connect(img2float, 'out_file', despike, "in_file")
+    preproc.connect(despike,"out_file", motion_correct, 'in_file')
     #preproc.connect(motion_correct, 'par_file',
     #                plot_motion, 'in_file')
     preproc.connect(motion_correct, 'out_file', 

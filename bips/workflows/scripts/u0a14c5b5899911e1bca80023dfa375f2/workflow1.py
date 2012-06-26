@@ -410,7 +410,7 @@ Part 5: Define the main function
         - The workflow function is called with c and runs
 
 
-def main(configfile):
+
     c = load_config(configfile, create_config)
     preprocess = prep_workflow(c)
     realign = preprocess.get_node('preproc.mod_realign')

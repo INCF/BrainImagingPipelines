@@ -64,6 +64,7 @@ class config(HasTraits):
     input_units = traits.Enum('scans','secs')
     # preprocessing info
     preproc_config = traits.File(desc="preproc config file")
+    use_compcor = traits.Bool(desc="use noise components from CompCor")
     #advanced_options
     use_advanced_options = Bool(False)
     advanced_options = traits.Code()
@@ -105,6 +106,7 @@ def create_view():
             Item(name='contrasts'),
             label = 'First Level'),
         Group(Item(name='preproc_config'),
+              Item(name="use_compcor"),
             label = 'Preprocessing Info'),
         Group(Item(name='use_advanced_options'),
             Item(name="advanced_options", enabled_when="use_advanced_options"),
@@ -165,22 +167,23 @@ def trad_mot(subinfo,files):
             i.regressors.append(i3)
     return subinfo
 
-def noise_mot(subinfo,files,num_noise_components):
-    noi_reg_names = map(lambda x: 'noise_comp_'+str(x+1),range(num_noise_components))
-    noise_regressors = []
-    if not isinstance(files,list):
-        files = [files]
-    for j,i in enumerate(files):
-        noise_regressors.append([[]]*num_noise_components)
-        k = map(lambda x: float(x), filter(lambda y: y!='',open(i,'r').read().replace('\n',' ').split(' ')))
-        for z in range(num_noise_components):
-            noise_regressors[j][z] = k[z:len(k):num_noise_components]
-    for j,i in enumerate(subinfo):
-        if i.regressor_names == None: i.regressor_names = []
-        if i.regressors == None: i.regressors = []
-        for j3,i3 in enumerate(noise_regressors[j]):
-            i.regressor_names.append(noi_reg_names[j3])
-            i.regressors.append(i3)
+def noise_mot(subinfo,files,num_noise_components,use_compcor):
+    if use_compcor:
+        noi_reg_names = map(lambda x: 'noise_comp_'+str(x+1),range(num_noise_components))
+        noise_regressors = []
+        if not isinstance(files,list):
+            files = [files]
+        for j,i in enumerate(files):
+            noise_regressors.append([[]]*num_noise_components)
+            k = map(lambda x: float(x), filter(lambda y: y!='',open(i,'r').read().replace('\n',' ').split(' ')))
+            for z in range(num_noise_components):
+                noise_regressors[j][z] = k[z:len(k):num_noise_components]
+        for j,i in enumerate(subinfo):
+            if i.regressor_names == None: i.regressor_names = []
+            if i.regressors == None: i.regressors = []
+            for j3,i3 in enumerate(noise_regressors[j]):
+                i.regressor_names.append(noi_reg_names[j3])
+                i.regressors.append(i3)
     return subinfo
 
 # First level modeling
@@ -282,11 +285,12 @@ def combine_wkflw(c,prep_c=foo, name='work_dir'):
     # the subject info
     noise_motn = pe.Node(util.Function(input_names=['subinfo',
                                                     'files',
-                                                    'num_noise_components'],
+                                                    'num_noise_components',
+                                                    "use_compcor"],
                                        output_names=['subinfo'],
                                        function=noise_mot),
                          name='noise_motn')
-    
+    noise_motn.inputs.use_compcor=c.use_compcor
     # generate first level analysis workflow
     modelfit =                                          create_first()
     modelfit.inputs.inputspec.interscan_interval =      c.interscan_interval

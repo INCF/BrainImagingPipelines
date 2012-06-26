@@ -378,7 +378,7 @@ def plot_timeseries(roi,statsfile,TR,plot,onsets,units):
                             if units == 'scans':
                                 newX[np.int_(ons+np.ones(ons.shape)*(d))] = nums[np.int_(ons+np.ones(ons.shape)*(d))]
                             else:
-                                newX[np.int_(np.int_(ons/TR+ons.shape)*(d/TR))] = nums[np.int_(ons/TR+np.ones(ons.shape)*(d/TR))]
+                                newX[np.int_(ons/TR)] = nums[np.int_(ons/TR)]
                         plt.plot(X,newX,color=colors1[i][0])
 
 

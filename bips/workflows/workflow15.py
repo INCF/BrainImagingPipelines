@@ -51,8 +51,9 @@ class config(HasTraits):
     # Preprocessing info
     preproc_config = traits.File(desc="preproc json file")
 
-    #Track
-    seed = traits.File()
+    #Advanced
+    use_advanced_options = traits.Bool()
+    advanced_script = traits.Code()
 
 def create_config():
     c = config()
@@ -83,8 +84,11 @@ def create_view():
             label='Execution Options', show_border=True),
         Group(Item(name='subjects', editor=CSVListEditor()),
             label='Subjects', show_border=True),
-        Group(Item(name='preproc_config'), Item(name='seed'),
+        Group(Item(name='preproc_config'),
             label='Track', show_border=True),
+        Group(Item("use_advanced_options"),
+            Item("advanced_script"),
+            label="Advanced",show_border=True),
         buttons = [OKButton, CancelButton],
         resizable=True,
         width=1050)
@@ -100,15 +104,21 @@ from .scripts.u0a14c5b5899911e1bca80023dfa375f2.diffusion_base import create_wor
 
 def get_dataflow(c):
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
-        outfields=['dwi','mask']),
+        outfields=['dwi','mask','bvecs','bvals',"reg","mean"]),
         name='datasource')
     # create a node to obtain the functional images
     datasource.inputs.base_directory = c.sink_dir
     datasource.inputs.template ='*'
     datasource.inputs.field_template = dict(dwi='%s/preproc/outputs/dwi/*',
-        mask='%s/preproc/outputs/mask/*')
+        mask='%s/preproc/outputs/mask/*', bvecs='%s/preproc/outputs/bvecs/*',
+        bvals='%s/preproc/outputs/bvals/*',reg='%s/preproc/outputs/bbreg/*.dat',
+        mean='%s/preproc/outputs/mean/*.nii*')
     datasource.inputs.template_args = dict(dwi=[['subject_id']],
-        mask=[['subject_id']])
+        mask=[['subject_id']],
+        bvecs=[['subject_id']],
+        bvals=[['subject_id']],
+        mean=[["subject_id"]],
+        reg=[["subject_id"]])
     return datasource
 
 foo = pconfig()
@@ -119,8 +129,24 @@ def get_wf(c, prep_c=foo):
     inputspec = workflow.get_node('inputspec')
     workflow.connect(datagrabber,'mask',inputspec,'mask')
     workflow.connect(datagrabber,'dwi',inputspec,'dwi')
+    workflow.connect(datagrabber,'bvecs',inputspec,'bvecs')
+    workflow.connect(datagrabber,'bvals',inputspec,'bvals')
+    workflow.connect(datagrabber,'reg',inputspec,'reg')
+    workflow.connect(datagrabber,'mean',inputspec,'mean')
+    workflow.inputs.inputspec.surf_dir=prep_c.surf_dir
     infosource = pe.Node(niu.IdentityInterface(fields=["subject_id"]),name='subject_names')
     workflow.connect(infosource,"subject_id",datagrabber, 'subject_id')
+    workflow.connect(infosource,"subject_id",inputspec, 'subject_id')
+    sinker = pe.Node(nio.DataSink(),name='sinker')
+    outputspec=workflow.get_node('outputspec')
+    workflow.connect(outputspec,'fdt_paths',sinker,'track.fdt_paths')
+    workflow.connect(outputspec,'log',sinker,'track.log')
+    workflow.connect(outputspec,'particle_files',sinker,'track.particle_files')
+    workflow.connect(outputspec,'targets',sinker,'track.targets')
+    workflow.connect(outputspec,'way_total',sinker,'track.way_total')
+    sinker.inputs.base_directory=c.sink_dir
+    workflow.connect(infosource,"subject_id",sinker,"container")
+
     if c.test_mode:
         infosource.iterables=("subject_id", [c.subjects[0]])
     else:
@@ -140,6 +166,9 @@ def main(config_file):
     prep_c = load_config(c.preproc_config, pconfig)
 
     workflow = get_wf(c,prep_c)
+
+    if c.use_advanced_options:
+        exec c.advanced_script
 
     if c.test_mode:
         workflow.write_graph()

@@ -1,11 +1,8 @@
 import os
-from glob import glob
 import nipype.interfaces.fsl as fsl
-import numpy as np
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as niu
 import nipype.interfaces.io as nio
-from .scripts.ua780b1988e1c11e1baf80019b9f22493.base import get_post_struct_norm_workflow
 from .base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
@@ -56,7 +53,7 @@ class config(HasTraits):
     fwhm=traits.List(traits.Float())
     copes_template = traits.String('%s/preproc/output/fwhm_%s/cope*.nii.gz')
     varcopes_template = traits.String('%s/preproc/output/fwhm_%s/varcope*.nii.gz')
-
+    contrasts = traits.List(traits.Str,desc="contrasts")
     #Normalization
     norm_template = traits.File(mandatory=True,desc='Template to warp to')
     name_of_project = traits.String("group_analysis",usedefault=True)
@@ -93,6 +90,7 @@ def create_view():
                 Group(Item(name='subjects', editor=CSVListEditor()),
                       Item(name='base_dir'),
                       Item(name='fwhm', editor=CSVListEditor()),
+                      Item(name="contrasts", editor=CSVListEditor()),
                       Item(name='copes_template'),
                       Item(name='varcopes_template'),
                       Item(name='check_func_datagrabber'),
@@ -117,7 +115,7 @@ Construct Workflow
 get_len = lambda x: len(x)
 
 def create_2lvl(name="group"):
-    wk = pe.Workflow(name='secondlevel')
+    wk = pe.Workflow(name=name)
     
     inputspec = pe.Node(niu.IdentityInterface(fields=['copes','varcopes','template']),name='inputspec')
     
@@ -162,7 +160,7 @@ def create_2lvl(name="group"):
 
 def get_datagrabber(c):
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id',
-                                                             'fwhm'],
+                                                             'fwhm',"contrast"],
                                                    outfields=['copes','varcopes']),
                          name="datagrabber")
     datasource.inputs.base_directory = c.base_dir
@@ -170,17 +168,28 @@ def get_datagrabber(c):
     datasource.inputs.field_template = dict(
                                 copes=c.copes_template,
                                 varcopes=c.varcopes_template)
-    datasource.inputs.template_args = dict(copes=[['fwhm', 'subject_id']],
-                                           varcopes=[['fwhm', 'subject_id']])
+    datasource.inputs.template_args = dict(copes=[['fwhm',"contrast","subject_id"]],
+                                           varcopes=[['fwhm',"contrast","subject_id"]])
     return datasource
+
+def get_substitutions(contrast):
+    subs = [('_fwhm','fwhm'),
+            ('_contrast_%s'%contrast,''),
+            ('output','')]
+    return subs
 
 def connect_to_config(c):
     wk = create_2lvl()
     wk.base_dir = c.working_dir
     datagrabber = get_datagrabber(c)
+    infosourcecon = pe.Node(niu.IdentityInterface(fields=["contrast"]),name="contrasts")
+    infosourcecon.iterables = ("contrast",c.contrasts)
+    wk.connect(infosourcecon,'contrast',datagrabber,"contrast")
     sinkd = pe.Node(nio.DataSink(),name='sinker')
     sinkd.inputs.base_directory = c.sink_dir
-    sinkd.inputs.substitutions = [('_fwhm','fwhm')]
+    #sinkd.inputs.substitutions = [('_fwhm','fwhm'),('_contrast_','')]
+    wk.connect(infosourcecon,("contrast",get_substitutions),sinkd,"substitutions")
+    wk.connect(infosourcecon,"contrast",sinkd,"container")
     inputspec = wk.get_node('inputspec')
     outputspec = wk.get_node('outputspec')
     datagrabber.inputs.subject_id = c.subjects
@@ -190,16 +199,17 @@ def connect_to_config(c):
     wk.connect(datagrabber,'copes', inputspec, 'copes')
     wk.connect(datagrabber,'varcopes', inputspec, 'varcopes')
     wk.inputs.inputspec.template = c.norm_template
-    wk.connect(outputspec,'cope',sinkd,c.name_of_project+'.@cope')
-    wk.connect(outputspec,'varcope',sinkd,c.name_of_project+'.@varcope')
-    wk.connect(outputspec,'mrefvars',sinkd,c.name_of_project+'.@mrefvars')
-    wk.connect(outputspec,'pes',sinkd,c.name_of_project+'.@pes')
-    wk.connect(outputspec,'res4d',sinkd,c.name_of_project+'.@res4d')
-    wk.connect(outputspec,'weights',sinkd,c.name_of_project+'.@weights')
-    wk.connect(outputspec,'zstat',sinkd,c.name_of_project+'.@zstat')
-    wk.connect(outputspec,'tstat',sinkd,c.name_of_project+'.@tstat')
-    wk.connect(outputspec,'tdof',sinkd,c.name_of_project+'.@tdof')
-    wk.connect(outputspec,'mask',sinkd,c.name_of_project+'.@bet_mask')
+    wk.connect(outputspec,'cope',sinkd,'output.@cope')
+    wk.connect(outputspec,'varcope',sinkd,'output.@varcope')
+    wk.connect(outputspec,'mrefvars',sinkd,'output.@mrefvars')
+    wk.connect(outputspec,'pes',sinkd,'output.@pes')
+    wk.connect(outputspec,'res4d',sinkd,'output.@res4d')
+    wk.connect(outputspec,'weights',sinkd,'output.@weights')
+    wk.connect(outputspec,'zstat',sinkd,'output.@zstat')
+    wk.connect(outputspec,'tstat',sinkd,'output.@tstat')
+    wk.connect(outputspec,'tdof',sinkd,'output.@tdof')
+    wk.connect(outputspec,'mask',sinkd,'output.@bet_mask')
+    wk.connect(inputspec,'template',sinkd,'output.@template')
     return wk
 
 mwf.workflow_function = connect_to_config

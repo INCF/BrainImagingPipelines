@@ -113,14 +113,25 @@ def get_datagrabber(c):
     dataflow.inputs.base_directory = c.sink_dir
     dataflow.inputs.template ='*'
     dataflow.inputs.sort_filelist = True
-    dataflow.inputs.field_template = dict(func='%s/spm_preproc/smoothed_outputs/*.nii',
-                                        struct='%s/spm_preproc/normalized_struct/*.nii',
-                                        csf='%s/spm_preproc/segment/mod/mwc3*.nii',
-                                        grey='%s/spm_preproc/segment/mod/mwc2*.nii',
-                                        white='%s/spm_preproc/segment/mod/mwc1*.nii',
-                                        realignment='%s/spm_preproc/realignment_parameters/*.par',
-                                        norm='%s/spm_preproc/art/*norm*',
-                                        out='%s/spm_preproc/art/*outlier*')
+    if c.used_spm_workflow:
+        dataflow.inputs.field_template = dict(func='%s/spm_preproc/smoothed_outputs/*.nii',
+                                            struct='%s/spm_preproc/normalized_struct/*.nii',
+                                            csf='%s/spm_preproc/segment/mod/mwc3*.nii',
+                                            grey='%s/spm_preproc/segment/mod/mwc2*.nii',
+                                            white='%s/spm_preproc/segment/mod/mwc1*.nii',
+                                            realignment='%s/spm_preproc/realignment_parameters/*.par',
+                                            norm='%s/spm_preproc/art/*norm*',
+                                            out='%s/spm_preproc/art/*outlier*')
+    else:
+        dataflow.inputs.field_template = dict(func='%s/spm_preproc/smoothed_outputs/*.nii',
+                                              struct='%s/spm_preproc/normalized_struct/*.nii',
+                                              csf='%s/spm_preproc/segment/mod/mwc3*.nii',
+                                              grey='%s/spm_preproc/segment/mod/mwc2*.nii',
+                                              white='%s/spm_preproc/segment/mod/mwc1*.nii',
+                                              realignment='%s/spm_preproc/realignment_parameters/*.par',
+                                              norm='%s/spm_preproc/art/*norm*',
+                                              out='%s/spm_preproc/art/*outlier*')
+
     dataflow.inputs.template_args = dict(func=[["subject_id"]],
                                         struct=[["subject_id"]],
                                         csf=[["subject_id"]],

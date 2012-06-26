@@ -244,7 +244,10 @@ def create_prep(use_fieldmap):
                                                                   'FM_unwarped_mean',
                                                                   'FM_unwarped_epi',
                                                                   'eddy_corrected',
-                                                                  'mask']),
+                                                                  'mask',
+                                                                  'bvecs',
+                                                                  'bvals',
+                                                                  "mean"]),
         name='outputspec')
     dtifit = pe.MapNode(interface=fsl.DTIFit(), name='dtifit', iterfield=['dwi',"mask","bvecs","bvals"])
 
@@ -273,6 +276,8 @@ def create_prep(use_fieldmap):
             getmask, 'inputspec.source_file')
         gen_fa.connect(fieldmap, 'exfdw',
             outputnode, 'FM_unwarped_mean')
+        gen_fa.connect(fieldmap, 'exfdw',
+            outputnode, 'mean')
         gen_fa.connect(dewarper,'unwarped_file',dtifit,'dwi')
         gen_fa.connect(dewarper, 'unwarped_file',
             outputnode, 'FM_unwarped_epi')
@@ -281,6 +286,8 @@ def create_prep(use_fieldmap):
     else:
         gen_fa.connect(eddy_correct,'outputnode.mean_image',
             getmask,'inputspec.source_file')
+        gen_fa.connect(eddy_correct,'outputnode.mean_image',
+            outputnode,'mean')
         gen_fa.connect(eddy_correct, 'outputnode.eddy_corrected', dtifit, 'dwi')
         gen_fa.connect(eddy_correct, 'outputnode.eddy_corrected', outputnode, 'eddy_corrected')
 
@@ -300,6 +307,7 @@ def create_prep(use_fieldmap):
     gen_fa.connect(rotate,'rotated_bvecs', dtifit, 'bvecs')
 
     gen_fa.connect(inputspec, 'bval', dtifit, 'bvals')
+    gen_fa.connect(inputspec, 'bval', outputnode, 'bvals')
 
     getmotion = pe.MapNode(util.Function(input_names=["flirt_out_mats"],
         output_names=["motion_params"],
@@ -329,7 +337,7 @@ def create_prep(use_fieldmap):
     gen_fa.connect(inputspec, "dwi", reportnode, "In_Files")
     gen_fa.connect(inputspec,"subject_id", reportnode, "container")
     gen_fa.connect(inputspec,"report_directory", reportnode,"base_directory")
-
+    gen_fa.connect(rotate,'rotated_bvecs', outputnode, 'bvecs')
     gen_fa.connect(dtifit, 'FA', outputnode, 'FA')
     gen_fa.connect(dtifit, 'MD', outputnode, 'MD')
     return gen_fa
@@ -408,6 +416,7 @@ def combine_prep(c):
             ('_register0','')]
         for i in range(0,20):
             subs.append(('_dewarper%d/vol0000_flirt_merged_unwarped.nii'%i,'dwi%d.nii'%i))
+            subs.append(('_rotate_bvecs%d/'%i,'bvecs%02d_'%i))
         return subs
 
     def get_regexpsubs(subject_id):
@@ -418,7 +427,7 @@ def combine_prep(c):
         return subs
 
     modelflow.connect(infosource,'subject_id', sinker, 'container')
-    modelflow.connect(prep,'outputspec.reg_file',sinker,'preproc.bbreg')
+    modelflow.connect(prep,'outputspec.reg_file',sinker,'preproc.outputs.bbreg')
     modelflow.connect(prep, 'outputspec.FA', sinker, 'preproc.FA')
     modelflow.connect(prep,'outputspec.MD',sinker,'preproc.MD')
     if c.use_fieldmap:
@@ -431,6 +440,9 @@ def combine_prep(c):
     else:
         modelflow.connect(prep, 'outputspec.eddy_corrected', sinker, 'preproc.outputs.dwi')
     modelflow.connect(prep, 'outputspec.mask', sinker, 'preproc.outputs.mask')
+    modelflow.connect(prep, 'outputspec.bvecs', sinker, 'preproc.outputs.bvecs')
+    modelflow.connect(prep, 'outputspec.bvals', sinker, 'preproc.outputs.bvals')
+    modelflow.connect(prep, 'outputspec.mean', sinker, 'preproc.outputs.mean')
     modelflow.connect(infosource,('subject_id',getsubs),sinker,'substitutions')
     modelflow.connect(infosource,('subject_id',get_regexpsubs),sinker,'regexp_substitutions')
     return modelflow

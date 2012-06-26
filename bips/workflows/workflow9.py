@@ -4,6 +4,7 @@ import nipype.interfaces.utility as util
 from nipype.interfaces.io import FreeSurferSource
 import nipype.interfaces.io as nio
 from .scripts.ua780b1988e1c11e1baf80019b9f22493.base import get_full_norm_workflow
+from .scripts.ua780b1988e1c11e1baf80019b9f22493.utils import warp_segments
 from .base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
@@ -58,7 +59,7 @@ class config(HasTraits):
 
     #Normalization
     norm_template = traits.File(mandatory=True,desc='Template to warp to')
-
+    do_segment = traits.Bool()
     # Advanced Options
     use_advanced_options = traits.Bool()
     advanced_script = traits.Code()
@@ -100,6 +101,7 @@ def create_view():
                       Item(name='check_func_datagrabber'),
                       label='Subjects', show_border=True),
                 Group(Item(name='norm_template'),
+                      Item(name="do_segment"),
                       label='Normalization', show_border=True),
                 Group(Item(name='use_advanced_options'),
                     Item(name='advanced_script',enabled_when='use_advanced_options'),
@@ -141,6 +143,9 @@ def getsubstitutions(subject_id):
     for i in range(200,-1,-1):
         subs.append(('_warp_images%d'%i, ''))
     subs.append(('_fwhm','fwhm'))
+    subs.append(('_apply_transforms0/',"wm/"))
+    subs.append(('_apply_transforms1/',"gm/"))
+    subs.append(('_apply_transforms2/',"csf/"))
     return subs
 
 def normalize_workflow(c):
@@ -186,6 +191,16 @@ def normalize_workflow(c):
                  sinkd, 'smri.unwarped_brain')
     norm.connect(outputspec, 'warped_brain', sinkd, 'smri.warped_brain')
     norm.connect(infosource,('subject_id',getsubstitutions),sinkd,'substitutions')
+
+    if c.do_segment:
+        seg = warp_segments()
+        norm.connect(infosource, 'subject_id', seg, 'inputspec.subject_id')
+        seg.inputs.inputspec.subjects_dir = c.surf_dir
+        norm.connect(outputspec, 'warp_field', seg, 'inputspec.warp_file')
+        norm.connect(outputspec, 'affine_transformation', seg, "inputspec.ants_affine")
+        norm.connect(inputspec, 'template_file',seg, "inputspec.warped_brain")
+        norm.connect(seg,"outputspec.out_files",sinkd,"smri.segments")
+
     return norm
 
 mwf.workflow_function = normalize_workflow

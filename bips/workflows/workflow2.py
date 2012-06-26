@@ -38,8 +38,12 @@ class config(baseconfig):
     highpass_freq = traits.Float()
     lowpass_freq = traits.Float()
     filtering_algorithm = traits.Enum("fsl","IIR","FIR")
-    reg_params = traits.BaseTuple(traits.Bool, traits.Bool, traits.Bool,
-                                  traits.Bool, traits.Bool)
+    reg_params = traits.BaseTuple(traits.Bool(desc="motion parameters"),
+                                  traits.Bool(desc="norm components"),
+                                  traits.Bool(desc="noise components (CompCor)"),
+                                  traits.Bool(desc="art_outliers"),
+                                  traits.Bool(desc="motion derivatives"))
+    do_despike = traits.Bool(False,usedefault=True)
     do_whitening = traits.Bool(False, usedefault=True)
 
 def create_config():
@@ -91,7 +95,8 @@ def create_view():
             Item(name='TE_diff',enabled_when="use_fieldmap"),
             Item(name='sigma',enabled_when="use_fieldmap"),
             label='Fieldmap',show_border=True),
-        Group(Item(name="motion_correct_node"),
+        Group(Item(name="do_despike"),
+            Item(name="motion_correct_node"),
             Item(name='TR'),
             Item(name='do_slicetiming'),
             Item(name='SliceOrder',editor=CSVListEditor()),
@@ -139,7 +144,7 @@ Part 4: Workflow Construction
 from scripts.u0a14c5b5899911e1bca80023dfa375f2.base import create_rest_prep
 from scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import get_datasink, get_substitutions, get_regexp_substitutions
 
-def prep_workflow(c):
+def prep_workflow(c=create_config()):
     fieldmap = c.use_fieldmap
     if fieldmap:
         modelflow = pe.Workflow(name='preprocfm')
@@ -207,6 +212,7 @@ def prep_workflow(c):
     preproc.inputs.inputspec.do_whitening = c.do_whitening
     preproc.inputs.inputspec.timepoints_to_remove = c.timepoints_to_remove
     preproc.inputs.inputspec.smooth_type = c.smooth_type
+    preproc.inputs.inputspec.do_despike = c.do_despike
     preproc.inputs.inputspec.surface_fwhm = c.surface_fwhm
     preproc.inputs.inputspec.num_noise_components = c.num_noise_components
     preproc.inputs.inputspec.regress_before_PCA = c.regress_before_PCA
