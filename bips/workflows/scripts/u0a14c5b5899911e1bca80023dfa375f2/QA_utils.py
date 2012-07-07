@@ -941,3 +941,23 @@ def make_surface_plots(con_image,reg_file,subject_id,thr,sd):
         surface_ims.append(make_brain(subject_id,surf_mgz))
 
     return surface_ims, surface_mgzs
+
+def cluster_image(name="threshold_cluster_makeimages"):
+    from nipype.interfaces import fsl
+    workflow = pe.Workflow(name=name)
+    inputspcdvec = pe.Node(util.IdentityInterface(fields=["func","mask"]),name="inputspec")
+    smoothest = pe.MapNode(fsl.SmoothEstimate(), name='smooth_estimate', iterfield=['zstat_file'])
+    workflow.connect(inputspec,'func', smoothest, 'zstat_file')
+    workflow.connect(inputspec,'mask',smoothest, 'mask_file')
+
+    cluster = pe.MapNode(fsl.Cluster(), name='cluster', iterfield=['in_file','dlh','volume'])
+    workflow.connect(smoothest,'dlh', cluster, 'dlh')
+    workflow.connect(smoothest, 'volume', cluster, 'volume')
+    #cluster.inputs.connectivity = csize
+    #cluster.inputs.threshold = thr
+    cluster.inputs.out_threshold_file = True
+    workflow.connect(inputspec,'func',cluster,'in_file')
+
+    workflow.connect(cluster, 'threshold_file',imgflow,'inputspec.in_file')
+    #workflow.connect(dataflow,'func',imgflow, 'inputspec.in_file')
+    workflow.connect(inputspec,'mask',imgflow, 'inputspec.mask_file')

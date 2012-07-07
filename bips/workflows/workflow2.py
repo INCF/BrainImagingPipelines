@@ -310,7 +310,7 @@ Part 5: Define the main function
 def main(config_file):
     c = load_config(config_file, create_config)
     preprocess = prep_workflow(c)
-    preprocess.config = {'execution': {'crashdump_dir': c.crash_dir}}
+    preprocess.config = {'execution': {'crashdump_dir': c.crash_dir, 'job_finished_timeout' : 14}}
     
     if len(c.subjects) == 1:
         preprocess.write_graph(graph2use='exec',

@@ -7,6 +7,7 @@ from .scripts.ua780b1988e1c11e1baf80019b9f22493.utils import warp_segments
 from .base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
+from glob import glob
 
 """
 Part 1: MetaWorkflow
@@ -67,6 +68,25 @@ class config(HasTraits):
 
     # Buttons
     check_func_datagrabber = Button("Check")
+
+    def _check_func_datagrabber_fired(self):
+        subs = self.subjects
+        template = [self.inputs_template,
+                    self.meanfunc_template,
+                    self.fsl_mat_template,
+                    self.unwarped_brain_template,
+                    self.affine_transformation_template,
+                    self.warp_field_template]
+        for s in subs:
+            for t in template:
+                try:
+                    temp = glob(os.path.join(self.base_dir,t%s))
+                except TypeError:
+                    temp = []
+                    for f in self.fwhm:
+                        temp.append(glob(os.path.join(self.base_dir,t%(s,f))))
+                print temp
+
 
 def create_config():
     c = config()

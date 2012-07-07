@@ -7,6 +7,7 @@ import nipype.pipeline.engine as pe
 from .workflow13 import config as prep_config
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.matlab_utils import ConnImport
 import os
+from .flexible_datagrabber import Data, DataBase
 
 """
 Part 1: MetaWorkflow
@@ -31,7 +32,8 @@ Part 2: Config
 class config(HasTraits):
     uuid = traits.Str(desc="UUID")
     desc = traits.Str(desc='Workflow description')
-    config_file = traits.File(desc='config file of spm preproc')
+
+    datagrabber = traits.Instance(Data, ())
 
     # Directories
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
@@ -64,6 +66,20 @@ def create_config():
     c = config()
     c.uuid = mwf.uuid
     c.desc = mwf.help
+    c.datagrabber = Data(['func',
+                      'struct',
+                      'csf',
+                      'grey',
+                      'white',
+                      'realignment',
+                      'norm',
+                      'out'])
+    c.datagrabber.fields = []
+    subs = DataBase()
+    subs.name = 'subjects'
+    subs.values = ['sub01','sub02','sub03']
+    subs.iterable = True
+    c.datagrabber.fields.append(subs)
     return c
 
 mwf.config_ui = create_config
@@ -90,7 +106,7 @@ def create_view():
             label='Execution Options', show_border=True),
         Group(Item(name='subjects', editor=CSVListEditor()),
             label='Subjects', show_border=True),
-        Group(Item(name='config_file'),
+        Group(Item(name='datagrabber', enabled_when="1"),
               Item(name='n_subjects'),
             Item(name='project_name'),
             label='Data', show_border=True),
