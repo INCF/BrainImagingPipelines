@@ -45,6 +45,7 @@ class config(baseconfig):
                                   traits.Bool(desc="motion derivatives"))
     do_despike = traits.Bool(False,usedefault=True)
     do_whitening = traits.Bool(False, usedefault=True)
+    use_metadata = traits.Bool(True)
 
 def create_config():
     c = config()
@@ -97,9 +98,10 @@ def create_view():
             label='Fieldmap',show_border=True),
         Group(Item(name="do_despike"),
             Item(name="motion_correct_node"),
-            Item(name='TR'),
+            Item(name='TR', enabled_when="not use_metadata"),
             Item(name='do_slicetiming'),
-            Item(name='SliceOrder',editor=CSVListEditor()),
+            Item(name="use_metadata"),
+            Item(name='SliceOrder',editor=CSVListEditor(),enabled_when="not use_metadata or not do_slicetiming"),
             Item(name='loops',enabled_when="motion_correct_node=='nipy' ", editor=CSVListEditor()),
             Item(name='speedup',enabled_when="motion_correct_node=='nipy' ", editor=CSVListEditor()),
             label='Motion Correction', show_border=True),
@@ -143,6 +145,27 @@ Part 4: Workflow Construction
 
 from scripts.u0a14c5b5899911e1bca80023dfa375f2.base import create_rest_prep
 from scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import get_datasink, get_substitutions, get_regexp_substitutions
+
+def extract_meta(func):
+    from nibabel import load
+    import numpy as np
+    from dcmstack.dcmmeta import NiftiWrapper
+    sliceorders = []
+    trs = []
+    for f in func:
+        img = load(f)
+        wrp = NiftiWrapper(img)
+        sliceorder = np.argsort(wrp.meta_ext.get_values('CsaImage.MosaicRefAcqTimes')[0]).tolist()
+        sliceorders.append(sliceorder)
+        tr = wrp.meta_ext.get_values('RepetitionTime')
+        trs.append(tr)
+    so = sliceorders[0]
+    if np.sum(np.diff(sliceorders,axis=0)):
+        raise Exception("The functional runs have different slice orders!")
+    if np.sum(np.diff(trs)):
+        raise Exception("The functional runs have different TRs!")
+    else:
+        return so, trs[0]/1000.
 
 def prep_workflow(c=create_config()):
     fieldmap = c.use_fieldmap
@@ -205,6 +228,12 @@ def prep_workflow(c=create_config()):
         modelflow.connect(preproc, 'outputspec.mean',
                           sinkd, 'preproc.mean')
 
+    if c.use_metadata and c.do_slicetiming:
+        get_meta = pe.Node(util.Function(input_names=['func'],output_names=['so','tr'],function=extract_meta),name="get_metadata")
+        modelflow.connect(dataflow,'func',get_meta, 'func')
+        modelflow.connect(get_meta,'so',preproc,"inputspec.sliceorder")
+        modelflow.connect(get_meta,'tr',preproc,"inputspec.tr")
+
     # inputs
     preproc.inputs.inputspec.motion_correct_node = c.motion_correct_node
     preproc.inputs.inputspec.realign_parameters = {"loops":c.loops,
@@ -225,9 +254,9 @@ def prep_workflow(c=create_config()):
     preproc.inputs.inputspec.ad_zthresh = c.z_thresh
     preproc.inputs.inputspec.tr = c.TR
     preproc.inputs.inputspec.do_slicetime = c.do_slicetiming
-    if c.do_slicetiming:
+    if c.do_slicetiming and not c.use_metadata:
         preproc.inputs.inputspec.sliceorder = c.SliceOrder
-    else:
+    elif not c.do_slicetiming and not c.use_metadata:
         preproc.inputs.inputspec.sliceorder = None
 
     preproc.inputs.inputspec.compcor_select = c.compcor_select
