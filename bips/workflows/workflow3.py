@@ -1,4 +1,4 @@
-from .base import MetaWorkflow, load_config, register_workflow
+from .base import MetaWorkflow, load_config, register_workflow, debug_workflow
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
 import os
@@ -56,7 +56,7 @@ class config(HasTraits):
         desc="Subject id's. These subjects must match the ones that have been run in your preproc config")
 
     preproc_config = traits.File(desc="preproc config file")
-
+    debug = traits.Bool(True)
     # Advanced Options
     use_advanced_options = traits.Bool()
     advanced_script = traits.Code()
@@ -87,7 +87,7 @@ def create_view():
         Group(Item(name='run_using_plugin'),
             Item(name='plugin', enabled_when="run_using_plugin"),
             Item(name='plugin_args', enabled_when="run_using_plugin"),
-            Item(name='test_mode'),
+            Item(name='test_mode'), Item(name='debug'),
             label='Execution Options', show_border=True),
         Group(Item(name='subjects', editor=CSVListEditor()),
             label='Subjects', show_border=True),
@@ -170,7 +170,7 @@ def preproc_datagrabber(c,name='preproc_datagrabber'):
                                             art_stats='%s/preproc/art/stats.*.txt',
                                             art_intensity='%s/preproc/art/global_intensity.*.txt',
                                             tsnr='%s/preproc/tsnr/*_tsnr.nii*',
-                                            tsnr_detrended='%s/preproc/tsnr/*_detrended.nii*',
+                                            tsnr_detrended='%s/preproc/tsnr/*detrended.nii*',
                                             tsnr_stddev='%s/preproc/tsnr/*tsnr_stddev.nii*',
                                             reg_file='%s/preproc/bbreg/*.dat',
                                             mean_image='%s/preproc/mean*/*.nii*',
@@ -378,11 +378,7 @@ def QA_workflow(QAc,c=foo, name='QA'):
 
     workflow.connect(datagrabber, ('mean_image', sort), plotanat, 'brain')
 
-    ts_and_spectra = pe.MapNode(util.Function(input_names=['stats_file',
-                                                        'tr'],
-                                           output_names=['imagetable'],
-                                           function=spectrum_ts_table),
-                            name='spectra_and_timeseries_table', iterfield=['stats_file'])
+    ts_and_spectra = spectrum_ts_table()
 
     timeseries_segstats = tsnr_roi(plot=False,name='timeseries_roi',roi=['all'],onsets=False)
     workflow.connect(inputspec,'tsnr_detrended', timeseries_segstats,'inputspec.tsnr_file')
@@ -390,9 +386,9 @@ def QA_workflow(QAc,c=foo, name='QA'):
     workflow.connect(infosource, 'subject_id', timeseries_segstats, 'inputspec.subject')
     workflow.connect(fssource, ('aparc_aseg', pickfirst), timeseries_segstats, 'inputspec.aparc_aseg')
     timeseries_segstats.inputs.inputspec.TR = c.TR
-    ts_and_spectra.inputs.tr = c.TR
+    ts_and_spectra.inputs.inputspec.tr = c.TR
 
-    workflow.connect(timeseries_segstats,'outputspec.roi_file',ts_and_spectra, 'stats_file')
+    workflow.connect(timeseries_segstats,'outputspec.roi_file',ts_and_spectra, 'inputspec.stats_file')
 
 
 
@@ -435,7 +431,7 @@ def QA_workflow(QAc,c=foo, name='QA'):
     workflow.connect(datagrabber,'art_stats',art_info,'stats_file')
     workflow.connect(inputspec,'art_file',art_info,'art_file')
     workflow.connect(art_info,('table',to1table), write_rep,'Art_Detect')
-    workflow.connect(ts_and_spectra,'imagetable',tablecombine, 'imagetable')
+    workflow.connect(ts_and_spectra,'outputspec.imagetable',tablecombine, 'imagetable')
     workflow.connect(art_info,'intensity_plot',write_rep,'Global_Intensity')
     workflow.connect(plot_m, 'fname_t',write_rep,'motion_plot_translations')
     workflow.connect(plot_m, 'fname_r',write_rep,'motion_plot_rotations')
@@ -481,6 +477,10 @@ def main(config_file):
     c = load_config(QA_config.preproc_config, prep_config)
     a = QA_workflow(QA_config,c)
     a.base_dir = QA_config.working_dir
+
+    if c.debug:
+        a = debug_workflow(a)
+
     if QA_config.test_mode:
         a.write_graph()
 

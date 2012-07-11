@@ -1,12 +1,13 @@
 import os
 import nipype.pipeline.engine as pe
 import nipype.interfaces.utility as util
-from nipype.interfaces.io import FreeSurferSource
 import nipype.interfaces.io as nio
 from .scripts.ua780b1988e1c11e1baf80019b9f22493.base import get_post_struct_norm_workflow
+from .scripts.ua780b1988e1c11e1baf80019b9f22493.utils import warp_segments
 from .base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
+from glob import glob
 
 """
 Part 1: MetaWorkflow
@@ -59,13 +60,33 @@ class config(HasTraits):
 
     #Normalization
     norm_template = traits.File(mandatory=True,desc='Template to warp to')
-
+    do_segment = traits.Bool(True)
+    surf_dir = traits.Directory()
     # Advanced Options
     use_advanced_options = traits.Bool()
     advanced_script = traits.Code()
 
     # Buttons
     check_func_datagrabber = Button("Check")
+
+    def _check_func_datagrabber_fired(self):
+        subs = self.subjects
+        template = [self.inputs_template,
+                    self.meanfunc_template,
+                    self.fsl_mat_template,
+                    self.unwarped_brain_template,
+                    self.affine_transformation_template,
+                    self.warp_field_template]
+        for s in subs:
+            for t in template:
+                try:
+                    temp = glob(os.path.join(self.base_dir,t%s))
+                except TypeError:
+                    temp = []
+                    for f in self.fwhm:
+                        temp.append(glob(os.path.join(self.base_dir,t%(s,f))))
+                print temp
+
 
 def create_config():
     c = config()
@@ -102,6 +123,8 @@ def create_view():
                       Item(name='check_func_datagrabber'),
                       label='Subjects', show_border=True),
                 Group(Item(name='norm_template'),
+                      Item(name="do_segment"),
+                      Item(name="surf_dir", enabled_when="do_segment"),
                       label='Normalization', show_border=True),
                 Group(Item(name='use_advanced_options'),
                     Item(name='advanced_script',enabled_when='use_advanced_options'),
@@ -152,8 +175,17 @@ def getsubstitutions(subject_id):
     for i in range(200,-1,-1):
         subs.append(('_warp_images%d'%i, ''))
     subs.append(('_fwhm','fwhm'))
+    subs.append(('_apply_transforms0/',"wm/"))
+    subs.append(('_apply_transforms1/',"gm/"))
+    subs.append(('_apply_transforms2/',"csf/"))
     return subs
-    
+
+def get_regexp(fwhm):
+    subs= [('_apply_transforms0/*.nii.gz',"wm.nii.gz"),
+           ('_apply_transforms1/*.nii.gz',"gm.nii.gz"),
+           ('_apply_transforms2/*.nii.gz',"csf.nii.gz")]
+    return subs
+
 def normalize_workflow(c):
     norm = get_post_struct_norm_workflow()
     datagrab = func_datagrabber(c)
@@ -173,10 +205,6 @@ def normalize_workflow(c):
 
     inputspec = norm.get_node('inputspec')
 
-    #norm.connect(infosource, 'subject_id', fssource, 'subject_id')
-    #norm.connect(fssource, ('aparc_aseg', pickfirst),
-    #             inputspec, 'segmentation')
-    #norm.connect(fssource, 'orig', inputspec, 'brain')
     norm.connect(infosource, 'subject_id', datagrab, 'subject_id')
     norm.connect(infofwhm, 'fwhm', datagrab, 'fwhm')
     norm.connect(datagrab, 'fsl_mat', inputspec, 'out_fsl_file')
@@ -195,8 +223,16 @@ def normalize_workflow(c):
     outputspec = norm.get_node('outputspec')
     norm.connect(infosource, 'subject_id', sinkd, 'container')
     norm.connect(outputspec, 'warped_image', sinkd, 'smri.warped_image')
-    #norm.connect(outputspec, 'inverse_warp', sinkd, 'smri.inverse_warp')
-    #norm.connect(outputspec, 'warped_brain', sinkd, 'smri.warped_brain')
+
+    if c.do_segment:
+        seg = warp_segments()
+        norm.connect(infosource, 'subject_id', seg, 'inputspec.subject_id')
+        seg.inputs.inputspec.subjects_dir = c.surf_dir
+        norm.connect(datagrab, 'warp_field', seg, 'inputspec.warp_file')
+        norm.connect(datagrab, 'affine_transformation', seg, "inputspec.ants_affine")
+        norm.connect(inputspec, 'template_file',seg, "inputspec.warped_brain")
+        norm.connect(seg,"outputspec.out_files",sinkd,"smri.segments")
+        #norm.connect(infofwhm,('fwhm',get_regexp),sinkd,'regexp_substitutions')
     norm.connect(infosource,('subject_id',getsubstitutions),sinkd,'substitutions')
     return norm
 
