@@ -43,7 +43,7 @@ def art_output(art_file,intensity_file,stats_file):
     return table, out.tolist(), intensity_plot
 
 
-def plot_spectrum(timeseries, tr, title):
+def plot_spectrum(Timeseries, tr):
     from nitime.timeseries import TimeSeries
     from nitime.analysis import SpectralAnalyzer
     import matplotlib
@@ -51,74 +51,121 @@ def plot_spectrum(timeseries, tr, title):
     import matplotlib.pyplot as plt
     import os
     import numpy as np
+    figure= []
+    for i, timeseries in enumerate(Timeseries):
+        #T = io.time_series_from_file(in_file,TR=tr)
+        title = os.path.abspath('spectra')
+        timeseries = np.asarray(timeseries[1:])
+        timeseries = timeseries-np.mean(timeseries)*np.ones(timeseries.shape)
+        T = TimeSeries(timeseries,sampling_interval=tr)
+        S_original = SpectralAnalyzer(T)
+        # Initialize a figure to put the results into:
+        fig01 = plt.figure(figsize = (8,3))
+        ax01 = fig01.add_subplot(1, 1, 1)
+        ax01.plot(S_original.psd[0],
+            S_original.psd[1],
+            label='Welch PSD')
 
-    #T = io.time_series_from_file(in_file,TR=tr)
-    timeseries = np.asarray(timeseries)
-    print timeseries.shape
-    timeseries = timeseries-np.mean(timeseries)*np.ones(timeseries.shape)
-    T = TimeSeries(timeseries,sampling_interval=tr)
-    S_original = SpectralAnalyzer(T)
-    # Initialize a figure to put the results into:
-    fig01 = plt.figure(figsize = (8,3))
-    ax01 = fig01.add_subplot(1, 1, 1)
-    ax01.plot(S_original.psd[0],
-        S_original.psd[1],
-        label='Welch PSD')
+        ax01.plot(S_original.spectrum_fourier[0],
+            S_original.spectrum_fourier[1],
+            label='FFT')
 
-    ax01.plot(S_original.spectrum_fourier[0],
-        S_original.spectrum_fourier[1],
-        label='FFT')
+        ax01.plot(S_original.periodogram[0],
+            S_original.periodogram[1],
+            label='Periodogram')
 
-    ax01.plot(S_original.periodogram[0],
-        S_original.periodogram[1],
-        label='Periodogram')
+        ax01.plot(S_original.spectrum_multi_taper[0],
+            S_original.spectrum_multi_taper[1],
+            label='Multi-taper')
 
-    ax01.plot(S_original.spectrum_multi_taper[0],
-        S_original.spectrum_multi_taper[1],
-        label='Multi-taper')
+        ax01.set_xlabel('Frequency (Hz)')
+        ax01.set_ylabel('Power')
 
-    ax01.set_xlabel('Frequency (Hz)')
-    ax01.set_ylabel('Power')
-
-    ax01.legend()
-    figure = os.path.abspath(title+'.png')
-    plt.savefig(figure, bbox_inches='tight')
-    plt.close()
+        ax01.legend()
+        Figure = title+'%02d.png'%i
+        plt.savefig(Figure, bbox_inches='tight')
+        figure.append(Figure)
+        plt.close()
     return figure
 
-def plot_simple_timeseries(timeseries,title):
+def plot_simple_timeseries(Timeseries):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     import os
-
-    title = os.path.abspath(title+'.png')
-    plt.figure(figsize=(8,3))
-    plt.plot(timeseries)
-    plt.xlabel('Volume')
-    plt.ylabel('Signal')
-    plt.savefig(title,bbox_inches='tight')
+    title=[]
+    for i, timeseries in enumerate(Timeseries):
+        Title = os.path.abspath('timeseries%02d.png'%i)
+        plt.figure(figsize=(8,3))
+        plt.plot(timeseries[1:])
+        plt.xlabel('Volume')
+        plt.ylabel('Signal')
+        plt.savefig(Title,bbox_inches='tight')
+        title.append(Title)
+        plt.close()
     return title
 
-def spectrum_ts_table(stats_file,tr):
-    from bips.workflows.scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import plot_spectrum, plot_simple_timeseries
-    from bips.utils.reportsink.write_report import get_and_scale
+def spectrum_ts_table():
+
     import numpy as np
-    LUT = np.genfromtxt('/software/Freesurfer/current/FreeSurferColorLUT.txt',dtype = str)
+    import os
+
+    LUT = np.genfromtxt(os.path.join(os.environ["FREESURFER_HOME"],'FreeSurferColorLUT.txt'),dtype = str)
     roinum = LUT[:,0]
     roiname = LUT[:,1]
-    stats = np.recfromcsv(stats_file)
 
-    imagetable=[['ROI','Timeseries','Spectra']]
+    wf = pe.Workflow(name="spectra_and_timeseries")
+    inputspec = pe.Node(util.IdentityInterface(fields=['stats_file',
+                                                       'tr']),name='inputspec')
+    spectra = pe.MapNode(util.Function(input_names=['Timeseries',
+                                                 'tr'],
+                                    output_names=['figure'],
+                                    function= plot_spectrum),
+                         name='spectra', iterfield=['Timeseries'])
+    timeseries = pe.MapNode(util.Function(input_names=['Timeseries'],
+                                       output_names=['title'],
+                                       function=plot_simple_timeseries),
+                         name='timeseries', iterfield=['Timeseries'])
 
-    for i, R in enumerate(stats):
-        title = roiname[roinum==str(np.int_(R[0]))][0]
-        timeseries = R.tolist()[1:]
-        timeseries_plot = plot_simple_timeseries(timeseries,'timeseries_'+title)
-        spectra_plot = plot_spectrum(timeseries,tr,'spectra_'+title)
-        imagetable.append([title,timeseries_plot,spectra_plot])
 
-    return imagetable
+    def stats(stats_file):
+        import numpy as np
+        Stats = []
+        for stat in stats_file:
+            Stats.append(np.recfromcsv(stat).tolist())
+        return Stats
+
+    def make_table(roiname, roinum,spectra,timeseries,stats):
+        import numpy as np
+        imagetable=[['ROI','Timeseries','Spectra']]
+
+        for i, R in enumerate(stats):
+            title = roiname[roinum==str(np.int_(R[0]))][0]
+            imagetable.append([title,timeseries[i],spectra[i]])
+        return imagetable
+
+    table = pe.MapNode(util.Function(input_names=['roiname',
+                                               'roinum',
+                                               'spectra',
+                                               'timeseries',
+                                               'stats'],
+                                  output_names=['imagetable'],
+                                  function=make_table),
+                    name='maketable', iterfield=['spectra','stats','timeseries'])
+
+    wf.connect(inputspec,('stats_file', stats),spectra,'Timeseries')
+    wf.connect(inputspec,('stats_file', stats),timeseries,'Timeseries')
+    wf.connect(inputspec,('stats_file', stats),table,'stats')
+    wf.connect(inputspec,'tr', spectra,'tr')
+    wf.connect(spectra,'figure', table,'spectra')
+    wf.connect(timeseries,'title',table,'timeseries')
+    table.inputs.roiname=roiname
+    table.inputs.roinum = roinum
+
+    outputspec = pe.Node(util.IdentityInterface(fields=['imagetable']),name='outputspec')
+    wf.connect(table,'imagetable',outputspec,'imagetable')
+
+    return wf
 
 def plot_ADnorm(ADnorm,TR,norm_thresh,out):
     """ Returns a plot of the composite_norm file output from art
@@ -650,7 +697,7 @@ def corr_image(resting_image,fwhm):
     for i, roi in enumerate(np.unique(values[2])):
         roitable.append([roi,np.mean(precuneus[values[0]==np.nonzero(np.array(values[2])==roi)[0][0]])])
 
-        #images = [corr_image]+ims+[os.path.abspath("histogram.png"), roitable]
+        #images = [corr_fimage]+ims+[os.path.abspath("histogram.png"), roitable]
     roitable=[roitable]
     histogram = os.path.abspath("histogram.png")
 

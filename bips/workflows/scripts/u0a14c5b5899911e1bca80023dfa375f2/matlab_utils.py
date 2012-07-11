@@ -67,5 +67,5 @@ class ConnImport(BaseInterface):
         outputs = self._outputs().get()
         outputs['conn_inputs'] = os.path.abspath('inputs_to_conn.mat')
         outputs['conn_batch'] = '%s/conn_%s.mat'%(os.getcwd(),self.inputs.project_name)
-        outputs['conn_directory'] = '%s/conn_%s'%(os.getcwd(),self.inputs.project_name)
+        #outputs['conn_directory'] = '%s/conn_%s'%(os.getcwd(),self.inputs.project_name)
         return outputs

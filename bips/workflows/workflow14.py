@@ -54,10 +54,8 @@ class config(HasTraits):
     run_datagrabber_without_submitting = Bool(True)
     # Subjects
 
-    subjects= traits.List(traits.Str, mandatory=True, usedefault=True,
-        desc="Subject id's. Note: These MUST match the subject id's in the \
-                                Freesurfer directory. For simplicity, the subject id's should \
-                                also match with the location of individual functional files.")
+    prep_config = traits.File()
+
     n_subjects= traits.Int()
     project_name=traits.Str()
 
@@ -76,10 +74,26 @@ def create_config():
                       'out'])
     c.datagrabber.fields = []
     subs = DataBase()
-    subs.name = 'subjects'
+    subs.name = 'subject_id'
     subs.values = ['sub01','sub02','sub03']
     subs.iterable = True
     c.datagrabber.fields.append(subs)
+    c.datagrabber.field_template = dict(func='%s/spm_preproc/smoothed_outputs/*.nii',
+        struct='%s/spm_preproc/normalized_struct/*.nii',
+        csf='%s/spm_preproc/segment/mod/mwc3*.nii',
+        grey='%s/spm_preproc/segment/mod/mwc2*.nii',
+        white='%s/spm_preproc/segment/mod/mwc1*.nii',
+        realignment='%s/spm_preproc/realignment_parameters/*.par',
+        norm='%s/spm_preproc/art/*norm*',
+        out='%s/spm_preproc/art/*outlier*')
+    c.datagrabber.template_args = dict(func=[["subject_id"]],
+        struct=[["subject_id"]],
+        csf=[["subject_id"]],
+        grey=[["subject_id"]],
+        white=[["subject_id"]],
+        realignment=[["subject_id"]],
+        norm=[["subject_id"]],
+        out=[["subject_id"]])
     return c
 
 mwf.config_ui = create_config
@@ -104,11 +118,10 @@ def create_view():
             Item(name='test_mode'),
             Item(name='run_datagrabber_without_submitting'),
             label='Execution Options', show_border=True),
-        Group(Item(name='subjects', editor=CSVListEditor()),
-            label='Subjects', show_border=True),
         Group(Item(name='datagrabber', enabled_when="1"),
               Item(name='n_subjects'),
-            Item(name='project_name'),
+              Item(name='project_name'),
+              Item('prep_config'),
             label='Data', show_border=True),
         buttons = [OKButton, CancelButton],
         resizable=True,
@@ -201,8 +214,9 @@ foo = prep_config()
 def import_workflow(c,c_prep=foo):
     workflow = pe.Workflow(name='import_conn')
 
-    datagrabber = get_datagrabber(c_prep)
-    datagrabber.inputs.subject_id = c.subjects
+    datagrabber = c.datagrabber.create_dataflow()
+
+    #datagrabber.inputs.subject_id = c.subjects
 
     outliers = pe.MapNode(niu.Function(input_names=['art_outliers','motion'],
         output_names=['out_file'], function= get_outliers),
@@ -210,15 +224,15 @@ def import_workflow(c,c_prep=foo):
         iterfield=['art_outliers', 'motion'])
 
     importer = pe.Node(interface=ConnImport(), name='import_to_conn')
-    workflow.connect(datagrabber,'func',importer,'functional_files')
-    workflow.connect(datagrabber,'struct',importer,'structural_files')
-    workflow.connect(datagrabber,'csf',importer,'csf_mask')
-    workflow.connect(datagrabber,'white',importer,'white_mask')
-    workflow.connect(datagrabber,'grey',importer,'grey_mask')
-    workflow.connect(datagrabber,'realignment',importer,'realignment_parameters')
-    workflow.connect(datagrabber,'norm',importer,'norm_components')
-    workflow.connect(datagrabber,'out', outliers, 'art_outliers')
-    workflow.connect(datagrabber,'realignment', outliers, 'motion')
+    workflow.connect(datagrabber,'datagrabber.func',importer,'functional_files')
+    workflow.connect(datagrabber,'datagrabber.struct',importer,'structural_files')
+    workflow.connect(datagrabber,'datagrabber.csf',importer,'csf_mask')
+    workflow.connect(datagrabber,'datagrabber.white',importer,'white_mask')
+    workflow.connect(datagrabber,'datagrabber.grey',importer,'grey_mask')
+    workflow.connect(datagrabber,'datagrabber.realignment',importer,'realignment_parameters')
+    workflow.connect(datagrabber,'datagrabber.norm',importer,'norm_components')
+    workflow.connect(datagrabber,'datagrabber.out', outliers, 'art_outliers')
+    workflow.connect(datagrabber,'datagrabber.realignment', outliers, 'motion')
     workflow.connect(outliers, 'out_file', importer,'outliers')
 
     importer.inputs.tr = c_prep.TR
@@ -227,13 +241,14 @@ def import_workflow(c,c_prep=foo):
 
     sinker = pe.Node(nio.DataSink(),name='sinker')
     workflow.connect(importer,'conn_batch',sinker,'Conn.@batch')
+    workflow.connect(importer,'conn_inputs',sinker,'Conn.@inputs')
 
-    copier = pe.Node(niu.Function(input_names=['tree','out'],
-        output_names=['none'],function=copytree),
-        name='copy_conn_dir')
-    workflow.connect(importer,'conn_directory',copier,'tree')
+    #copier = pe.Node(niu.Function(input_names=['tree','out'],
+    #    output_names=['none'],function=copytree),
+    #    name='copy_conn_dir')
+    #workflow.connect(importer,'conn_directory',copier,'tree')
     sinker.inputs.base_directory = c.sink_dir
-    copier.inputs.out = os.path.join(c.sink_dir,'Conn')
+    #copier.inputs.out = os.path.join(c.sink_dir,'Conn')
     workflow.base_dir = c.working_dir
     return workflow
 
