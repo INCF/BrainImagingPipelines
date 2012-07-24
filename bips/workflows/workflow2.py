@@ -152,6 +152,8 @@ def extract_meta(func):
     from dcmstack.dcmmeta import NiftiWrapper
     sliceorders = []
     trs = []
+    if not isinstance(func,list):
+        func = [func]
     for f in func:
         img = load(f)
         wrp = NiftiWrapper(img)

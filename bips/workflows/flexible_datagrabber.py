@@ -21,6 +21,7 @@ def get_view():
         Item(name='template'),
         Item(name='field_template'),
         Item(name='template_args')),
+        Item(name='check'),
         buttons=[OKButton, CancelButton],
         resizable=True,
         width=1050)
@@ -46,6 +47,7 @@ class Data(HasTraits):
     field_template = traits.Dict({"key":["hi"]},usedefault=True)
 
     if use_view:
+        check = traits.Button("Check")
         view = get_view()
 
     def __init__(self,outfields=None):
@@ -125,6 +127,9 @@ class Data(HasTraits):
                     foo.append(tmp)
                 self.set(**{key:foo})
 
+    def _check_fired(self):
+        dg = self.create_dataflow()
+        dg.run()
 
 if __name__ == "__main__":    
     a = Data(['func','struct'])
