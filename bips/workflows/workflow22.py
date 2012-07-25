@@ -172,6 +172,16 @@ def get_vertices(sub,sd,overlay,reg,mean,hemi,roi='superiortemporal',thresh=1.5)
     goo = data[(foo + datax)==2]
     return int(valid_idxs[np.argmax(goo)])
 
+def mask_overlay(mask,overlay,use_mask_overlay, thresh):
+    import os
+    if use_mask_overlay:
+        os.environ["FSLOUTPUTTYPE"] = 'NIFTI'
+        outfile = os.path.abspath('masked_overlay.nii')
+        cmd = 'fslmaths %s -thr %s -bin -mul %s %s'%(mask,thresh, overlay,outfile)
+        os.system(cmd)
+    else:
+        outfile = overlay
+    return outfile
 
 def localizer(name='localizer'):
     wf = pe.Workflow(name=name)
@@ -179,7 +189,11 @@ def localizer(name='localizer'):
                                                       "subjects_dir",
                                                       "overlay",
                                                       'reg',
-                                                      'mean','thresh','roi']),name='inputspec')
+                                                      'mean',
+                                                      'thresh',
+                                                      'roi',
+                                                      "mask_overlay",
+                                                      "use_mask_overlay"]),name='inputspec')
     surf_label = pe.MapNode(niu.Function(input_names=['vertex',
                                                    'hemi',
                                                    'subject',
@@ -193,9 +207,23 @@ def localizer(name='localizer'):
     surf_label.inputs.hemi=['lh','rh']
     #surf_label.inputs.vertex = [61091, 60437]
     #surf_label.inputs.thresh = 1.5
+
+    masker = pe.Node(niu.Function(input_names=['mask',
+                                               'overlay',
+                                               'use_mask_overlay',
+                                               'thresh'],
+                                  output_names=['outfile'],function=mask_overlay),
+        name='mask_overlay')
+
+    wf.connect(inputspec,'overlay',masker,'overlay')
+    wf.connect(inputspec,'mask_overlay',masker,'mask')
+    wf.connect(inputspec,'use_mask_overlay',masker,'use_mask_overlay')
+    wf.connect(inputspec,'thresh',masker,'thresh')
+    wf.connect(masker,'outfile',surf_label,'overlay')
+
     wf.connect(inputspec,"subject_id",surf_label,"subject")
     wf.connect(inputspec,"subjects_dir",surf_label,"sd")
-    wf.connect(inputspec,"overlay",surf_label,"overlay")
+    #wf.connect(inputspec,"overlay",surf_label,"overlay")
     wf.connect(inputspec,"reg",surf_label,"reg")
 
     label2vol = pe.Node(fs.Label2Vol(),name='labels2vol')
@@ -218,7 +246,8 @@ def localizer(name='localizer'):
     verts.inputs.hemi = ['lh','rh']
     wf.connect(inputspec,'subject_id',verts,'sub')
     wf.connect(inputspec,'subjects_dir',verts,'sd')
-    wf.connect(inputspec,'overlay',verts,'overlay')
+    #wf.connect(inputspec,'overlay',verts,'overlay')
+    wf.connect(masker,'outfile',verts,'overlay')
     wf.connect(inputspec,'reg',verts,'reg')
     wf.connect(inputspec,'mean',verts,'mean')
     wf.connect(inputspec,'thresh',verts,'thresh')
@@ -265,6 +294,8 @@ def main(config_file):
     wk.inputs.inputspec.reg = c.reg_file
     wk.inputs.inputspec.thresh = c.thresh
     wk.inputs.inputspec.roi = c.roi
+    wk.inputs.inputspec.mask_overlay = c.mask_contrast
+    wk.inputs.inputspec.use_mask_overlay = c.use_contrast_mask
     wk.base_dir = c.working_dir
     if c.run_using_plugin:
         wk.run(plugin=c.plugin,plugin_args=c.plugin_args)
