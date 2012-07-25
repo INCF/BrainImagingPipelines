@@ -989,22 +989,84 @@ def make_surface_plots(con_image,reg_file,subject_id,thr,sd):
 
     return surface_ims, surface_mgzs
 
+def get_coords2(in_file,img):
+    """Here, img = labels from getlabels!"""
+    import numpy as np
+    from nibabel import load
+    affine = load(in_file).get_affine()
+    img=img[0]
+    coords = []
+    labels = np.setdiff1d(np.unique(img.ravel()), [0])
+    cs = []
+    for label in labels:
+        cs.append(np.sum(img==label))
+    for label in labels[np.argsort(cs)[::-1]]:
+        coords.append(np.dot(affine,
+            np.hstack((np.mean(np.asarray(np.nonzero(img==label)),
+                axis = 1),
+                       1)))[:3].tolist())
+    return [coords]
+
 def cluster_image(name="threshold_cluster_makeimages"):
     from nipype.interfaces import fsl
     workflow = pe.Workflow(name=name)
-    inputspcdvec = pe.Node(util.IdentityInterface(fields=["func","mask"]),name="inputspec")
+    inputspec = pe.Node(util.IdentityInterface(fields=["zstat","mask","threshold","connectivity",'anatomical']),name="inputspec")
     smoothest = pe.MapNode(fsl.SmoothEstimate(), name='smooth_estimate', iterfield=['zstat_file'])
-    workflow.connect(inputspec,'func', smoothest, 'zstat_file')
+    workflow.connect(inputspec,'zstat', smoothest, 'zstat_file')
     workflow.connect(inputspec,'mask',smoothest, 'mask_file')
 
     cluster = pe.MapNode(fsl.Cluster(), name='cluster', iterfield=['in_file','dlh','volume'])
     workflow.connect(smoothest,'dlh', cluster, 'dlh')
     workflow.connect(smoothest, 'volume', cluster, 'volume')
+    workflow.connect(inputspec,"threshold",cluster,"threshold")
+    workflow.connect(inputspec,"connectivity",cluster,"connectivity")
     #cluster.inputs.connectivity = csize
     #cluster.inputs.threshold = thr
     cluster.inputs.out_threshold_file = True
-    workflow.connect(inputspec,'func',cluster,'in_file')
+    cluster.inputs.out_pval_file = True
+    workflow.connect(inputspec,'zstat',cluster,'in_file')
 
-    workflow.connect(cluster, 'threshold_file',imgflow,'inputspec.in_file')
+    #logp = pe.MapNode(fsl.UnaryMaths(operation='exp'),name='unlog_p')
+    #workflow.connect(cluster,"pval_file",logp,"in_file")
+
+    labels = pe.MapNode(util.Function(input_names=['in_file','thr','csize'],
+                                   output_names=['labels'],function=get_labels),
+        name='labels',iterfield=["in_file"])
+
+    workflow.connect(inputspec,"threshold",labels,"thr")
+    workflow.connect(inputspec,"connectivity",labels,"csize")
+    workflow.connect(cluster,"threshold_file",labels,"in_file")
+    showslice=pe.MapNode(util.Function(input_names=['image_in','anat_file','coordinates','thr'],
+                                    output_names=["outfiles"],function=show_slices),
+              name='showslice',iterfield=["image_in","coordinates"])
+
+    coords = pe.MapNode(util.Function(input_names=["in_file","img"],
+                                   output_names=["coords"],
+                                   function=get_coords2),
+        name='getcoords', iterfield=["in_file","img"])
+
+    workflow.connect(cluster,'threshold_file',showslice,'image_in')
+    workflow.connect(inputspec,'anatomical',showslice,"anat_file")
+    workflow.connect(inputspec,'threshold',showslice,'thr')
+    workflow.connect(labels,'labels',coords,"img")
+    workflow.connect(cluster,"threshold_file",coords,"in_file")
+    workflow.connect(coords,"coords",showslice,"coordinates")
+
+    overlay = pe.MapNode(util.Function(input_names=["stat_image",
+                                                 "background_image",
+                                                 "threshold"],
+                                       output_names=["fnames"],function=overlay_new),
+                         name='overlay', iterfield=["stat_image"])
+    workflow.connect(inputspec,"anatomical", overlay,"background_image")
+    workflow.connect(cluster,"threshold_file",overlay,"stat_image")
+    workflow.connect(inputspec,"threshold",overlay,"threshold")
+    #workflow.connect(cluster, 'threshold_file',imgflow,'inputspec.in_file')
     #workflow.connect(dataflow,'func',imgflow, 'inputspec.in_file')
-    workflow.connect(inputspec,'mask',imgflow, 'inputspec.mask_file')
+    #workflow.connect(inputspec,'mask',imgflow, 'inputspec.mask_file')
+
+    outputspec = pe.Node(util.IdentityInterface(fields=["corrected_z","slices","cuts","corrected_p"]),name='outputspec')
+    workflow.connect(cluster,'threshold_file',outputspec,'corrected_z')
+    workflow.connect(showslice,"outfiles",outputspec,"slices")
+    workflow.connect(overlay,"fnames",outputspec,"cuts")
+    #workflow.connect(logp,'out_file',outputspec,"corrected_p")
+    return workflow

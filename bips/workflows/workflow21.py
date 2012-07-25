@@ -126,6 +126,9 @@ def segstats_workflow(c, name='segstats'):
 
 mwf.workflow_function = segstats_workflow
 
+"""
+Main
+"""
 def main(config_file):
     c = load_config(config_file,config)
     wk = segstats_workflow(c)
