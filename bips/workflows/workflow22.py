@@ -52,6 +52,7 @@ class config(HasTraits):
     use_contrast_mask = traits.Bool(True)
     reg_file = traits.File()
     mean_image = traits.File()
+    background_thresh = traits.Float(0.5)
     roi = traits.Enum('superiortemporal',
                        'bankssts',
                        'caudalanteriorcingulate',
@@ -118,7 +119,7 @@ def create_view():
             Item(name='contrast'),
             Item(name='mask_contrast'),
             Item(name='use_contrast_mask'),
-            Item(name='reg_file'), Item(name='mean_image'), Item(name='roi'), Item(name='thresh'),
+            Item(name='reg_file'), Item(name='mean_image'), Item(name='roi'), Item(name='thresh'), Item('background_thresh'),
             label='Data', show_border=True),
         buttons=[OKButton, CancelButton],
         resizable=True,
@@ -183,6 +184,14 @@ def mask_overlay(mask,overlay,use_mask_overlay, thresh):
         outfile = overlay
     return outfile
 
+def background(overlay,uthresh):
+    import os
+    os.environ["FSLOUTPUTTYPE"] = 'NIFTI'
+    outfile = os.path.abspath('background.nii')
+    cmd = 'fslmaths %s -abs -uthr %s -bin %s -odt short'%(overlay,uthresh,outfile)
+    os.system(cmd)
+    return outfile
+
 def localizer(name='localizer'):
     wf = pe.Workflow(name=name)
     inputspec = pe.Node(niu.IdentityInterface(fields=["subject_id",
@@ -193,7 +202,7 @@ def localizer(name='localizer'):
                                                       'thresh',
                                                       'roi',
                                                       "mask_overlay",
-                                                      "use_mask_overlay"]),name='inputspec')
+                                                      "use_mask_overlay","uthresh"]),name='inputspec')
     surf_label = pe.MapNode(niu.Function(input_names=['vertex',
                                                    'hemi',
                                                    'subject',
@@ -215,6 +224,9 @@ def localizer(name='localizer'):
                                   output_names=['outfile'],function=mask_overlay),
         name='mask_overlay')
 
+    bg = pe.Node(niu.Function(input_names=['overlay','uthresh'],output_names=['outfile'],function=background),name='background')
+    wf.connect(inputspec,'overlay',bg,'overlay')
+    wf.connect(inputspec,'uthresh',bg,'uthresh')
     wf.connect(inputspec,'overlay',masker,'overlay')
     wf.connect(inputspec,'mask_overlay',masker,'mask')
     wf.connect(inputspec,'use_mask_overlay',masker,'use_mask_overlay')
@@ -255,12 +267,12 @@ def localizer(name='localizer'):
     wf.connect(verts,'vertex',surf_label,'vertex')
     wf.connect(inputspec,'thresh',surf_label,'thresh')
 
-    outputspec = pe.Node(niu.IdentityInterface(fields=['rois']),name='outputspec')
+    outputspec = pe.Node(niu.IdentityInterface(fields=['rois','reference']),name='outputspec')
 
     bin = pe.Node(fsl.ImageMaths(op_string = '-bin'),name="binarize_roi")
     changetype = pe.Node(fsl.ChangeDataType(output_datatype='short'),name='to_short')
 
-
+    wf.connect(bg,'outfile',outputspec,'reference')
     wf.connect(label2vol,'vol_label_file',bin,'in_file')
     wf.connect(bin,'out_file', changetype, 'in_file')
     wf.connect(changetype, 'out_file', outputspec, 'rois')
@@ -279,7 +291,8 @@ def main(config_file):
 
     sinker = pe.Node(nio.DataSink(),name='sinker')
     outputspec = wk.get_node('outputspec')
-    wk.connect(outputspec,'rois', sinker,'mask')
+    wk.connect(outputspec,'rois', sinker,'mask.@roi')
+    wk.connect(outputspec,'reference', sinker,'mask.@ref')
     sinker.inputs.container = c.subject_id
     sinker.inputs.substitutions = [('_labels2vol0',''),
                                    ('_labels2vol1',''),
@@ -296,6 +309,7 @@ def main(config_file):
     wk.inputs.inputspec.roi = c.roi
     wk.inputs.inputspec.mask_overlay = c.mask_contrast
     wk.inputs.inputspec.use_mask_overlay = c.use_contrast_mask
+    wk.inputs.inputspec.uthresh = c.background_thresh
     wk.base_dir = c.working_dir
     if c.run_using_plugin:
         wk.run(plugin=c.plugin,plugin_args=c.plugin_args)
