@@ -256,7 +256,7 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False, onsets=False):
                                                                  'aparc_aseg',
                                                                  'subject',
                                                                  'onsets',
-                                                                 'input_units']),name='inputspec')
+                                                                 'input_units','sd']),name='inputspec')
     
     voltransform = pe.MapNode(interface=ApplyVolTransform(inverse=True, interp='nearest'),name='applyreg', iterfield=['source_file'])
     

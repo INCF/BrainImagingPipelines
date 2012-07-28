@@ -41,7 +41,7 @@ class DataBase(HasTraits):
     
 class Data(HasTraits):
     fields = traits.List(traits.Instance(DataBase, ()))
-    base_directory = Directory()
+    base_directory = Directory(os.path.abspath('.'))
     template = traits.Str('*')     
     template_args = traits.Dict({"a":"b"},usedefault=True) 
     field_template = traits.Dict({"key":["hi"]},usedefault=True)
