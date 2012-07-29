@@ -57,6 +57,8 @@
 .. _subversion: http://subversion.tigris.org/
 .. _nose: http://somethingaboutorange.com/mrl/projects/nose
 .. _`python coverage tester`: http://nedbatchelder.com/code/modules/coverage.html
+.. _GitHub: http://www.github.com
+
 
 .. Other python projects
 .. _numpy: http://www.scipy.org/NumPy

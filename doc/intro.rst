@@ -1,4 +1,10 @@
 Introduction to BIPS
 ====================
 
-Hello! This is an introduction!
+.. toctree::
+   :maxdepth: 2
+
+   install_setup.rst
+   getting_started.rst
+   locate_data.rst
+   contribute.rst 
