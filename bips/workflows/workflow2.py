@@ -41,6 +41,7 @@ class config(baseconfig):
     reg_params = traits.BaseTuple(traits.Bool(desc="motion parameters"),
                                   traits.Bool(desc="norm components"),
                                   traits.Bool(desc="noise components (CompCor)"),
+                                  traits.Bool(desc='gloabl signal (NOT RECOMMENDED!)'),
                                   traits.Bool(desc="art_outliers"),
                                   traits.Bool(desc="motion derivatives"))
     do_despike = traits.Bool(False,usedefault=True)

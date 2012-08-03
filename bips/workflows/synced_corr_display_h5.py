@@ -5,10 +5,10 @@
 
 import os
 
-from surfer import Brain
+
 import scipy.io as sio
 import numpy as np
-from mayavi import mlab
+
 from tables import openFile
 
 from .base import MetaWorkflow, load_config, register_workflow
@@ -81,6 +81,7 @@ brains = []
 corrmats = []
 
 def do_overlay(idx):
+    from mayavi import mlab
     global overlay_added
     global brains
     global corrmats
@@ -101,6 +102,8 @@ def picker_callback(picker_object):
     do_overlay(picker_object.point_id)
 
 def display_matrices(filenames, target, hemi, surface):
+    from mayavi import mlab
+    from surfer import Brain
     print '\n'.join(filenames)
     for name in filenames:
         try:

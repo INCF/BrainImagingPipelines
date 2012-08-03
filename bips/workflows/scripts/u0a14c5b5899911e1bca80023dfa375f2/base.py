@@ -11,7 +11,7 @@ from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
 
 
 def create_filter_matrix(motion_params, composite_norm,
-                         compcorr_components, art_outliers, selector):
+                         compcorr_components, art_outliers, global_signal, selector):
     """Combine nuisance regressor components into a single file
 
     Parameters
@@ -21,7 +21,7 @@ def create_filter_matrix(motion_params, composite_norm,
     compcorr_components : components from compcor
     art_outliers : outlier timepoints from artifact detection
     selector : a boolean list corresponding to the files to concatenate together\
-               [motion_params, composite_norm, compcorr_components, art_outliers,\
+               [motion_params, composite_norm, compcorr_components, global_signal, art_outliers,\
                 motion derivatives]
                 
     Returns
@@ -30,7 +30,7 @@ def create_filter_matrix(motion_params, composite_norm,
     """
     import numpy as np
     import os
-    if not len(selector) == 5:
+    if not len(selector) == 6:
         print "selector is not the right size!"
         return None
 
@@ -42,9 +42,9 @@ def create_filter_matrix(motion_params, composite_norm,
             return np.array([])
 
     options = np.array([motion_params, composite_norm,
-                        compcorr_components, art_outliers])
+                        compcorr_components, global_signal, art_outliers])
     selector = np.array(selector)
-    fieldnames = ['motion', 'comp_norm', 'compcor', 'art', 'dmotion']
+    fieldnames = ['motion', 'comp_norm', 'compcor', 'global_signal', 'art', 'dmotion']
 
     splitter = np.vectorize(lambda x: os.path.split(x)[1])
     filenames = [fieldnames[i] for i, val in enumerate(selector) if val]
@@ -605,7 +605,7 @@ def create_rest_prep(name='preproc',fieldmap=False):
     #add outliers and noise components
     addoutliers = pe.MapNode(util.Function(input_names=['motion_params',
                                                      'composite_norm',
-                                                     "compcorr_components",
+                                                     "compcorr_components","global_signal",
                                                      "art_outliers",
                                                      "selector"],
                                         output_names=['filter_file'],
@@ -689,6 +689,7 @@ def create_rest_prep(name='preproc',fieldmap=False):
                     addoutliers, 'art_outliers')
     preproc.connect(ad, 'norm_files',
                     addoutliers, 'composite_norm')
+    preproc.connect(ad, 'intensity_files', addoutliers, 'global_signal')
     preproc.connect(compcor, 'outputspec.noise_components', 
                     addoutliers, 'compcorr_components')
     preproc.connect(motion_correct, 'par_file',  

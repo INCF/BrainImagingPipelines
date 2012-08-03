@@ -20,7 +20,7 @@ body {
 }
 
 a {
-    color: #CA7900;
+    color: #95003C;/*#CA7900;*/
     text-decoration: none;
 }
 
@@ -91,7 +91,7 @@ a tt {
     background-color: transparent;
     font-weight: bold;
     border: 0;
-    color: #CA7900;
+    color: #95003C;/*#CA7900;*/
 }
 
 a tt:hover {
@@ -198,7 +198,7 @@ div.related ul li a {
     margin: 0;
     padding: 0 5px 0 5px;
     line-height: 1.75em;
-    color: #EE9816;
+    color: #95003C; /*#EE9816;*/
 }
 
 div.related ul li a:hover {
@@ -324,7 +324,7 @@ div.footer a {
 div.pagination {
     margin-top: 2em;
     padding-top: 0.5em;
-    border-top: 1px solid black;
+    border-top: 1px solid green;/*black;*/
     text-align: center;
 }
 

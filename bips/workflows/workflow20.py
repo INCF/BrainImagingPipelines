@@ -219,11 +219,14 @@ def get_datagrabber(c):
         varcopes=[['fwhm',"contrast","subject_id"]])
     return datasource
 
-def get_substitutions(contrast):
-    subs = [('_fwhm','fwhm'),
-        ('_contrast_%s'%contrast,''),
-        ('output','')]
-    return subs
+#def get_substitutions(contrast):
+#    subs = [('_fwhm','fwhm'),
+#        ('_contrast_%s'%contrast,''),
+#        ('output','')]
+#    return subs
+
+
+from .workflow18 import get_substitutions
 
 def get_regressors(csv,ids):
     import numpy as np

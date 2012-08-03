@@ -213,6 +213,14 @@ def get_substitutions(contrast):
     subs = [('_fwhm','fwhm'),
             ('_contrast_%s'%contrast,''),
             ('output','')]
+    for i in range(0,20):
+        subs.append(('_z2pval%d'%i,''))
+        subs.append(('_cluster%d'%i, ''))
+        subs.append(('_showslice%d'%i,''))
+        subs.append(('_overlay%d/x_view.png'%i,'zstat%d_x_view.png'%(i+1)))
+        subs.append(('_overlay%d/y_view.png'%i,'zstat%d_y_view.png'%(i+1)))
+        subs.append(('_overlay%d/z_view.png'%i,'zstat%d_z_view.png'%(i+1)))
+
     return subs
 
 def connect_to_config(c):
@@ -226,7 +234,9 @@ def connect_to_config(c):
     sinkd = pe.Node(nio.DataSink(),name='sinker')
     sinkd.inputs.base_directory = c.sink_dir
     #sinkd.inputs.substitutions = [('_fwhm','fwhm'),('_contrast_','')]
+
     wk.connect(infosourcecon,("contrast",get_substitutions),sinkd,"substitutions")
+
     wk.connect(infosourcecon,"contrast",sinkd,"container")
     inputspec = wk.get_node('inputspec')
     outputspec = wk.get_node('outputspec')
