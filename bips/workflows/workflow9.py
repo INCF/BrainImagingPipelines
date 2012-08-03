@@ -176,11 +176,12 @@ def normalize_workflow(c):
     norm.connect(fssource, ('aparc_aseg', pickfirst),
                  inputspec, 'segmentation')
     norm.connect(fssource, 'orig', inputspec, 'brain')
-    norm.connect(infosource, 'subject_id', datagrab, 'subject_id')
-    norm.connect(infofwhm, 'fwhm', datagrab, 'fwhm')
+
 
     if not c.do_anatomical_only:
         datagrab = func_datagrabber(c)
+        norm.connect(infosource, 'subject_id', datagrab, 'subject_id')
+        norm.connect(infofwhm, 'fwhm', datagrab, 'fwhm')
         norm.connect(datagrab, 'fsl_mat', inputspec, 'out_fsl_file')
         norm.connect(datagrab, 'inputs', inputspec, 'moving_image')
         norm.connect(datagrab, 'meanfunc', inputspec, 'mean_func')
