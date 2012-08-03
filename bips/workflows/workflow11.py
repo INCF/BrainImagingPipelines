@@ -106,18 +106,6 @@ mwf.config_view = create_view
 Part 4: Construct Workflow
 """
 
-"""
-def getinfo(cons, info):
-    numruns = len(info)
-    print numruns  # dbg
-    numcon = len(cons)
-    info = dict(copes=[['subject_id', 'fwhm', range(1, numcon + 1)]],
-                varcopes=[['subject_id', 'fwhm', range(1, numcon + 1)]],
-                dof_files=[['subject_id', 'fwhm']],
-                mask_file=[['subject_id']])
-    return info"""
-
-
 def num_copes(files):
     if type(files[0]) is list:
         return len(files[0])
@@ -140,48 +128,7 @@ def getsubs(subject_id, cons):
                      'zstat_overlay%d_%s.png' % (i, con[0])))
     return subs
 
-"""
-def create_overlay_workflow(c,name='overlay'):
-    # Setup overlay workflow
 
-    overlay = pe.Workflow(name='overlay')
-
-    inputspec = pe.Node(util.IdentityInterface(fields=['subject_id',
-                                                       'fwhm',
-                                                       'stat_image']),
-                        name='inputspec')
-
-    datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
-                                                   outfields=['meanfunc']),
-                         name='datasource')
-
-    datasource.inputs.base_directory = c.sink_dir
-    datasource.inputs.template = '*'
-    datasource.inputs.sort_filelist = True
-    datasource.inputs.field_template = dict(meanfunc='%s/preproc/mean/*.nii*')
-    datasource.inputs.template_args = dict(meanfunc=[['subject_id']])
-
-    overlaystats = pe.MapNode(interface=fsl.Overlay(),
-                              name="overlaystats",
-                              iterfield=['stat_image'])
-
-    slicestats = pe.MapNode(interface=fsl.Slicer(),
-                            name="slicestats",
-                            iterfield=['in_file'])
-
-    slicestats.inputs.all_axial = True
-    slicestats.inputs.image_width = 512
-    overlaystats.inputs.show_negative_stats = True
-    overlaystats.inputs.auto_thresh_bg = True
-    overlaystats.inputs.stat_thresh = c.overlay_thresh
-
-    overlay.connect(inputspec, 'subject_id', datasource, 'subject_id')
-    #overlay.connect(inputspec, 'fwhm', datasource, 'fwhm')
-    overlay.connect(inputspec, 'stat_image', overlaystats, 'stat_image')
-    overlay.connect(datasource, 'meanfunc', overlaystats, 'background_image')
-    overlay.connect(overlaystats, 'out_file', slicestats, 'in_file')
-
-    return overlay"""
 
 from .workflow10 import create_config as first_config
 from .workflow2 import create_config as prep_config
