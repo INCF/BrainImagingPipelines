@@ -1,8 +1,4 @@
 import os
-import nipype.interfaces.fsl as fsl
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as niu
-import nipype.interfaces.io as nio
 from .base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
@@ -144,6 +140,10 @@ Construct Workflow
 get_len = lambda x: len(x)
 
 def create_2lvl(name="group"):
+    import nipype.interfaces.fsl as fsl
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as niu
+    import nipype.interfaces.io as nio
     wk = pe.Workflow(name=name)
     
     inputspec = pe.Node(niu.IdentityInterface(fields=['copes','varcopes','template']),name='inputspec')
@@ -196,6 +196,9 @@ def create_2lvl(name="group"):
     return wk
 
 def get_datagrabber(c):
+
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id',
                                                              'fwhm',"contrast"],
                                                    outfields=['copes','varcopes']),
@@ -224,6 +227,8 @@ def get_substitutions(contrast):
     return subs
 
 def connect_to_config(c):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
     wk = create_2lvl()
     wk.base_dir = c.working_dir
     datagrabber = c.datagrabber.create_dataflow()  #get_datagrabber(c)

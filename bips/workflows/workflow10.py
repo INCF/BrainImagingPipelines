@@ -1,8 +1,4 @@
 # Import Stuff
-import nipype.interfaces.utility as util    # utility
-import nipype.pipeline.engine as pe         # pypeline engine
-import nipype.interfaces.io as nio          # input/output
-from nipype.algorithms.modelgen import SpecifyModel
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.base import create_first
 import os
 from .base import MetaWorkflow, load_config, register_workflow
@@ -151,6 +147,10 @@ Part 4: Workflow Construction
 """
 
 def preproc_datagrabber(c, name='preproc_datagrabber'):
+
+    import nipype.pipeline.engine as pe         # pypeline engine
+    import nipype.interfaces.io as nio          # input/output
+
     # create a node to obtain the preproc files
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id','fwhm'],
                                                    outfields=['noise_components',
@@ -220,7 +220,10 @@ from .scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import create_config a
 foo = prep_config()
 
 def combine_wkflw(c,prep_c=foo, name='work_dir'):
-    
+    import nipype.interfaces.utility as util    # utility
+    import nipype.pipeline.engine as pe         # pypeline engine
+    import nipype.interfaces.io as nio          # input/output
+    from nipype.algorithms.modelgen import SpecifyModel
     modelflow = pe.Workflow(name=name)
     modelflow.base_dir = os.path.join(c.working_dir)
     

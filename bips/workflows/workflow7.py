@@ -1,8 +1,5 @@
 import os
-from nipype.interfaces import fsl
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
-import nipype.interfaces.io as nio
+
 from .base import MetaWorkflow, load_config, register_workflow
 from nipype.interfaces.io import FreeSurferSource
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import pickfirst
@@ -127,6 +124,10 @@ Part 4: Workflow Construction
 """
 
 def img_wkflw(thr, csize, name='slice_image_generator'):
+    from nipype.interfaces import fsl
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+
     inputspec = pe.Node(util.IdentityInterface(fields=['in_file',
                                                        'mask_file',
                                                        'anat_file',
@@ -210,7 +211,8 @@ def img_wkflw(thr, csize, name='slice_image_generator'):
     return workflow               
     
 def get_data(c,name='first_level_datagrab'):
-    
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
     datasource = pe.Node(nio.DataGrabber(infields=['subject_id',
                                                    'fwhm'],
                                         outfields=['func',
@@ -241,7 +243,8 @@ def get_data(c,name='first_level_datagrab'):
     return datasource
     
 def get_fx_data(c, name='fixedfx_datagrab'):
-    
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
     datasource = pe.Node(nio.DataGrabber(infields=['subject_id',
                                                    'fwhm'],
                                          outfields=['func',
@@ -278,6 +281,10 @@ foo0 = first_config()
 foo1 = prep_config()
 
 def combine_report(c, first_c=foo0, prep_c=foo1, fx_c=None, thr=2.326,csize=30,fx=False):
+    from nipype.interfaces import fsl
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    import nipype.interfaces.io as nio
 
     if not fx:
         workflow = pe.Workflow(name='first_level_report')

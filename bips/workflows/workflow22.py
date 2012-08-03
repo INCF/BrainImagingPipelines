@@ -1,12 +1,8 @@
 from .base import MetaWorkflow, load_config, register_workflow
-from traits.api import HasTraits, Directory, Bool, Button
+from traits.api import HasTraits, Directory, Bool
 import traits.api as traits
 import os
-import nipype.interfaces.freesurfer as fs
-import nipype.interfaces.fsl as fsl
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as niu
-import nipype.interfaces.io as nio
+
 
 """
 MetaWorkflow
@@ -193,6 +189,11 @@ def background(overlay,uthresh):
     return outfile
 
 def localizer(name='localizer'):
+    import nipype.interfaces.freesurfer as fs
+    import nipype.interfaces.fsl as fsl
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as niu
+
     wf = pe.Workflow(name=name)
     inputspec = pe.Node(niu.IdentityInterface(fields=["subject_id",
                                                       "subjects_dir",
@@ -284,6 +285,9 @@ mwf.workflow_function = localizer
 Main
 """
 def main(config_file):
+
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
     c = load_config(config_file,config)
     wk = localizer()
     if c.test_mode:

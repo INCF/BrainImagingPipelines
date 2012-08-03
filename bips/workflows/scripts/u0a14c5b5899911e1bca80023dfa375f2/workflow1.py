@@ -1,12 +1,8 @@
 import os
-
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
 
 
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
-import nipype.interfaces.io as nio
 
 #from .base import MetaWorkflow, load_config, register_workflow, debug_workflow
 
@@ -246,6 +242,9 @@ from .utils import (get_datasink,
                                                              get_substitutions)
 
 def get_dataflow(c):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
+
     dataflow = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
                                                    outfields=['func']),
                          name = "preproc_dataflow",
@@ -258,6 +257,10 @@ def get_dataflow(c):
     return dataflow
     
 def prep_workflow(c):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    import nipype.interfaces.io as nio
+
     fieldmap=c.use_fieldmap
     infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
                          name='subject_names')

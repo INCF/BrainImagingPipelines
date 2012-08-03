@@ -2,12 +2,6 @@
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """Perform fixed effects analysis on runs processed by preproc.py
 """
-
-from nipype.workflows.fmri.fsl.estimate import create_fixed_effects_flow
-import nipype.interfaces.io as nio           # i/o routines
-import nipype.interfaces.fsl as fsl          # fsl
-import nipype.interfaces.utility as util     # utility
-import nipype.pipeline.engine as pe          # pypeline engine
 from .base import MetaWorkflow, load_config, register_workflow
 from .flexible_datagrabber import Data, DataBase
 from .workflow10 import config as baseconfig
@@ -195,6 +189,10 @@ from .workflow2 import create_config as prep_config
 foo0 = first_config()
 
 def create_fixedfx(c, first_c=foo0, name='fixedfx'):
+    from nipype.workflows.fmri.fsl.estimate import create_fixed_effects_flow
+    import nipype.interfaces.io as nio           # i/o routines
+    import nipype.interfaces.utility as util     # utility
+    import nipype.pipeline.engine as pe          # pypeline engine
     selectnode = pe.Node(interface=util.IdentityInterface(fields=['runs']),
                          name='idselect')
 

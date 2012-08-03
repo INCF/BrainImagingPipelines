@@ -1,7 +1,3 @@
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
-import nipype.interfaces.fsl as fsl
-
 
 def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
                 parameters={}):
@@ -260,7 +256,9 @@ Example
 >>> smooth.run() # doctest: +SKIP
 
 """
-
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    import nipype.interfaces.fsl as fsl
     susan_smooth = pe.Workflow(name=name)
 
     """

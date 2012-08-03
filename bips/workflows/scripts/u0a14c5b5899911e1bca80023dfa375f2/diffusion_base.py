@@ -1,13 +1,10 @@
-from nipype.workflows.dmri.fsl import create_bedpostx_pipeline
-import nipype.interfaces.fsl as fsl
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as niu
-import nipype.interfaces.io as nio
-import nipype.interfaces.freesurfer as fs
-from .utils import pickfirst
-
 
 def create_workflow(name='tracking'):
+    from nipype.workflows.dmri.fsl import create_bedpostx_pipeline
+    import nipype.interfaces.fsl as fsl
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as niu
+
     wf = pe.Workflow(name=name)
     bed_wf = create_bedpostx_pipeline()
     inputspec = pe.Node(niu.IdentityInterface(fields=['dwi',
@@ -89,6 +86,10 @@ def binarize_and_name(in_file,subject_id,surf_dir,hemi):
 merge=lambda x: x[0]+x[1]
 
 def get_regions(name='get_regions'):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as niu
+    import nipype.interfaces.io as nio
+    import nipype.interfaces.freesurfer as fs
     wf= pe.Workflow(name=name)
     inputspec = pe.Node(niu.IdentityInterface(fields=["surf_dir",
                                                       "subject_id",

@@ -4,13 +4,9 @@
 # <codecell>
 
 import os
-
-
 import scipy.io as sio
 import numpy as np
-
 from tables import openFile
-
 from .base import MetaWorkflow, load_config, register_workflow
 
 """

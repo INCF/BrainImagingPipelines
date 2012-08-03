@@ -1,10 +1,5 @@
 import os
 
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
-from nipype.interfaces.freesurfer import ApplyVolTransform
-from nipype.workflows.smri.freesurfer.utils import create_get_stats_flow
-
 def art_output(art_file,intensity_file,stats_file):
     import numpy as np
     from nipype.utils.filemanip import load_json
@@ -106,7 +101,8 @@ def plot_simple_timeseries(Timeseries):
     return title
 
 def spectrum_ts_table():
-
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
     import numpy as np
     import os
 
@@ -248,6 +244,11 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False, onsets=False):
     
     
     """
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    from nipype.interfaces.freesurfer import ApplyVolTransform
+    from nipype.workflows.smri.freesurfer.utils import create_get_stats_flow
+
     preproc = pe.Workflow(name=name)
     
     inputspec = pe.Node(interface=util.IdentityInterface(fields=['reg_file',
@@ -1009,6 +1010,9 @@ def get_coords2(in_file,img):
 
 def cluster_image(name="threshold_cluster_makeimages"):
     from nipype.interfaces import fsl
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+
     workflow = pe.Workflow(name=name)
     inputspec = pe.Node(util.IdentityInterface(fields=["zstat","mask","threshold","connectivity",'anatomical']),name="inputspec")
     smoothest = pe.MapNode(fsl.SmoothEstimate(), name='smooth_estimate', iterfield=['zstat_file'])

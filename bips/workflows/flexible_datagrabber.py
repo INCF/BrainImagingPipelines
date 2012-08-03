@@ -1,9 +1,7 @@
 # flexible datagrabber workflow
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
-import nipype.interfaces.io as nio
-import nipype.interfaces.utility as niu
-import nipype.pipeline.engine as pe
+
 import os
 try:
     os.environ["DISPLAY"]
@@ -14,7 +12,7 @@ except KeyError:
 import os
 
 def get_view():
-    from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor, EnumEditor
+    from traitsui.api import View, Item, Group
     from traitsui.menu import OKButton, CancelButton
     view = View(Group(Item(name='fields'),
         Item(name='base_directory'),
@@ -68,6 +66,8 @@ class Data(HasTraits):
         return infields
     
     def _add_iterable(self,field):
+        import nipype.interfaces.utility as niu
+        import nipype.pipeline.engine as pe
         it = pe.Node(niu.IdentityInterface(fields=[field.name]),
                      name=field.name+"_iterable")
         it.iterables = (field.name, field.values)
@@ -86,6 +86,8 @@ class Data(HasTraits):
         self._dg.inputs.trait_set(**set_dict)
         
     def create_dataflow(self):
+        import nipype.interfaces.io as nio
+        import nipype.pipeline.engine as pe
         self._wk = pe.Workflow(name='custom_datagrabber')
         self._dg = pe.Node(nio.DataGrabber(outfields = self.outfields, 
                                      infields = self._get_infields()),

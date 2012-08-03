@@ -1,11 +1,3 @@
-import nipype.interfaces.fsl as fsl         # fsl
-import nipype.algorithms.rapidart as ra     # rapid artifact detection
-from nipype.interfaces.fsl.utils import EPIDeWarp
-from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
-from .modular_nodes import create_mod_smooth, mod_realign, mod_filter, mod_regressor, mod_despike
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
-
 from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
                    getmeanscale, highpass_operand, pickfirst, whiten)
 
@@ -152,6 +144,14 @@ def create_prep(name='preproc'):
     -------
     workflow : preprocessing workflow
     """
+
+    import nipype.interfaces.fsl as fsl         # fsl
+    import nipype.algorithms.rapidart as ra     # rapid artifact detection
+    from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
+    from .modular_nodes import create_mod_smooth, mod_realign, mod_despike
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+
     preproc = pe.Workflow(name=name)
 
     # Compcorr node
@@ -468,6 +468,10 @@ def create_prep(name='preproc'):
 def create_prep_fieldmap(name='preproc'):
     """Rewiring of base fMRI workflow, adding fieldmap distortion correction
     """
+    import nipype.interfaces.fsl as fsl         # fsl
+    from nipype.interfaces.fsl.utils import EPIDeWarp
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
     preproc = create_prep()
     
     inputnode = pe.Node(util.IdentityInterface(fields=['phase_file',
@@ -597,6 +601,9 @@ def create_rest_prep(name='preproc',fieldmap=False):
     -------
     workflow : resting state preprocessing workflow
     """
+    from .modular_nodes import mod_filter, mod_regressor
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
     if fieldmap:
         preproc = create_prep_fieldmap()
     else:
@@ -763,6 +770,9 @@ def create_first(name='modelfit'):
     -------
     workflow : first-level workflow
     """
+    import nipype.interfaces.fsl as fsl         # fsl
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
     modelfit = pe.Workflow(name=name)
 
     inputspec = pe.Node(util.IdentityInterface(fields=['session_info',

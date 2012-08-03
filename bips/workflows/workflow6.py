@@ -1,14 +1,9 @@
 import os
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
-from nipype.interfaces.nipy import FmriRealign4d
-import nipype.interfaces.fsl as fsl
-import nipype.interfaces.spm as spm
 from .base import MetaWorkflow, load_config, register_workflow
 from ..utils.reportsink.io import ReportSink
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
-from bips.workflows.scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import get_dataflow
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import get_dataflow
 
 """
 Part 1: Define a MetaWorkflow
@@ -182,9 +177,15 @@ def corr_mat(nipy1,nipy2,fsl,spm):
     return fname
 
 def compare_workflow(c, name='compare_realignments'):
-    import nipype.interfaces.matlab as mlab
-    mlab.MatlabCommand.set_default_matlab_cmd("matlab -nodesktop -nosplash")
-    mlab.MatlabCommand.set_default_paths('/software/spm8_4290')
+    #import nipype.interfaces.matlab as mlab
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    from nipype.interfaces.nipy import FmriRealign4d
+    import nipype.interfaces.fsl as fsl
+    import nipype.interfaces.spm as spm
+
+    #mlab.MatlabCommand.set_default_matlab_cmd("matlab -nodesktop -nosplash")
+    #mlab.MatlabCommand.set_default_paths('/software/spm8_4290')
 
     workflow =pe.Workflow(name=name)
     

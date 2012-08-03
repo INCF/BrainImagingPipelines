@@ -4,9 +4,7 @@ import traits.api as traits
 from .flexible_datagrabber import Data, DataBase
 import os
 from.scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import tsnr_roi as segstats
-import nipype.interfaces.fsl as fsl
-import nipype.interfaces.io as nio
-import nipype.pipeline.engine as pe
+
 
 """
 MetaWorkflow
@@ -97,6 +95,9 @@ Construct Workflow
 """
 
 def segstats_workflow(c, name='segstats'):
+    import nipype.interfaces.fsl as fsl
+    import nipype.interfaces.io as nio
+    import nipype.pipeline.engine as pe
     workflow = segstats(name='segstats')
     plot = workflow.get_node('roiplotter')
     workflow.remove_nodes([plot])

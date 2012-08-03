@@ -1,7 +1,4 @@
 import os
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
-import nipype.interfaces.io as nio
 from .scripts.ua780b1988e1c11e1baf80019b9f22493.base import get_post_struct_norm_workflow
 from .scripts.ua780b1988e1c11e1baf80019b9f22493.utils import warp_segments
 from .base import MetaWorkflow, load_config, register_workflow
@@ -142,6 +139,8 @@ Part 4: Construct Workflow
 
 def func_datagrabber(c, name="resting_output_datagrabber"):
     # create a node to obtain the functional images
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id',
                                                              'fwhm'],
                                                    outfields=['inputs',
@@ -187,6 +186,9 @@ def get_regexp(fwhm):
     return subs
 
 def normalize_workflow(c):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    import nipype.interfaces.io as nio
     norm = get_post_struct_norm_workflow()
     datagrab = func_datagrabber(c)
     #fssource = pe.Node(interface=FreeSurferSource(), name='fssource')
