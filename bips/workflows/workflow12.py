@@ -1,17 +1,11 @@
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.modified_nipype_workflows import create_eddy_correct_pipeline, get_flirt_motion_parameters
-import nipype.interfaces.io as nio
-from nipype.workflows.smri.freesurfer import create_getmask_flow
-import nipype.interfaces.fsl as fsl          # fsl
-import nipype.interfaces.utility as util     # utility
-import nipype.pipeline.engine as pe          # pypeline engine
 import os                                    # system functions
-fsl.FSLCommand.set_default_output_type('NIFTI')
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import pickfirst
 from .base import MetaWorkflow, load_config, register_workflow
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import plot_motion
-import bips.utils.reportsink.io as io
+
 
 """
 Part 1: MetaWorkflow
@@ -212,7 +206,13 @@ def rotate_bvecs(bvecs, motion_vecs, rotate):
 
 # Workflow -------------------------------------------------------------------
 def create_prep(use_fieldmap):
-        
+
+    from nipype.workflows.smri.freesurfer import create_getmask_flow
+    import nipype.interfaces.fsl as fsl          # fsl
+    import nipype.interfaces.utility as util     # utility
+    import nipype.pipeline.engine as pe          # pypeline engine
+    fsl.FSLCommand.set_default_output_type('NIFTI')
+    import bips.utils.reportsink.io as io
     inputspec = pe.Node(interface=util.IdentityInterface(fields=['dwi',
                                                                  'bvec',
                                                                  'bval',
@@ -344,6 +344,9 @@ def create_prep(use_fieldmap):
 
 
 def get_datasource(c):
+    import nipype.interfaces.io as nio
+    import nipype.pipeline.engine as pe          # pypeline engine
+
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
         outfields=['dwi', 'bvec',
                    'bval']),
@@ -361,7 +364,12 @@ def get_datasource(c):
 
 
 def combine_prep(c):
-    
+    import nipype.interfaces.io as nio
+    import nipype.interfaces.fsl as fsl          # fsl
+    import nipype.interfaces.utility as util     # utility
+    import nipype.pipeline.engine as pe          # pypeline engine
+    fsl.FSLCommand.set_default_output_type('NIFTI')
+
     modelflow = pe.Workflow(name='preproc')
     
     datasource = get_datasource(c)

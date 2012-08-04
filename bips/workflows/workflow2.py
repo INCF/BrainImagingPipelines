@@ -1,10 +1,5 @@
 import os
-
 import traits.api as traits
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
-import nipype.interfaces.io as nio
-
 from .base import MetaWorkflow, load_config, register_workflow, debug_workflow
 
 """
@@ -31,8 +26,8 @@ Part 2: Define the config class & create_config function
 """
 
 # create_gui
-from bips.workflows.scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import config as baseconfig
-from bips.workflows.scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import get_dataflow
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import config as baseconfig
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import get_dataflow
 
 class config(baseconfig):
     highpass_freq = traits.Float()
@@ -41,6 +36,7 @@ class config(baseconfig):
     reg_params = traits.BaseTuple(traits.Bool(desc="motion parameters"),
                                   traits.Bool(desc="norm components"),
                                   traits.Bool(desc="noise components (CompCor)"),
+                                  traits.Bool(desc='gloabl signal (NOT RECOMMENDED!)'),
                                   traits.Bool(desc="art_outliers"),
                                   traits.Bool(desc="motion derivatives"))
     do_despike = traits.Bool(False,usedefault=True)
@@ -152,6 +148,8 @@ def extract_meta(func):
     from dcmstack.dcmmeta import NiftiWrapper
     sliceorders = []
     trs = []
+    if not isinstance(func,list):
+        func = [func]
     for f in func:
         img = load(f)
         wrp = NiftiWrapper(img)
@@ -168,6 +166,10 @@ def extract_meta(func):
         return so, trs[0]/1000.
 
 def prep_workflow(c=create_config()):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    import nipype.interfaces.io as nio
+
     fieldmap = c.use_fieldmap
     if fieldmap:
         modelflow = pe.Workflow(name='preprocfm')

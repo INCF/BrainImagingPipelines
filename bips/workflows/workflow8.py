@@ -1,14 +1,7 @@
 from glob import glob
 import os
-
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
-import nipype.interfaces.io as nio
-from nipype.interfaces.freesurfer import SampleToSurface
-
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
-
 from .base import MetaWorkflow, load_config, register_workflow
 
 """
@@ -187,6 +180,10 @@ def create_correlation_matrix(infile, out_type, package):
 
 
 def create_workflow(c):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    import nipype.interfaces.io as nio
+    from nipype.interfaces.freesurfer import SampleToSurface
     workflow = pe.Workflow(name='surface_correlation')
     inputnode = pe.Node(util.IdentityInterface(fields=['subject_id']),
                         name='subjectsource')

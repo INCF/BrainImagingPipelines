@@ -1,6 +1,4 @@
 from .base import MetaWorkflow, load_config, register_workflow, debug_workflow
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
 import os
 from traits.api import HasTraits, Directory, Bool
 import traits.api as traits
@@ -110,24 +108,7 @@ Part 4: Workflow Construction
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import get_dataflow
 
 # define workflow
-import nipype.interfaces.io as nio
-from nipype.interfaces.freesurfer import ApplyVolTransform
-from nipype.interfaces import freesurfer as fs
-from nipype.interfaces.io import FreeSurferSource
 
-from scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import (plot_ADnorm,
-                                                                tsdiffana,
-                                                                tsnr_roi,
-                                                                combine_table,
-                                                                art_output,
-                                                                plot_motion,
-                                                                plot_ribbon,
-                                                                plot_anat,
-                                                                overlay_new,
-                                                                overlay_dB,
-                                                                spectrum_ts_table)
-
-from ..utils.reportsink.io import ReportSink
 
 totable = lambda x: [[x]]
 to1table = lambda x: [x]
@@ -145,6 +126,8 @@ def get_config_params(subject_id, table):
 
 def preproc_datagrabber(c,name='preproc_datagrabber'):
     # create a node to obtain the preproc files
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id','node_type'],
                                                    outfields=[ 'motion_parameters',
                                                                'outlier_files',
@@ -241,7 +224,26 @@ def QA_workflow(QAc,c=foo, name='QA'):
     inputspec.sd : freesurfer subjects directory
     
     """
-    
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+
+    from nipype.interfaces.freesurfer import ApplyVolTransform
+    from nipype.interfaces import freesurfer as fs
+    from nipype.interfaces.io import FreeSurferSource
+
+    from scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import (plot_ADnorm,
+                                                                    tsdiffana,
+                                                                    tsnr_roi,
+                                                                    combine_table,
+                                                                    art_output,
+                                                                    plot_motion,
+                                                                    plot_ribbon,
+                                                                    plot_anat,
+                                                                    overlay_new,
+                                                                    overlay_dB,
+                                                                    spectrum_ts_table)
+
+    from ..utils.reportsink.io import ReportSink
     # Define Workflow
         
     workflow =pe.Workflow(name=name)

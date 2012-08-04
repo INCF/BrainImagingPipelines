@@ -51,11 +51,14 @@ def load_config(configfile, config_class):
         except TraitError:
             dg = getattr(c,item)
             if isinstance(dg,Data):
-                foo = Data(val["outfields"])
-                foo.set_fields(val)
-                d = {}
-                d[item] = foo
-                c = c.set(**d)
+                try:
+                    foo = Data(val["outfields"])
+                    foo.set_fields(val)
+                    d = {}
+                    d[item] = foo
+                    c = c.set(**d)
+                except KeyError:
+                    print "Could not set datagrabber"
             else:
                 print('Could not set: %s to %s' % (item, str(val)))
     return c

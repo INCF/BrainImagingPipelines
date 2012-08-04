@@ -1,8 +1,4 @@
 import os
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
-from nipype.interfaces.io import FreeSurferSource
-import nipype.interfaces.io as nio
 from .scripts.ua780b1988e1c11e1baf80019b9f22493.base import get_full_norm_workflow, get_struct_norm_workflow
 from .scripts.ua780b1988e1c11e1baf80019b9f22493.utils import warp_segments
 from .base import MetaWorkflow, load_config, register_workflow
@@ -121,6 +117,8 @@ Part 4: Workflow Construction
 """
 
 def func_datagrabber(c, name="resting_output_datagrabber"):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
     # create a node to obtain the functional images
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id',
                                                              'fwhm'],
@@ -152,12 +150,14 @@ def getsubstitutions(subject_id):
     return subs
 
 def normalize_workflow(c):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    from nipype.interfaces.io import FreeSurferSource
+    import nipype.interfaces.io as nio
     if not c.do_anatomical_only:
         norm = get_full_norm_workflow()
     else:
         norm = get_struct_norm_workflow()
-
-    datagrab = func_datagrabber(c)
 
     fssource = pe.Node(interface=FreeSurferSource(), name='fssource')
     fssource.inputs.subjects_dir = c.surf_dir
@@ -176,10 +176,12 @@ def normalize_workflow(c):
     norm.connect(fssource, ('aparc_aseg', pickfirst),
                  inputspec, 'segmentation')
     norm.connect(fssource, 'orig', inputspec, 'brain')
-    norm.connect(infosource, 'subject_id', datagrab, 'subject_id')
-    norm.connect(infofwhm, 'fwhm', datagrab, 'fwhm')
+
 
     if not c.do_anatomical_only:
+        datagrab = func_datagrabber(c)
+        norm.connect(infosource, 'subject_id', datagrab, 'subject_id')
+        norm.connect(infofwhm, 'fwhm', datagrab, 'fwhm')
         norm.connect(datagrab, 'fsl_mat', inputspec, 'out_fsl_file')
         norm.connect(datagrab, 'inputs', inputspec, 'moving_image')
         norm.connect(datagrab, 'meanfunc', inputspec, 'mean_func')

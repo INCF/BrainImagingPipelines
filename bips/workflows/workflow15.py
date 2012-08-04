@@ -1,10 +1,7 @@
 from traits.api import HasTraits, Directory, Bool
 import traits.api as traits
 from .base import MetaWorkflow, load_config, register_workflow
-import nipype.interfaces.io as nio
-import nipype.interfaces.utility as niu
 from .workflow12 import config as pconfig
-import nipype.pipeline.engine as pe
 
 """
 Part 1: MetaWorkflow
@@ -103,6 +100,8 @@ Part 4: Construct Workflow
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.diffusion_base import create_workflow
 
 def get_dataflow(c):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
         outfields=['dwi','mask','bvecs','bvals',"reg","mean"]),
         name='datasource')
@@ -124,6 +123,9 @@ def get_dataflow(c):
 foo = pconfig()
 
 def get_wf(c, prep_c=foo):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
+    import nipype.interfaces.utility as niu
     workflow = create_workflow()
     datagrabber = get_dataflow(prep_c)
     inputspec = workflow.get_node('inputspec')

@@ -1,12 +1,8 @@
 from .base import MetaWorkflow, load_config, register_workflow
-from traits.api import HasTraits, Directory, Bool, Button
+from traits.api import HasTraits, Directory, Bool
 import traits.api as traits
-import nipype.interfaces.io as nio
-import nipype.interfaces.utility as niu
-import nipype.pipeline.engine as pe
 from .workflow13 import config as prep_config
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.matlab_utils import ConnImport
-import os
 from .flexible_datagrabber import Data, DataBase
 
 """
@@ -135,6 +131,8 @@ Part 4: Construct Workflow
 """
 
 def get_datagrabber(c):
+    import nipype.interfaces.io as nio
+    import nipype.pipeline.engine as pe
     dataflow = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
         outfields=['func','struct','csf','grey','white','realignment','norm','out']),
         name = "preproc_dataflow",
@@ -212,6 +210,9 @@ def get_outliers(art_outliers,motion):
 foo = prep_config()
 
 def import_workflow(c,c_prep=foo):
+    import nipype.interfaces.io as nio
+    import nipype.interfaces.utility as niu
+    import nipype.pipeline.engine as pe
     workflow = pe.Workflow(name='import_conn')
 
     datagrabber = c.datagrabber.create_dataflow()

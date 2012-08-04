@@ -1,15 +1,8 @@
 import os
-from glob import glob
-import subprocess
 import sys
-import numpy as np
-import nipype.interfaces.utility as util
-import nipype.interfaces.io as nio
-import nipype.interfaces.freesurfer as fs
-import nipype.pipeline.engine as pe
-from traits.api import HasTraits, Directory, Bool, Button
+from traits.api import HasTraits, Directory, Bool
 import traits.api as traits
-from .base import MetaWorkflow, load_config, register_workflow, debug_workflow
+from .base import MetaWorkflow, load_config, register_workflow
 
 """
 Part 1: MetaWorkFlow
@@ -124,6 +117,10 @@ def get_dicom_info(c):
     """Get the dicom information for each subject
 
     """
+    import nipype.interfaces.utility as util
+    import nipype.interfaces.io as nio
+    import nipype.interfaces.freesurfer as fs
+    import nipype.pipeline.engine as pe
     subjnode = pe.Node(interface=util.IdentityInterface(fields=['subject_id']),
                        name='subjinfo')
     if c.test_mode:
@@ -207,6 +204,8 @@ def convert_dicoms(sid, dicom_dir_template, outputdir, queue=None, heuristic_fun
 
 
 def convert_wkflw(c,heuristic_func=None):
+    import nipype.interfaces.utility as util
+    import nipype.pipeline.engine as pe
     wk = pe.Workflow(name='convert_workflow')
     infosource=pe.Node(util.IdentityInterface(fields=['subject_id']),name='subject_names')
     convert = pe.Node(util.Function(input_names=['sid', 'dicom_dir_template',

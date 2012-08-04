@@ -1,12 +1,6 @@
 # Utility Functions ---------------------------------------------------------
 import os
-import nipype.pipeline.engine as pe
-import nipype.interfaces.io as nio          # input/output
-import nipype.interfaces.freesurfer as fs
-import nipype.interfaces.utility as util
-from nipype.algorithms.misc import TSNR
-import nipype.interfaces.fsl as fsl
-import nipype.algorithms.rapidart as ra     # rapid artifact detection
+
 
 def pickfirst(files):
     """Return first file from a list of files
@@ -194,6 +188,10 @@ def extract_csf_mask():
     -------
     workflow : workflow that extracts mask of csf voxels
     """
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.freesurfer as fs
+    import nipype.interfaces.utility as util
+
     extract_csf = pe.Workflow(name='extract_csf_mask')
     inputspec = pe.Node(util.IdentityInterface(fields=['mean_file',
                                                        'reg_file',
@@ -255,6 +253,10 @@ def create_compcorr(name='CompCor'):
 
     .. _DOI: http://dx.doi.org/10.1016/j.neuroimage.2007.04.042
     """
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    from nipype.algorithms.misc import TSNR
+    import nipype.interfaces.fsl as fsl
     compproc = pe.Workflow(name=name)
     inputspec = pe.Node(util.IdentityInterface(fields=['num_components',
                                                        'realigned_file',
@@ -447,7 +449,7 @@ def weight_mean(image, art_file):
     import numpy as np
     from nipype.utils.filemanip import split_filename
     import os
-    import nipype.interfaces.freesurfer as fs
+
     
     if not isinstance(image,list):
         image = [image]
@@ -501,6 +503,9 @@ def art_mean_workflow(name="take_mean_art"):
     workflow : mean image workflow
     """
     # define workflow
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    import nipype.algorithms.rapidart as ra     # rapid artifact detection
     wkflw = pe.Workflow(name=name)
 
     # define nodes

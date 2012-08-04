@@ -1,9 +1,7 @@
 # flexible datagrabber workflow
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
-import nipype.interfaces.io as nio
-import nipype.interfaces.utility as niu
-import nipype.pipeline.engine as pe
+
 import os
 try:
     os.environ["DISPLAY"]
@@ -14,13 +12,14 @@ except KeyError:
 import os
 
 def get_view():
-    from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor, EnumEditor
+    from traitsui.api import View, Item, Group
     from traitsui.menu import OKButton, CancelButton
     view = View(Group(Item(name='fields'),
         Item(name='base_directory'),
         Item(name='template'),
         Item(name='field_template'),
         Item(name='template_args')),
+        Item(name='check'),
         buttons=[OKButton, CancelButton],
         resizable=True,
         width=1050)
@@ -40,12 +39,13 @@ class DataBase(HasTraits):
     
 class Data(HasTraits):
     fields = traits.List(traits.Instance(DataBase, ()))
-    base_directory = Directory()
+    base_directory = Directory(os.path.abspath('.'))
     template = traits.Str('*')     
     template_args = traits.Dict({"a":"b"},usedefault=True) 
     field_template = traits.Dict({"key":["hi"]},usedefault=True)
 
     if use_view:
+        check = traits.Button("Check")
         view = get_view()
 
     def __init__(self,outfields=None):
@@ -66,6 +66,8 @@ class Data(HasTraits):
         return infields
     
     def _add_iterable(self,field):
+        import nipype.interfaces.utility as niu
+        import nipype.pipeline.engine as pe
         it = pe.Node(niu.IdentityInterface(fields=[field.name]),
                      name=field.name+"_iterable")
         it.iterables = (field.name, field.values)
@@ -84,6 +86,8 @@ class Data(HasTraits):
         self._dg.inputs.trait_set(**set_dict)
         
     def create_dataflow(self):
+        import nipype.interfaces.io as nio
+        import nipype.pipeline.engine as pe
         self._wk = pe.Workflow(name='custom_datagrabber')
         self._dg = pe.Node(nio.DataGrabber(outfields = self.outfields, 
                                      infields = self._get_infields()),
@@ -125,6 +129,9 @@ class Data(HasTraits):
                     foo.append(tmp)
                 self.set(**{key:foo})
 
+    def _check_fired(self):
+        dg = self.create_dataflow()
+        dg.run()
 
 if __name__ == "__main__":    
     a = Data(['func','struct'])

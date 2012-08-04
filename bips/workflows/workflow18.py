@@ -1,11 +1,9 @@
 import os
-import nipype.interfaces.fsl as fsl
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as niu
-import nipype.interfaces.io as nio
 from .base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import cluster_image
+from .flexible_datagrabber import Data, DataBase
 
 """
 MetaWorkflow
@@ -45,18 +43,28 @@ class config(HasTraits):
     test_mode = Bool(False, mandatory=False, usedefault=True,
                      desc='Affects whether where and if the workflow keeps its \
                             intermediary files. True to keep intermediary files. ')
+    timeout = traits.Float(14.0)
     # Subjects
-    subjects = traits.List(traits.Str, mandatory=True, usedefault=True,
-                          desc="Subject id's. Note: These MUST match the subject id's in the \
-                                Freesurfer directory. For simplicity, the subject id's should \
-                                also match with the location of individual functional files.")
-    fwhm=traits.List(traits.Float())
-    copes_template = traits.String('%s/preproc/output/fwhm_%s/cope*.nii.gz')
-    varcopes_template = traits.String('%s/preproc/output/fwhm_%s/varcope*.nii.gz')
-    contrasts = traits.List(traits.Str,desc="contrasts")
+    #subjects = traits.List(traits.Str, mandatory=True, usedefault=True,
+    #                      desc="Subject id's. Note: These MUST match the subject id's in the \
+    #                            Freesurfer directory. For simplicity, the subject id's should \
+    #                            also match with the location of individual functional files.")
+    #fwhm=traits.List(traits.Float())
+    #copes_template = traits.String('%s/preproc/output/fwhm_%s/cope*.nii.gz')
+    #varcopes_template = traits.String('%s/preproc/output/fwhm_%s/varcope*.nii.gz')
+    #contrasts = traits.List(traits.Str,desc="contrasts")
+
+    datagrabber = traits.Instance(Data, ())
+
     #Normalization
     norm_template = traits.File(mandatory=True,desc='Template to warp to')
     name_of_project = traits.String("group_analysis",usedefault=True)
+
+    #Correction:
+    run_correction = traits.Bool(True)
+    z_threshold = traits.Float(2.3)
+    connectivity = traits.Int(25)
+
     # Advanced Options
     use_advanced_options = traits.Bool()
     advanced_script = traits.Code()
@@ -67,6 +75,27 @@ class config(HasTraits):
 def create_config():
     c = config()
     c.uuid = mwf.uuid
+    c.datagrabber = Data(['copes','varcopes'])
+    c.datagrabber.fields = []
+    subs = DataBase()
+    subs.name = 'subject_id'
+    subs.values = ['sub01','sub02','sub03']
+    subs.iterable = False
+    fwhm = DataBase()
+    fwhm.name='fwhm'
+    fwhm.values=['0','6.0']
+    fwhm.iterable = True
+    con = DataBase()
+    con.name='contrast'
+    con.values=['con01','con02','con03']
+    con.iterable=True
+    c.datagrabber.fields.append(subs)
+    c.datagrabber.fields.append(fwhm)
+    c.datagrabber.fields.append(con)
+    c.datagrabber.field_template = dict(copes='%s/preproc/output/fwhm_%s/cope*.nii.gz',
+        varcopes='%s/preproc/output/fwhm_%s/varcope*.nii.gz')
+    c.datagrabber.template_args = dict(copes=[['fwhm',"contrast","subject_id"]],
+        varcopes=[['fwhm',"contrast","subject_id"]])
     return c
 
 mwf.config_ui = create_config
@@ -85,19 +114,15 @@ def create_view():
                 Group(Item(name='run_using_plugin'),
                       Item(name='plugin', enabled_when="run_using_plugin"),
                       Item(name='plugin_args', enabled_when="run_using_plugin"),
-                      Item(name='test_mode'),
+                      Item(name='test_mode'), Item(name='timeout'),
                       label='Execution Options', show_border=True),
-                Group(Item(name='subjects', editor=CSVListEditor()),
-                      Item(name='base_dir'),
-                      Item(name='fwhm', editor=CSVListEditor()),
-                      Item(name="contrasts", editor=CSVListEditor()),
-                      Item(name='copes_template'),
-                      Item(name='varcopes_template'),
-                      Item(name='check_func_datagrabber'),
-                      label='Subjects', show_border=True),
+                Group(Item(name='datagrabber'),
+                      label='Datagrabber', show_border=True),
                 Group(Item(name='norm_template'),
                       Item(name='name_of_project'),
                       label='Second Level', show_border=True),
+                Group(Item("run_correction"),Item("z_threshold"),Item("connectivity"),
+                    label='Correction', show_border=True),
                 Group(Item(name='use_advanced_options'),
                     Item(name='advanced_script',enabled_when='use_advanced_options'),
                     label='Advanced',show_border=True),
@@ -115,6 +140,10 @@ Construct Workflow
 get_len = lambda x: len(x)
 
 def create_2lvl(name="group"):
+    import nipype.interfaces.fsl as fsl
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as niu
+    import nipype.interfaces.io as nio
     wk = pe.Workflow(name=name)
     
     inputspec = pe.Node(niu.IdentityInterface(fields=['copes','varcopes','template']),name='inputspec')
@@ -142,7 +171,7 @@ def create_2lvl(name="group"):
     outputspec = pe.Node(niu.IdentityInterface(fields=['zstat','tstat','cope',
                                                        'varcope','mrefvars',
                                                        'pes','res4d','mask',
-                                                       'tdof','weights']),
+                                                       'tdof','weights','pstat']),
                          name='outputspec')
                              
     wk.connect(flame,'copes',outputspec,'cope')
@@ -156,9 +185,20 @@ def create_2lvl(name="group"):
     wk.connect(flame,'tdof',outputspec,'tdof')
     wk.connect(bet,'mask_file',outputspec,'mask')
 
+    ztopval = pe.MapNode(interface=fsl.ImageMaths(op_string='-ztop',
+        suffix='_pval'),
+        name='z2pval',
+        iterfield=['in_file'])
+
+    wk.connect(flame,'zstats',ztopval,'in_file')
+    wk.connect(ztopval,'out_file',outputspec,'pstat')
+
     return wk
 
 def get_datagrabber(c):
+
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id',
                                                              'fwhm',"contrast"],
                                                    outfields=['copes','varcopes']),
@@ -176,28 +216,41 @@ def get_substitutions(contrast):
     subs = [('_fwhm','fwhm'),
             ('_contrast_%s'%contrast,''),
             ('output','')]
+    for i in range(0,20):
+        subs.append(('_z2pval%d'%i,''))
+        subs.append(('_cluster%d'%i, ''))
+        subs.append(('_showslice%d'%i,''))
+        subs.append(('_overlay%d/x_view.png'%i,'zstat%d_x_view.png'%(i+1)))
+        subs.append(('_overlay%d/y_view.png'%i,'zstat%d_y_view.png'%(i+1)))
+        subs.append(('_overlay%d/z_view.png'%i,'zstat%d_z_view.png'%(i+1)))
+
     return subs
 
 def connect_to_config(c):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
     wk = create_2lvl()
     wk.base_dir = c.working_dir
-    datagrabber = get_datagrabber(c)
-    infosourcecon = pe.Node(niu.IdentityInterface(fields=["contrast"]),name="contrasts")
-    infosourcecon.iterables = ("contrast",c.contrasts)
-    wk.connect(infosourcecon,'contrast',datagrabber,"contrast")
+    datagrabber = c.datagrabber.create_dataflow()  #get_datagrabber(c)
+    #infosourcecon = pe.Node(niu.IdentityInterface(fields=["contrast"]),name="contrasts")
+    #infosourcecon.iterables = ("contrast",c.contrasts)
+    infosourcecon = datagrabber.get_node("contrast_iterable")
+    #wk.connect(infosourcecon,'contrast',datagrabber,"contrast")
     sinkd = pe.Node(nio.DataSink(),name='sinker')
     sinkd.inputs.base_directory = c.sink_dir
     #sinkd.inputs.substitutions = [('_fwhm','fwhm'),('_contrast_','')]
+
     wk.connect(infosourcecon,("contrast",get_substitutions),sinkd,"substitutions")
+
     wk.connect(infosourcecon,"contrast",sinkd,"container")
     inputspec = wk.get_node('inputspec')
     outputspec = wk.get_node('outputspec')
-    datagrabber.inputs.subject_id = c.subjects
-    infosource = pe.Node(niu.IdentityInterface(fields=['fwhm']),name='fwhm_infosource')
-    infosource.iterables = ('fwhm',c.fwhm)
-    wk.connect(infosource,'fwhm',datagrabber,'fwhm')
-    wk.connect(datagrabber,'copes', inputspec, 'copes')
-    wk.connect(datagrabber,'varcopes', inputspec, 'varcopes')
+    #datagrabber.inputs.subject_id = c.subjects
+    #infosource = pe.Node(niu.IdentityInterface(fields=['fwhm']),name='fwhm_infosource')
+    #infosource.iterables = ('fwhm',c.fwhm)
+    #wk.connect(infosource,'fwhm',datagrabber,'fwhm')
+    wk.connect(datagrabber,'datagrabber.copes', inputspec, 'copes')
+    wk.connect(datagrabber,'datagrabber.varcopes', inputspec, 'varcopes')
     wk.inputs.inputspec.template = c.norm_template
     wk.connect(outputspec,'cope',sinkd,'output.@cope')
     wk.connect(outputspec,'varcope',sinkd,'output.@varcope')
@@ -207,9 +260,23 @@ def connect_to_config(c):
     wk.connect(outputspec,'weights',sinkd,'output.@weights')
     wk.connect(outputspec,'zstat',sinkd,'output.@zstat')
     wk.connect(outputspec,'tstat',sinkd,'output.@tstat')
+    wk.connect(outputspec,'pstat',sinkd,'output.@pstat')
     wk.connect(outputspec,'tdof',sinkd,'output.@tdof')
     wk.connect(outputspec,'mask',sinkd,'output.@bet_mask')
     wk.connect(inputspec,'template',sinkd,'output.@template')
+
+    if c.run_correction:
+        cluster = cluster_image()
+        wk.connect(outputspec,"zstat",cluster,'inputspec.zstat')
+        wk.connect(outputspec,"mask",cluster,"inputspec.mask")
+        wk.connect(inputspec,"template",cluster,"inputspec.anatomical")
+        cluster.inputs.inputspec.threshold = c.z_threshold
+        cluster.inputs.inputspec.connectivity = c.connectivity
+        wk.connect(cluster,'outputspec.corrected_z',sinkd,'output.corrected.@zthresh')
+        wk.connect(cluster,'outputspec.slices',sinkd,'output.corrected.clusters')
+        wk.connect(cluster,'outputspec.cuts',sinkd,'output.corrected.slices')
+
+
     return wk
 
 mwf.workflow_function = connect_to_config
@@ -221,7 +288,7 @@ Main
 def main(config_file):
     c = load_config(config_file, config)
     wk = connect_to_config(c)
-    wk.config = {'execution': {'crashdump_dir': c.crash_dir}}
+    wk.config = {'execution': {'crashdump_dir': c.crash_dir, "job_finished_timeout":c.timeout}}
     
     if c.test_mode:
         wk.write_graph()
