@@ -3,8 +3,8 @@ import os
 
 from nipype.utils.filemanip import save_json
 from nipype.interfaces.base import traits
-from traits.api import (HasTraits, HasStrictTraits, Str, Bool, Button, File)
-
+from traits.api import (HasTraits, HasStrictTraits, Str, Bool, Button, TraitError)
+from .flexible_datagrabber import Data
 _workflow = {}
 
 def _decode_list(data):
@@ -48,11 +48,25 @@ def load_config(configfile, config_class):
             continue
         try:
             setattr(c, item, val)
-        except:
-            print('Could not set: %s to %s' % (item, str(val)))
+        except TraitError:
+            dg = getattr(c,item)
+            if isinstance(dg,Data):
+                try:
+                    foo = Data(val["outfields"])
+                    foo.set_fields(val)
+                    d = {}
+                    d[item] = foo
+                    c = c.set(**d)
+                except KeyError:
+                    print "Could not set datagrabber"
+            else:
+                print('Could not set: %s to %s' % (item, str(val)))
     return c
 
 class MetaWorkflow(HasStrictTraits):
+    """MetaWorkflow class
+
+    """
     version = traits.Constant(1)
     # uuid of workflow
     uuid = traits.String(mandatory=True)
@@ -125,7 +139,6 @@ class ConfigUI(HasTraits):
     run_button = Button("Run")
     py_button = Button("Save to Python script")
     graph_button = Button("Graph")
-
     # Wildcard pattern to be used in file dialogs.
     file_wildcard = Str(("json file (*.json)|*.json|Data file (*.json)"
                          "|*.dat|All files|*"))
@@ -191,7 +204,14 @@ class ConfigUI(HasTraits):
         #f = open(path, 'w')
         #f.write(self.value + '\n')
         #f.close()
-        save_json(filename=path,data=self._config.get())
+        data = self._config.get()
+        d = {}
+        for key, item in data.iteritems():
+            if isinstance(item,Data):
+                d[key] = item.get_fields()
+            else:
+                d[key] = item
+        save_json(filename=path,data=d)
         self.saved = True
 
 def create_bips_config(workflow):
@@ -241,7 +261,6 @@ def create_bips_config(workflow):
     config.runfunc = workflow.workflow_main_function
     config.config_view = workflow.config_view
     config.configure_traits(view=view)
-
 
 
 def register_workflow(wf):

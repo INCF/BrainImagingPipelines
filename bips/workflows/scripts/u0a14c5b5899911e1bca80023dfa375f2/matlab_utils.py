@@ -1,11 +1,11 @@
 import os
-from nipype.interfaces.base import traits, InputMultiPath
-from nipype.interfaces.matlab import MatlabCommand
 import scipy.io as sio
 from nipype.interfaces.base import TraitedSpec, BaseInterface, BaseInterfaceInputSpec
 import shutil
 
 class ConnImportInputSpec(BaseInterfaceInputSpec):
+    from nipype.interfaces.base import traits, InputMultiPath
+
     functional_files = InputMultiPath(desc="preprocessed functional files")
     structural_files = InputMultiPath(desc="structural files")
     csf_mask = InputMultiPath(desc="csf mask files")
@@ -20,6 +20,7 @@ class ConnImportInputSpec(BaseInterfaceInputSpec):
     script = traits.Str()
 
 class ConnImportOutputSpec(TraitedSpec):
+    from nipype.interfaces.base import traits
     conn_inputs = traits.File()
     conn_batch = traits.File()
     conn_directory = traits.Directory()
@@ -29,6 +30,7 @@ class ConnImport(BaseInterface):
     output_spec = ConnImportOutputSpec
 
     def _run_interface(self, runtime):
+        from nipype.interfaces.matlab import MatlabCommand
         def islist(i):
             if not isinstance(i,list):
                 i = [str(i)]
@@ -67,5 +69,5 @@ class ConnImport(BaseInterface):
         outputs = self._outputs().get()
         outputs['conn_inputs'] = os.path.abspath('inputs_to_conn.mat')
         outputs['conn_batch'] = '%s/conn_%s.mat'%(os.getcwd(),self.inputs.project_name)
-        outputs['conn_directory'] = '%s/conn_%s'%(os.getcwd(),self.inputs.project_name)
+        #outputs['conn_directory'] = '%s/conn_%s'%(os.getcwd(),self.inputs.project_name)
         return outputs

@@ -1,6 +1,3 @@
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
-import nipype.interfaces.fsl as fsl
 from .utils import art_mean_workflow
 
 def get_b0(bvals):
@@ -103,7 +100,9 @@ def create_eddy_correct_pipeline(name="eddy_correct"):
 
     outputnode.eddy_corrected
     """
-
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    import nipype.interfaces.fsl as fsl
     inputnode = pe.Node(interface = util.IdentityInterface(fields=["in_file", "bvals"]),
         name="inputnode")
 
@@ -219,7 +218,10 @@ outputspec.reg_file : registration file that maps reference image to
 freesurfer space
 outputspec.reg_cost : cost of registration (useful for detecting misalignment)
 """
-
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as niu
+    import nipype.interfaces.freesurfer as fs
+    import nipype.interfaces.io as nio
     """
 Initialize the workflow
 """

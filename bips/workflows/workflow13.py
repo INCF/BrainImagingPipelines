@@ -1,14 +1,6 @@
-import nipype.algorithms.rapidart as ra
-import nipype.interfaces.spm as spm
-import nipype.interfaces.utility as niu
-import nipype.pipeline.engine as pe
-import nipype.interfaces.io as nio
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.modular_nodes import mod_realign
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import art_mean_workflow, pickfirst
-logger = pe.logger
 import os
-from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
-
 from .base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
@@ -158,6 +150,9 @@ Part 4: Construct Workflow
 """
 
 def get_dataflow(c):
+
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
     dataflow = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
         outfields=['func']),
         name = "preproc_dataflow",
@@ -227,6 +222,12 @@ outputspec.reg_file : registration file that maps reference image to
 freesurfer space
 outputspec.reg_cost : cost of registration (useful for detecting misalignment)
 """
+    from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
+    import nipype.algorithms.rapidart as ra
+    import nipype.interfaces.spm as spm
+    import nipype.interfaces.utility as niu
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
 
     """
 Initialize the workflow

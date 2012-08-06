@@ -1,15 +1,8 @@
 import os
-from glob import glob
-import subprocess
 import sys
-import numpy as np
-import nipype.interfaces.utility as util
-import nipype.interfaces.io as nio
-import nipype.interfaces.freesurfer as fs
-import nipype.pipeline.engine as pe
-from traits.api import HasTraits, Directory, Bool, Button
+from traits.api import HasTraits, Directory, Bool
 import traits.api as traits
-from .base import MetaWorkflow, load_config, register_workflow, debug_workflow
+from .base import MetaWorkflow, load_config, register_workflow
 
 """
 Part 1: MetaWorkFlow
@@ -47,6 +40,7 @@ class config(HasTraits):
     test_mode = Bool(False, mandatory=False, usedefault=True,
         desc='Affects whether where and if the workflow keeps its \
                             intermediary files. True to keep intermediary files. ')
+    timeout = traits.Float(14.0)
     #Subjects
     subjects= traits.List(traits.Str, mandatory=True, usedefault=True,
         desc="Subject id's. Bips expects dicoms to be organized by subject id's")
@@ -83,7 +77,7 @@ def create_view():
         Group(Item(name='run_using_plugin'),
             Item(name='plugin', enabled_when="run_using_plugin"),
             Item(name='plugin_args', enabled_when="run_using_plugin"),
-            Item(name='test_mode'),
+            Item(name='test_mode'), Item("timeout"),
             label='Execution Options', show_border=True),
         Group(Item(name='subjects', editor=CSVListEditor()),
             Item(name='base_dir'),
@@ -123,6 +117,10 @@ def get_dicom_info(c):
     """Get the dicom information for each subject
 
     """
+    import nipype.interfaces.utility as util
+    import nipype.interfaces.io as nio
+    import nipype.interfaces.freesurfer as fs
+    import nipype.pipeline.engine as pe
     subjnode = pe.Node(interface=util.IdentityInterface(fields=['subject_id']),
                        name='subjinfo')
     if c.test_mode:
@@ -206,6 +204,8 @@ def convert_dicoms(sid, dicom_dir_template, outputdir, queue=None, heuristic_fun
 
 
 def convert_wkflw(c,heuristic_func=None):
+    import nipype.interfaces.utility as util
+    import nipype.pipeline.engine as pe
     wk = pe.Workflow(name='convert_workflow')
     infosource=pe.Node(util.IdentityInterface(fields=['subject_id']),name='subject_names')
     convert = pe.Node(util.Function(input_names=['sid', 'dicom_dir_template',
@@ -249,6 +249,7 @@ def main(config_file):
     get_dicom_info(c)
     if not c.info_only:
         wk = convert_wkflw(c,heuristic_func)
+        wk.config = {"execution": {"crashdump_dir": c.crash_dir, "job_finished_timeout": c.timeout}}
         if c.run_using_plugin:
             wk.run(plugin=c.plugin,plugin_args=c.plugin_args)
         else:

@@ -1,8 +1,5 @@
 import os
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
-import nipype.interfaces.io as nio
-from bips.utils.reportsink.io import ReportSink
+from ..utils.reportsink.io import ReportSink
 from .base import MetaWorkflow, load_config, register_workflow
 from scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import corr_image, vol2surf
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import pickfirst
@@ -99,6 +96,8 @@ def start_config_table(c):
 
 
 def resting_datagrab(c,name="resting_datagrabber"):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id',
                                                              'fwhm'],
                                                    outfields=['reg_file',
@@ -123,7 +122,9 @@ from .workflow2 import create_config as prep_config
 foo=prep_config()
 
 def resting_QA(QA_c,c=foo, name="resting_QA"):
-    
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    import nipype.interfaces.io as nio
     workflow=pe.Workflow(name=name)
     inputspec = pe.Node(interface=util.IdentityInterface(fields=["in_files",
                                                                  "reg_file",

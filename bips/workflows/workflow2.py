@@ -1,10 +1,5 @@
 import os
-
 import traits.api as traits
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
-import nipype.interfaces.io as nio
-
 from .base import MetaWorkflow, load_config, register_workflow, debug_workflow
 
 """
@@ -31,16 +26,22 @@ Part 2: Define the config class & create_config function
 """
 
 # create_gui
-from bips.workflows.scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import config as baseconfig
-from bips.workflows.scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import get_dataflow
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import config as baseconfig
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import get_dataflow
 
 class config(baseconfig):
     highpass_freq = traits.Float()
     lowpass_freq = traits.Float()
     filtering_algorithm = traits.Enum("fsl","IIR","FIR")
-    reg_params = traits.BaseTuple(traits.Bool, traits.Bool, traits.Bool,
-                                  traits.Bool, traits.Bool)
+    reg_params = traits.BaseTuple(traits.Bool(desc="motion parameters"),
+                                  traits.Bool(desc="norm components"),
+                                  traits.Bool(desc="noise components (CompCor)"),
+                                  traits.Bool(desc='gloabl signal (NOT RECOMMENDED!)'),
+                                  traits.Bool(desc="art_outliers"),
+                                  traits.Bool(desc="motion derivatives"))
+    do_despike = traits.Bool(False,usedefault=True)
     do_whitening = traits.Bool(False, usedefault=True)
+    use_metadata = traits.Bool(True)
 
 def create_config():
     c = config()
@@ -91,10 +92,12 @@ def create_view():
             Item(name='TE_diff',enabled_when="use_fieldmap"),
             Item(name='sigma',enabled_when="use_fieldmap"),
             label='Fieldmap',show_border=True),
-        Group(Item(name="motion_correct_node"),
-            Item(name='TR'),
+        Group(Item(name="do_despike"),
+            Item(name="motion_correct_node"),
+            Item(name='TR', enabled_when="not use_metadata"),
             Item(name='do_slicetiming'),
-            Item(name='SliceOrder',editor=CSVListEditor()),
+            Item(name="use_metadata"),
+            Item(name='SliceOrder',editor=CSVListEditor(),enabled_when="not use_metadata or not do_slicetiming"),
             Item(name='loops',enabled_when="motion_correct_node=='nipy' ", editor=CSVListEditor()),
             Item(name='speedup',enabled_when="motion_correct_node=='nipy' ", editor=CSVListEditor()),
             label='Motion Correction', show_border=True),
@@ -139,7 +142,34 @@ Part 4: Workflow Construction
 from scripts.u0a14c5b5899911e1bca80023dfa375f2.base import create_rest_prep
 from scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import get_datasink, get_substitutions, get_regexp_substitutions
 
-def prep_workflow(c):
+def extract_meta(func):
+    from nibabel import load
+    import numpy as np
+    from dcmstack.dcmmeta import NiftiWrapper
+    sliceorders = []
+    trs = []
+    if not isinstance(func,list):
+        func = [func]
+    for f in func:
+        img = load(f)
+        wrp = NiftiWrapper(img)
+        sliceorder = np.argsort(wrp.meta_ext.get_values('CsaImage.MosaicRefAcqTimes')[0]).tolist()
+        sliceorders.append(sliceorder)
+        tr = wrp.meta_ext.get_values('RepetitionTime')
+        trs.append(tr)
+    so = sliceorders[0]
+    if np.sum(np.diff(sliceorders,axis=0)):
+        raise Exception("The functional runs have different slice orders!")
+    if np.sum(np.diff(trs)):
+        raise Exception("The functional runs have different TRs!")
+    else:
+        return so, trs[0]/1000.
+
+def prep_workflow(c=create_config()):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    import nipype.interfaces.io as nio
+
     fieldmap = c.use_fieldmap
     if fieldmap:
         modelflow = pe.Workflow(name='preprocfm')
@@ -200,6 +230,12 @@ def prep_workflow(c):
         modelflow.connect(preproc, 'outputspec.mean',
                           sinkd, 'preproc.mean')
 
+    if c.use_metadata and c.do_slicetiming:
+        get_meta = pe.Node(util.Function(input_names=['func'],output_names=['so','tr'],function=extract_meta),name="get_metadata")
+        modelflow.connect(dataflow,'func',get_meta, 'func')
+        modelflow.connect(get_meta,'so',preproc,"inputspec.sliceorder")
+        modelflow.connect(get_meta,'tr',preproc,"inputspec.tr")
+
     # inputs
     preproc.inputs.inputspec.motion_correct_node = c.motion_correct_node
     preproc.inputs.inputspec.realign_parameters = {"loops":c.loops,
@@ -207,6 +243,7 @@ def prep_workflow(c):
     preproc.inputs.inputspec.do_whitening = c.do_whitening
     preproc.inputs.inputspec.timepoints_to_remove = c.timepoints_to_remove
     preproc.inputs.inputspec.smooth_type = c.smooth_type
+    preproc.inputs.inputspec.do_despike = c.do_despike
     preproc.inputs.inputspec.surface_fwhm = c.surface_fwhm
     preproc.inputs.inputspec.num_noise_components = c.num_noise_components
     preproc.inputs.inputspec.regress_before_PCA = c.regress_before_PCA
@@ -219,9 +256,9 @@ def prep_workflow(c):
     preproc.inputs.inputspec.ad_zthresh = c.z_thresh
     preproc.inputs.inputspec.tr = c.TR
     preproc.inputs.inputspec.do_slicetime = c.do_slicetiming
-    if c.do_slicetiming:
+    if c.do_slicetiming and not c.use_metadata:
         preproc.inputs.inputspec.sliceorder = c.SliceOrder
-    else:
+    elif not c.do_slicetiming and not c.use_metadata:
         preproc.inputs.inputspec.sliceorder = None
 
     preproc.inputs.inputspec.compcor_select = c.compcor_select
@@ -304,7 +341,7 @@ Part 5: Define the main function
 def main(config_file):
     c = load_config(config_file, create_config)
     preprocess = prep_workflow(c)
-    preprocess.config = {'execution': {'crashdump_dir': c.crash_dir}}
+    preprocess.config = {'execution': {'crashdump_dir': c.crash_dir, 'job_finished_timeout' : 14}}
     
     if len(c.subjects) == 1:
         preprocess.write_graph(graph2use='exec',

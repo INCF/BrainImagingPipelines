@@ -1,7 +1,5 @@
 from .base import MetaWorkflow, load_config, register_workflow
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
-import nipype.interfaces.io as nio
+
 
 """
 Part 1: Define MetaWorkflow
@@ -78,10 +76,14 @@ Part 4: Workflow Construction
 """
 
 # Define workflow
-import nipype.interfaces.freesurfer as fs
-from nipype.interfaces.io import FreeSurferSource
+
 
 def test_fs(c,name='test_fs'):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    import nipype.interfaces.io as nio
+    import nipype.interfaces.freesurfer as fs
+    from nipype.interfaces.io import FreeSurferSource
 
     workflow = pe.Workflow(name=name)
     

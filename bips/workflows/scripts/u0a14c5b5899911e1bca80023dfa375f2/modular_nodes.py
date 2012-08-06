@@ -1,7 +1,3 @@
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
-import nipype.interfaces.fsl as fsl
-
 
 def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
                 parameters={}):
@@ -260,7 +256,9 @@ Example
 >>> smooth.run() # doctest: +SKIP
 
 """
-
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    import nipype.interfaces.fsl as fsl
     susan_smooth = pe.Workflow(name=name)
 
     """
@@ -451,3 +449,11 @@ def mod_regressor(design_file,in_file,mask):
         res = reg.run()
         out_file = res.outputs.out_file
         return out_file
+
+def mod_despike(in_file, do_despike):
+    out_file=in_file
+    if do_despike:
+        from nipype.interfaces.afni import Despike
+        ds = Despike(in_file=in_file)
+        out_file = ds.run().outputs.out_file
+    return out_file
