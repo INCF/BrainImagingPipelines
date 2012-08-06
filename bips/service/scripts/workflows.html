@@ -1,0 +1,198 @@
+<!DOCTYPE HTML>
+<!--
+/*
+ * jQuery File Upload Plugin Demo 6.9
+ * https://github.com/blueimp/jQuery-File-Upload
+ *
+ * Copyright 2010, Sebastian Tschan
+ * https://blueimp.net
+ *
+ * Licensed under the MIT license:
+ * http://www.opensource.org/licenses/MIT
+ */
+-->
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>BIPS</title>
+    <meta name="description" content="BIPS is a Python framework for brain imaging to host reusable, queriable and uniquely identifiable workflows. This demo allows users to upload a structural and a resting state functional image and get back a quality assessment report and a view of their statistics relative to other datasets.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Bootstrap CSS Toolkit styles -->
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/bootstrap-responsive.css">
+    <!-- Generic page styles -->
+    <link rel="stylesheet" href="css/style.css">
+    <link href="css/docs.css" rel="stylesheet">
+    <!-- CSS to style the file input field as button and adjust the Bootstrap progress bars -->
+    <link rel="stylesheet" href="css/jquery.fileupload-ui.css">
+    <!-- Shim to make HTML5 elements usable in older Internet Explorer versions -->
+    <!--[if lt IE 9]><script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+    <style type='text/css'>
+        pre {outline: 1px solid #ccc; padding: 5px; margin: 5px; }
+        .string { color: green; }
+        .number { color: darkorange; }
+        .boolean { color: blue; }
+        .null { color: magenta; }
+        .key { color: red; }
+
+    </style>
+</head>
+
+<body data-spy="scroll" data-target=".subnav" data-offset="50">
+
+<!-- Navbar
+================================================== -->
+<div class="navbar navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <button type="button"class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            <a class="brand" href="./">BIPS</a>
+            <div class="nav-collapse">
+                <ul class="nav">
+                    <li class=""><a href="./index">Overview</a></li>
+                    <li class="active"><a href="./workflows">Workflows</a></li>
+                    <li class=""><a href="./database">Database</a></li>
+                    <li class=""><a href="./publications">Publications</a></li>
+                    <li class=""><a href="./neuroview">Neuroview</a></li>
+                    <li class=""><a href="./links">Links</a></li>
+                    <li class="divider-vertical"></li>
+                    <li class=""><a href="./demo">Demo</a></li>
+                    <li class=""><a href="./status">Status</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+
+<div class="alert alert-info">
+    <button type="button" class="close" data-dismiss="alert">&times;</button>
+    <h4 class="alert-heading">Tip!</h4>
+    The search box autocompletes based on tags associated with the workflows.
+</div>
+<div class="row">
+    <div class="modal hide fade" id="myModal">
+        <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal">x</button>
+            <h3>Workflow Info</h3>
+        </div>
+        <div class="modal-body">
+            <h4>Workflow config</h4>
+            <pre id="jsonconfig">
+
+            </pre>
+            <h4>Workflow options</h4>
+            <pre id="workflowoptions">
+
+            </pre>
+        </div>
+        <div class="modal-footer">
+            <a href="#" class="btn" data-dismiss="modal">Close</a>
+        </div>
+    </div>
+    <div class="well-large">
+    <form id="wsearchform" class="form-inline" action="#" method="post">
+        <input id="wsearchinput" type="text" autocomplete="off" data-provide="typeahead" class="span11">
+        <button type="submit" class="btn"><i class="icon-search"></i></button>
+        <!-- The table listing the files available for upload/download -->
+    </form>
+
+    <table class="table table-striped span10">
+        <thead><tr><th>Info</th><th>UUID</th><th>Description</th></tr></thead>
+        <tbody id="wftable" class="files" data-toggle="modal-gallery" data-target="#modal-gallery">
+        </tbody>
+    </table>
+
+    <script type="text/javascript">
+        function syntaxHighlight(json) {
+            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                var cls = 'number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'key';
+                    } else {
+                        cls = 'string';
+                    }
+                } else if (/true|false/.test(match)) {
+                    cls = 'boolean';
+                } else if (/null/.test(match)) {
+                    cls = 'null';
+                }
+                return '<span class="' + cls + '">' + match + '</span>';
+            });
+        }
+
+        function getworkflows() {
+            // Populate table with workflows with or without scripting
+            // post the form values via AJAX…
+            var postdata = {tags: $("#wsearchinput").val()} ;
+            $.post('/queryworkflows', postdata, function(data) {
+                // and set the title with the result
+                $("#wftable").empty();
+                for(var i=0;i<data.length;i++){
+                    var btninfo = "<a id=\"to_modal"+i+"\" href=\"./info?uuid="+data[i].uuid+"\"><i class=\"icon-info-sign\"></i></a>";
+                    //btninfo = "<a data-toggle=\"modal\" href=\"#myModal\"><i class=\"icon-info-sign\"></i></a>"
+                    var tdata = "<tr><td>"+btninfo+"</td><td>"+data[i].uuid+"</td><td>"+data[i].desc+"</td></tr>";
+                    $("#wftable").append(tdata);
+                    $("#to_modal"+i).click(function(e) {
+                        e.preventDefault();
+                        var href = $(e.currentTarget).attr('href');
+                        $.getJSON(href, function(infodata) {
+                            $("#jsonconfig").empty();
+                            $("#jsonconfig")[0].innerHTML =
+                                    syntaxHighlight(JSON.stringify(infodata["jsonconfig"], null, 2));
+                            $("#workflowoptions").empty();
+                            $("#workflowoptions")[0].innerHTML =
+                                    syntaxHighlight(JSON.stringify(infodata["workflowconfig"], null, 2));
+                            $('#myModal').modal();
+                            });
+                    });
+                }
+                //$("#wftable").html(tdata);
+            });
+            return false ;
+        }
+        function setupTypeahead () {
+        var autocomplete = $('#wsearchinput').typeahead({
+            items: 10,
+            source: function(query, process){
+                return $.post('/tags', { query: query }, process);
+            }
+            })
+
+            // Attach get workflows to form submission
+            $("#wsearchform").submit(getworkflows);
+            // Call it during initialization
+            getworkflows();
+
+        }
+        window.onload = setupTypeahead;
+    </script>
+</div>
+</div>
+
+    <!-- Footer
+   ================================================== -->
+<footer class="footer">
+    <p class="pull-right"><a href="#">Back to top</a></p>
+    <p>Brewed at <a href="http://gablab.mit.edu" target="_blank">Gablab@MIT</a> and TankThink Labs LLC. Supported by <a href="http://incf.org>" target="_blank">INCF</a>.</p>
+    <p>Code licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0" target="_blank">Apache License v2.0</a>. Documentation licensed under <a href="http://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>.</p>
+    <p>Icons from <a href="http://glyphicons.com">Glyphicons Free</a>, licensed under <a href="http://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>.</p>
+</footer>
+
+</div><!-- /container -->
+
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+<script src="js/bootstrap.js"></script>
+<script src="js/bootstrap-typeahead.js"></script>
+<script src="js/bootstrap-modal.js"></script>
+<!-- The XDomainRequest Transport is included for cross-domain file deletion for IE8+ -->
+    <!--[if gte IE 8]><script src="js/cors/jquery.xdr-transport.js"></script><![endif]-->
+</body>
+</html>
