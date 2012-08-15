@@ -198,6 +198,7 @@ Indicates the input fields to be dynamically created
         # write the report
         rep.write()
         # save json
+        """
         try:
             save_json(os.path.join(outdir, self.inputs.report_name+'.json'), self.inputs._outputs)
 
@@ -210,5 +211,5 @@ Indicates the input fields to be dynamically created
                     save_json(os.path.join(self.inputs.json_sink,self.inputs.container, self.inputs.report_name+'.json'), self.inputs._outputs)
             print "json file " , os.path.join(outdir, self.inputs.report_name+'.json')
         except:
-            print "json could not be saved!"
+            print "json could not be saved!"""""
         return None

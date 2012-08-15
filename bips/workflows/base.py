@@ -3,8 +3,8 @@ import os
 
 from nipype.utils.filemanip import save_json
 from nipype.interfaces.base import traits
-from traits.api import (HasTraits, HasStrictTraits, Str, Bool, Button, File)
-
+from traits.api import (HasTraits, HasStrictTraits, Str, Bool, Button, TraitError)
+from .flexible_datagrabber import Data
 _workflow = {}
 
 def _decode_list(data):
@@ -48,11 +48,25 @@ def load_config(configfile, config_class):
             continue
         try:
             setattr(c, item, val)
-        except:
-            print('Could not set: %s to %s' % (item, str(val)))
+        except TraitError:
+            dg = getattr(c,item)
+            if isinstance(dg,Data):
+                try:
+                    foo = Data(val["outfields"])
+                    foo.set_fields(val)
+                    d = {}
+                    d[item] = foo
+                    c = c.set(**d)
+                except KeyError:
+                    print "Could not set datagrabber"
+            else:
+                print('Could not set: %s to %s' % (item, str(val)))
     return c
 
 class MetaWorkflow(HasStrictTraits):
+    """MetaWorkflow class
+
+    """
     version = traits.Constant(1)
     # uuid of workflow
     uuid = traits.String(mandatory=True)
@@ -76,6 +90,8 @@ class MetaWorkflow(HasStrictTraits):
     supercedes = traits.List(traits.UUID)
     # script dir
     script_dir = traits.Str()
+    # Workflow function
+    workflow_function = traits.Function
 
 
 def OpenFileDialog(action, wildcard, self):
@@ -122,7 +138,7 @@ class ConfigUI(HasTraits):
     load_button = Button("Load")
     run_button = Button("Run")
     py_button = Button("Save to Python script")
-
+    graph_button = Button("Graph")
     # Wildcard pattern to be used in file dialogs.
     file_wildcard = Str(("json file (*.json)|*.json|Data file (*.json)"
                          "|*.dat|All files|*"))
@@ -174,6 +190,10 @@ class ConfigUI(HasTraits):
                 print "could not write %s" %key
         f.close()
 
+    def _graph_button_fired(self):
+        mwf = get_workflow(self.config_class().uuid)
+        wf= mwf.workflow_function(self.config_class())
+        wf.write_graph()
     #-----------------------------------------------
     # Private API
     #-----------------------------------------------
@@ -184,12 +204,19 @@ class ConfigUI(HasTraits):
         #f = open(path, 'w')
         #f.write(self.value + '\n')
         #f.close()
-        save_json(filename=path,data=self._config.get())
+        data = self._config.get()
+        d = {}
+        for key, item in data.iteritems():
+            if isinstance(item,Data):
+                d[key] = item.get_fields()
+            else:
+                d[key] = item
+        save_json(filename=path,data=d)
         self.saved = True
 
 def create_bips_config(workflow):
     from pyface.api import confirm, YES
-    from traitsui.api import Handler, View, Item, UItem, HGroup
+    from traitsui.api import Handler, View, Item, UItem, HGroup, VGroup
     config = ConfigUI()
     class FooHandler(Handler):
         """Handler for the Foo class.
@@ -204,7 +231,7 @@ def create_bips_config(workflow):
             filename = info.object.Configuration_File
             if filename is "":
                 filename = "<no file>"
-            info.ui.title = "Editing: " + filename
+            info.ui.title = "BIPS: " + filename
 
         def close(self, info, isok):
             # Return True to indicate that it is OK to close the window.
@@ -219,19 +246,21 @@ def create_bips_config(workflow):
                     UItem('save_button', enabled_when='not saved and filename is not ""'),
                     UItem('save_as_button', enabled_when='not saved and filename is not ""'),
                     UItem('new_button'),
-                    UItem('load_button', enabled_when='not config_changed'),
+                    UItem('load_button', enabled_when='not config_changed')),
+                VGroup(
                     UItem('run_button', enabled_when='saved and filename is not ""'),
-                    UItem('py_button', enabled_when='saved and filename is not ""')
+                    UItem('py_button', enabled_when='saved and filename is not ""'),
+                    UItem('graph_button')  #, enabled_when='filename is not ""')
                 ),
                 resizable=True,
-                width=600,
+                width=355,
+                height=165,
                 handler=FooHandler(),
                 title="File Dialog")
     config.config_class = workflow.config_ui
     config.runfunc = workflow.workflow_main_function
     config.config_view = workflow.config_view
     config.configure_traits(view=view)
-
 
 
 def register_workflow(wf):
@@ -252,11 +281,13 @@ def get_config(uuid):
     wf = get_workflow(uuid)
     return wf.config_ui()
 
+def get_workflows():
+    return sorted(_workflow.items())
+
 def list_workflows():
-    for wf, value in sorted(_workflow.items()):
+    for wf, value in get_workflows():
         print('%s %s' % (wf,
                          value['object'].help.split('\n')[1]))
-
 
 def configure_workflow(uuid):
     wf = get_workflow(uuid)
@@ -277,3 +308,27 @@ def display_workflow_info(uuid):
 
 def query_workflows(query_str):
     pass
+
+def debug_workflow(workflow):
+    from traitsui.menu import OKButton, CancelButton
+    names=workflow.list_node_names()
+    print names
+    class debug(HasTraits):
+        pass
+    foo = debug()
+    for n in names:
+        foo.add_class_trait(n.replace('.','___'),traits.Bool)
+
+    view = foo.trait_view()
+    view.resizable = True
+    view.buttons = [OKButton, CancelButton]
+    view.scrollable= True
+    
+    foo.configure_traits(view=view)
+    bar = foo.get()
+    for key,item in bar.iteritems():
+        a = workflow.get_node(key.replace('___','.'))
+        if item:
+            a.run_without_submitting = True
+
+    return workflow

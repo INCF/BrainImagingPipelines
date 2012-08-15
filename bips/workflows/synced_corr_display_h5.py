@@ -3,18 +3,15 @@
 
 # <codecell>
 
-import argparse
 import os
-
-from surfer import Brain
 import scipy.io as sio
-import nibabel as nb
 import numpy as np
-from mayavi import mlab
 from tables import openFile
-
 from .base import MetaWorkflow, load_config, register_workflow
 
+"""
+MetaWorkflow
+"""
 mwf = MetaWorkflow()
 mwf.help = """
 Resting State Visualization
@@ -24,6 +21,9 @@ Resting State Visualization
 mwf.uuid = '974a6910992311e18318001e4fb1404c'
 mwf.tags = ['resting','visualization','correlation']
 
+"""
+Config
+"""
 from traits.api import HasTraits, Directory
 import traits.api as traits
 
@@ -35,6 +35,18 @@ class config(HasTraits):
     hemi = traits.Enum('lh','rh')
     surface = traits.Enum('white','inflated')
     target = traits.Enum('fsaverage5','fsaverage4','fsaverage')
+
+def create_config():
+    c = config()
+    c.uuid = mwf.uuid
+    c.desc = mwf.help
+    return c
+
+mwf.config_ui = create_config
+
+"""
+View
+"""
 
 def create_view():
     from traitsui.api import View, Item, Group
@@ -54,17 +66,18 @@ def create_view():
         width=1050)
     return view
 
-def create_config():
-    c = config()
-    c.uuid = mwf.uuid
-    c.desc = mwf.help
-    return c
+mwf.config_view = create_view
+
+"""
+Workflow
+"""
 
 overlay_added = False
 brains = []
 corrmats = []
 
 def do_overlay(idx):
+    from mayavi import mlab
     global overlay_added
     global brains
     global corrmats
@@ -85,6 +98,8 @@ def picker_callback(picker_object):
     do_overlay(picker_object.point_id)
 
 def display_matrices(filenames, target, hemi, surface):
+    from mayavi import mlab
+    from surfer import Brain
     print '\n'.join(filenames)
     for name in filenames:
         try:
@@ -112,28 +127,12 @@ def display_matrices(filenames, target, hemi, surface):
         br._f.on_mouse_pick(picker_callback)
     mlab.show()
 
+"""
+Main
+"""
+
 def main(config_file):
-    """parser = argparse.ArgumentParser(description="None")
-    parser.add_argument('-f','--files',
-                        dest='files',
-                        nargs="+",
-                        required=True,
-                        help='correlation matrix files'
-                        )
-    parser.add_argument('--hemi',
-                        dest = 'hemi',
-                        required=True,
-                        help='hemisphere')
-    parser.add_argument('-s','--surface',
-                        dest = 'surface',
-                        required=True,
-                        help='Type of surface')
-    parser.add_argument('-t', '--target',
-                        dest = 'target',
-                        required=True,
-                        help='Target fsaverage')
-    
-    args = parser.parse_args()"""
+
     args = load_config(config_file,config)
     if args.use_pattern:
         from glob import glob
@@ -146,7 +145,9 @@ def main(config_file):
     display_matrices(files, args.target, args.hemi, args.surface)
 
 mwf.workflow_main_function = main
-mwf.config_ui = create_config
-mwf.config_view = create_view
+
+"""
+Register
+"""
 
 register_workflow(mwf)

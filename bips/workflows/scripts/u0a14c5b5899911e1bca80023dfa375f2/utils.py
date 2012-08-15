@@ -1,12 +1,6 @@
 # Utility Functions ---------------------------------------------------------
 import os
-import nipype.pipeline.engine as pe
-import nipype.interfaces.io as nio          # input/output
-import nipype.interfaces.freesurfer as fs
-import nipype.interfaces.utility as util
-from nipype.algorithms.misc import TSNR
-import nipype.interfaces.fsl as fsl
-import nipype.algorithms.rapidart as ra     # rapid artifact detection
+
 
 def pickfirst(files):
     """Return first file from a list of files
@@ -93,7 +87,8 @@ def getusans(x):
 
 
 def extract_noise_components(realigned_file, noise_mask_file, num_components,
-                             csf_mask_file, selector):
+                             csf_mask_file, selector,
+                             realignment_parameters=None, outlier_file=None, regress_before_PCA=True):
     """Derive components most reflective of physiological noise
     
     Parameters
@@ -114,10 +109,40 @@ def extract_noise_components(realigned_file, noise_mask_file, num_components,
     import numpy as np
     import scipy as sp
     from scipy.signal import detrend
+    from nipype import logging
+    logger = logging.getLogger('interface')
+
+    def try_import(fname):
+        try:
+            a = np.genfromtxt(fname)
+            return a
+        except:
+            return np.array([])
 
     options = np.array([noise_mask_file, csf_mask_file])
     selector = np.array(selector)
     imgseries = load(realigned_file)
+    nuisance_matrix = np.ones((imgseries.shape[-1], 1))
+    if realignment_parameters is not None:
+        logger.debug('adding motion pars')
+        logger.debug('%s %s' % (str(nuisance_matrix.shape),
+            str(np.genfromtxt(realignment_parameters).shape)))
+        nuisance_matrix = np.hstack((nuisance_matrix,
+                                     np.genfromtxt(realignment_parameters)))
+    if outlier_file is not None:
+        logger.debug('collecting outliers')
+        outliers = try_import(outlier_file)
+        if outliers.shape == ():  # 1 outlier
+            art = np.zeros((imgseries.shape[-1], 1))
+            art[np.int_(outliers), 0] = 1 #  art outputs 0 based indices
+            nuisance_matrix = np.hstack((nuisance_matrix, art))
+        elif outliers.shape[0] == 0:  # empty art file
+            pass
+        else:  # >1 outlier
+            art = np.zeros((imgseries.shape[-1], len(outliers)))
+            for j, t in enumerate(outliers):
+                art[np.int_(t), j] = 1 #  art outputs 0 based indices
+            nuisance_matrix = np.hstack((nuisance_matrix, art))
     if selector.all():  # both values of selector are true, need to concatenate
         tcomp = load(noise_mask_file)
         acomp = load(csf_mask_file)
@@ -127,14 +152,23 @@ def extract_noise_components(realigned_file, noise_mask_file, num_components,
         noise_mask_file = options[selector][0]
         noise_mask = load(noise_mask_file)
         voxel_timecourses = imgseries.get_data()[np.nonzero(noise_mask.get_data())]
-    for timecourse in voxel_timecourses:
-        timecourse[:] = detrend(timecourse, type='constant')
+
     voxel_timecourses = voxel_timecourses.byteswap().newbyteorder()
     voxel_timecourses[np.isnan(np.sum(voxel_timecourses,axis=1)),:] = 0
+    if regress_before_PCA:
+        logger.debug('Regressing motion')
+        for timecourse in voxel_timecourses:
+            #timecourse[:] = detrend(timecourse, type='constant')
+            coef_, _, _, _ = np.linalg.lstsq(nuisance_matrix, timecourse[:, None])
+            timecourse[:] = (timecourse[:, None] - np.dot(nuisance_matrix,
+                                                          coef_)).ravel()
+
+    pre_svd = os.path.abspath('pre_svd.npz')
+    np.savez(pre_svd,voxel_timecourses=voxel_timecourses)
     _, _, v = sp.linalg.svd(voxel_timecourses, full_matrices=False)
     components_file = os.path.join(os.getcwd(), 'noise_components.txt')
-    np.savetxt(components_file, v[:, :num_components])
-    return components_file
+    np.savetxt(components_file, v[:num_components, :].T)
+    return components_file, pre_svd
 
 
 def extract_csf_mask():
@@ -154,6 +188,10 @@ def extract_csf_mask():
     -------
     workflow : workflow that extracts mask of csf voxels
     """
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.freesurfer as fs
+    import nipype.interfaces.utility as util
+
     extract_csf = pe.Workflow(name='extract_csf_mask')
     inputspec = pe.Node(util.IdentityInterface(fields=['mean_file',
                                                        'reg_file',
@@ -163,7 +201,7 @@ def extract_csf_mask():
     bin = pe.Node(fs.Binarize(), name='binarize')
     bin.inputs.wm_ven_csf = True
     bin.inputs.match = [4, 5, 14, 15, 24, 31, 43, 44, 63]
-    bin.inputs.erode = 1
+    bin.inputs.erode = 2
     
     extract_csf.connect(inputspec, 'fsaseg_file',
                         bin, "in_file")
@@ -215,13 +253,20 @@ def create_compcorr(name='CompCor'):
 
     .. _DOI: http://dx.doi.org/10.1016/j.neuroimage.2007.04.042
     """
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    from nipype.algorithms.misc import TSNR
+    import nipype.interfaces.fsl as fsl
     compproc = pe.Workflow(name=name)
     inputspec = pe.Node(util.IdentityInterface(fields=['num_components',
                                                        'realigned_file',
                                                        'mean_file',
                                                        'reg_file',
                                                        'fsaseg_file',
-                                                       'selector']),
+                                                      'realignment_parameters',
+                                                       'outlier_files',
+                                                       'selector',
+                                                       'regress_before_PCA']),
                         name='inputspec')
     # selector input is bool list [True,True] where first is referring to
     # tCompcorr and second refers to aCompcorr
@@ -229,7 +274,9 @@ def create_compcorr(name='CompCor'):
                                                         'stddev_file',
                                                         'tsnr_file',
                                                         'csf_mask',
-                                                        'tsnr_detrended']),
+                                                        'noise_mask',
+                                                        'tsnr_detrended',
+                                                        'pre_svd']),
                          name='outputspec')
     # extract the principal components of the noise
     tsnr = pe.MapNode(TSNR(regress_poly=2),  #SG: advanced parameter
@@ -253,12 +300,17 @@ def create_compcorr(name='CompCor'):
                                                     'noise_mask_file',
                                                     'num_components',
                                                     'csf_mask_file',
-                                                    'selector'],
-                                       output_names=['noise_components'],
+                                                    'realignment_parameters',
+                                                    'outlier_file',
+                                                    'selector',
+                                                    'regress_before_PCA'],
+                                       output_names=['noise_components','pre_svd'],
                                        function=extract_noise_components),
                                        name='compcor_components',
                                        iterfield=['realigned_file',
-                                                  'noise_mask_file'])
+                                                  'noise_mask_file',
+                                                  'realignment_parameters',
+                                                  'outlier_file'])
     # Make connections
     compproc.connect(inputspec, 'mean_file',
                      acomp, 'inputspec.mean_file')
@@ -270,16 +322,24 @@ def create_compcorr(name='CompCor'):
                      compcor, 'selector')
     compproc.connect(acomp, ('outputspec.csf_mask',pickfirst),
                      compcor, 'csf_mask_file')
+    compproc.connect(acomp, ('outputspec.csf_mask',pickfirst),
+        outputspec, 'csf_mask')
     compproc.connect(inputspec, 'realigned_file',
                      tsnr, 'in_file')
     compproc.connect(inputspec, 'num_components',
                      compcor, 'num_components')
-    compproc.connect(inputspec, 'realigned_file',
-                     compcor, 'realigned_file')
+
+    compproc.connect(inputspec, 'realignment_parameters',
+                     compcor, 'realignment_parameters')
+    compproc.connect(inputspec, 'outlier_files',
+                     compcor, 'outlier_file')
+
     compproc.connect(getthresh, 'out_stat',
                      threshold_stddev, 'thresh')
     compproc.connect(threshold_stddev, 'out_file',
                      compcor, 'noise_mask_file')
+    compproc.connect(threshold_stddev, 'out_file',
+                     outputspec, 'noise_mask')
     compproc.connect(tsnr, 'stddev_file',
                      threshold_stddev, 'in_file')
     compproc.connect(tsnr, 'stddev_file',
@@ -290,8 +350,14 @@ def create_compcorr(name='CompCor'):
                      outputspec, 'tsnr_file')
     compproc.connect(tsnr, 'detrended_file',
                      outputspec, 'tsnr_detrended')
+    compproc.connect(tsnr, 'detrended_file',
+                     compcor, 'realigned_file')
     compproc.connect(compcor, 'noise_components',
                      outputspec, 'noise_components')
+    compproc.connect(compcor, 'pre_svd',
+                      outputspec, 'pre_svd')
+    compproc.connect(inputspec, 'regress_before_PCA',
+                     compcor, 'regress_before_PCA')
     return compproc
 
 
@@ -327,8 +393,9 @@ def get_substitutions(subject_id, use_fieldmap):
     subs = [('_subject_id_%s/' % subject_id, ''),
             ('_fwhm', 'fwhm'),
             ('_register0/', ''),
-            ('_threshold20/aseg_thresh_warped_dil_thresh',
+            ('_threshold20/aparc+aseg_thresh_warped_dil_thresh',
              '%s_brainmask' % subject_id),
+            ('st.','.'),
             ]
     if use_fieldmap:
         subs.append(('vsm.nii', '%s_vsm.nii' % subject_id))
@@ -340,6 +407,8 @@ def get_substitutions(subject_id, use_fieldmap):
                      '%s_r%02d_' % (subject_id, i)))
         subs.append(('_tsnr%d/' % i, '%s_r%02d_' % (subject_id, i)))
         subs.append(('_z_score%d/' % i, '%s_r%02d_' % (subject_id, i)))
+        subs.append(('_threshold%d/'%i,'%s_r%02d_'%(subject_id, i)))
+        subs.append(('_compcor_components%d/'%i, '%s_r%02d_'%(subject_id, i)))
     return subs
 
 def get_regexp_substitutions(subject_id, use_fieldmap):
@@ -347,9 +416,11 @@ def get_regexp_substitutions(subject_id, use_fieldmap):
             ('corr.*_gms', 'fullspectrum'),
             ('corr.*%s' % subject_id, '%s_register' % subject_id),
             ('corr.*_tsnr', 'tsnr'),
-            ('motion/.*dtype', 'motion/%s' % subject_id),
+            #('motion/.*dtype', 'motion/%s' % subject_id),
             ('mean/corr.*nii', 'mean/%s_mean.nii' % subject_id),
-            ('corr', '')
+            ('corr', ''),
+            ('_roi_dtype_',''),
+            ('__','_')
             ]
     return subs
 
@@ -378,7 +449,7 @@ def weight_mean(image, art_file):
     import numpy as np
     from nipype.utils.filemanip import split_filename
     import os
-    import nipype.interfaces.freesurfer as fs
+
     
     if not isinstance(image,list):
         image = [image]
@@ -432,6 +503,9 @@ def art_mean_workflow(name="take_mean_art"):
     workflow : mean image workflow
     """
     # define workflow
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    import nipype.algorithms.rapidart as ra     # rapid artifact detection
     wkflw = pe.Workflow(name=name)
 
     # define nodes
@@ -526,3 +600,16 @@ def z_image(image,outliers):
 
 tolist = lambda x: [x]
 highpass_operand = lambda x: '-bptf %.10f -1' % x
+
+def whiten(in_file, do_whitening):
+    out_file = in_file
+    if do_whitening:
+        import os
+        from glob import glob
+        from nipype.utils.filemanip import split_filename
+        split_fname = split_filename(in_file)
+        out_file = os.path.abspath(split_fname[1]+"_whitened"+split_fname[2])
+        os.system('film_gls -ac -output_pwdata %s'%in_file)
+        result = glob(os.path.join(os.path.abspath('results'),'prewhitened_data.*'))[0]
+        out_file=result
+    return out_file

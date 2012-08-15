@@ -1,9 +1,11 @@
-from .base import MetaWorkflow, load_config, register_workflow
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
+from .base import MetaWorkflow, load_config, register_workflow, debug_workflow
 import os
-from traits.api import HasTraits, Directory, Bool, Button
+from traits.api import HasTraits, Directory, Bool
 import traits.api as traits
+
+"""
+Part 1: Define a MetaWorkflow
+"""
 
 desc = """
 Task/Resting fMRI Quality Assurance workflow
@@ -16,28 +18,97 @@ mwf.tags = ['task','fMRI','preprocessing','QA', 'resting']
 mwf.uses_outputs_of = ['63fcbb0a890211e183d30023dfa375f2','7757e3168af611e1b9d5001e4fb1404c']
 mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
 mwf.help = desc
+
+"""
+Part 2: Define the config class & create_config function
+"""
+
 # config_ui
-from workflow1 import get_dataflow
+class config(HasTraits):
+    uuid = traits.Str(desc="UUID")
+    desc = traits.Str(desc='Workflow description')
+    # Directories
+    working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
+    base_dir = Directory(exists=True, desc='Base directory of data. (Should be subject-independent)')
+    sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
+    field_dir = Directory(exists=True, desc="Base directory of field-map data (Should be subject-independent) \
+                                                 Set this value to None if you don't want fieldmap distortion correction")
+    crash_dir = Directory(mandatory=False, desc="Location to store crash files")
+    json_sink = Directory(mandatory=False, desc= "Location to store json_files")
+    surf_dir = Directory(mandatory=True, desc= "Freesurfer subjects directory")
+
+    # Execution
+
+    run_using_plugin = Bool(False, usedefault=True, desc="True to run pipeline with plugin, False to run serially")
+    plugin = traits.Enum("PBS", "PBSGraph","MultiProc", "SGE", "Condor",
+        usedefault=True,
+        desc="plugin to use, if run_using_plugin=True")
+    plugin_args = traits.Dict({"qsub_args": "-q many"},
+        usedefault=True, desc='Plugin arguments.')
+    test_mode = Bool(False, mandatory=False, usedefault=True,
+        desc='Affects whether where and if the workflow keeps its \
+                            intermediary files. True to keep intermediary files. ')
+    # Subjects
+
+    subjects= traits.List(traits.Str, mandatory=True, usedefault=True,
+        desc="Subject id's. These subjects must match the ones that have been run in your preproc config")
+
+    preproc_config = traits.File(desc="preproc config file")
+    debug = traits.Bool(True)
+    # Advanced Options
+    use_advanced_options = traits.Bool()
+    advanced_script = traits.Code()
+
+def create_config():
+    c = config()
+    c.uuid = mwf.uuid
+    c.desc = mwf.help
+    return c
+
+mwf.config_ui = create_config
+
+"""
+Part 3: Create a View
+"""
+
+def create_view():
+    from traitsui.api import View, Item, Group, CSVListEditor
+    from traitsui.menu import OKButton, CancelButton
+    view = View(Group(Item(name='uuid', style='readonly'),
+        Item(name='desc', style='readonly'),
+        label='Description', show_border=True),
+        Group(Item(name='working_dir'),
+            Item(name='sink_dir'),
+            Item(name='crash_dir'),
+            Item(name='json_sink'),
+            label='Directories', show_border=True),
+        Group(Item(name='run_using_plugin'),
+            Item(name='plugin', enabled_when="run_using_plugin"),
+            Item(name='plugin_args', enabled_when="run_using_plugin"),
+            Item(name='test_mode'), Item(name='debug'),
+            label='Execution Options', show_border=True),
+        Group(Item(name='subjects', editor=CSVListEditor()),
+            label='Subjects', show_border=True),
+        Group(Item(name='preproc_config'),
+            label = 'Preprocessing Info'),
+        Group(Item(name='use_advanced_options'),
+            Item(name='advanced_script',enabled_when='use_advanced_options'),
+            label='Advanced',show_border=True),
+        buttons = [OKButton, CancelButton],
+        resizable=True,
+        width=1050)
+    return view
+
+mwf.config_view = create_view
+
+"""
+Part 4: Workflow Construction
+"""
+
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import get_dataflow
 
 # define workflow
-import nipype.interfaces.io as nio
-from nipype.interfaces.freesurfer import ApplyVolTransform
-from nipype.interfaces import freesurfer as fs
-from nipype.interfaces.io import FreeSurferSource
 
-from scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import (plot_ADnorm,
-                                                                tsdiffana,
-                                                                tsnr_roi,
-                                                                combine_table,
-                                                                art_output,
-                                                                plot_motion,
-                                                                plot_ribbon,
-                                                                plot_anat,
-                                                                overlay_new,
-                                                                overlay_dB,
-                                                                spectrum_ts_table)
-
-from ..utils.reportsink.io import ReportSink
 
 totable = lambda x: [[x]]
 to1table = lambda x: [x]
@@ -55,6 +126,8 @@ def get_config_params(subject_id, table):
 
 def preproc_datagrabber(c,name='preproc_datagrabber'):
     # create a node to obtain the preproc files
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id','node_type'],
                                                    outfields=[ 'motion_parameters',
                                                                'outlier_files',
@@ -67,7 +140,9 @@ def preproc_datagrabber(c,name='preproc_datagrabber'):
                                                                'reg_file',
                                                                'motion_plots',
                                                                'mean_image',
-                                                               'mask']),
+                                                               'mask',
+                                                               'tcompcor',
+                                                               'acompcor']),
                          name = name)
     datasource.inputs.base_directory = c.sink_dir
     datasource.inputs.template ='*'
@@ -78,11 +153,13 @@ def preproc_datagrabber(c,name='preproc_datagrabber'):
                                             art_stats='%s/preproc/art/stats.*.txt',
                                             art_intensity='%s/preproc/art/global_intensity.*.txt',
                                             tsnr='%s/preproc/tsnr/*_tsnr.nii*',
-                                            tsnr_detrended='%s/preproc/tsnr/*_detrended.nii*',
+                                            tsnr_detrended='%s/preproc/tsnr/*detrended.nii*',
                                             tsnr_stddev='%s/preproc/tsnr/*tsnr_stddev.nii*',
                                             reg_file='%s/preproc/bbreg/*.dat',
                                             mean_image='%s/preproc/mean*/*.nii*',
-                                            mask='%s/preproc/mask/*_brainmask.nii')
+                                            mask='%s/preproc/mask/*.nii*',
+                                            acompcor='%s/preproc/compcor/aseg*.mgz',
+                                            tcompcor='%s/preproc/compcor/*tsnr*.nii')
     datasource.inputs.template_args = dict(motion_parameters=[['subject_id']],
                                            outlier_files=[['subject_id']],
                                            art_norm=[['subject_id']],
@@ -93,32 +170,37 @@ def preproc_datagrabber(c,name='preproc_datagrabber'):
                                            tsnr_detrended=[['subject_id']],
                                            reg_file=[['subject_id']],
                                            mean_image=[['subject_id']],
-                                           mask=[['subject_id']])
+                                           mask=[['subject_id']],
+                                           acompcor=[['subject_id']],
+                                           tcompcor=[['subject_id']])
     return datasource
 
 
-def start_config_table(c):
+def start_config_table(c,c_qa):
     table = []
     table.append(['TR',str(c.TR)])
     table.append(['Slice Order',str(c.SliceOrder)])
-    #table.append(['Realignment algorithm',c.motion_correct_node])
+    table.append(['Realignment algorithm',c.motion_correct_node])
     if c.use_fieldmap:
         table.append(['Echo Spacing',str(c.echospacing)])
         table.append(['Fieldmap Smoothing',str(c.sigma)])
         table.append(['TE difference',str(c.TE_diff)])
     table.append(['Art: norm thresh',str(c.norm_thresh)])
     table.append(['Art: z thresh',str(c.z_thresh)])
-    #table.append(['Smoothing Algorithm',c.smooth_type])
+    table.append(['Smoothing Algorithm',c.smooth_type])
     table.append(['fwhm',str(c.fwhm)])
-    try:
-        table.append(['Highpass cutoff',str(c.hpcutoff)])
-    except:
-        table.append(['highpass freq',str(c.highpass_freq)])
-        table.append(['lowpass freq',str(c.lowpass_freq)])
+    table.append(['highpass freq',str(c.highpass_freq)])
+    table.append(['lowpass freq',str(c.lowpass_freq)])
+    table.append(['A-compcor, T-compcor',str(c.compcor_select)])
     return table
 
+# Workflow construction function should only take in 1 arg.
+# Create a dummy config for the second arg
 
-def QA_workflow(c,QAc,name='QA'):
+from .workflow2 import create_config as prep_config
+foo = prep_config()
+
+def QA_workflow(QAc,c=foo, name='QA'):
     """ Workflow that generates a Quality Assurance Report
     
     Parameters
@@ -142,7 +224,26 @@ def QA_workflow(c,QAc,name='QA'):
     inputspec.sd : freesurfer subjects directory
     
     """
-    
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+
+    from nipype.interfaces.freesurfer import ApplyVolTransform
+    from nipype.interfaces import freesurfer as fs
+    from nipype.interfaces.io import FreeSurferSource
+
+    from scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import (plot_ADnorm,
+                                                                    tsdiffana,
+                                                                    tsnr_roi,
+                                                                    combine_table,
+                                                                    art_output,
+                                                                    plot_motion,
+                                                                    plot_ribbon,
+                                                                    plot_anat,
+                                                                    overlay_new,
+                                                                    overlay_dB,
+                                                                    spectrum_ts_table)
+
+    from ..utils.reportsink.io import ReportSink
     # Define Workflow
         
     workflow =pe.Workflow(name=name)
@@ -227,7 +328,8 @@ def QA_workflow(c,QAc,name='QA'):
                                       output_names=['images'],
                                       function=plot_anat),
                         name="plot_anat")
-        
+    plotmask = plotanat.clone('plot_mask')
+    workflow.connect(datagrabber,'mask', plotmask,'brain')
     roidevplot = tsnr_roi(plot=False,name='tsnr_stddev_roi',roi=['all'],onsets=False)
     roidevplot.inputs.inputspec.TR = c.TR
     roisnrplot = tsnr_roi(plot=False,name='SNR_roi',roi=['all'],onsets=False)
@@ -266,18 +368,19 @@ def QA_workflow(c,QAc,name='QA'):
     overlaynew.inputs.dB = False
     overlaynew.inputs.threshold = 20
                                  
-    overlaymask = pe.Node(util.Function(input_names=['stat_image','background_image','threshold'],
+    overlaymask = pe.MapNode(util.Function(input_names=['stat_image','background_image','threshold'],
                                           output_names=['fnames'], function=overlay_new), 
-                                          name='overlay_mask')
-    overlaymask.inputs.threshold = 0
-    
+                                          name='overlay_mask',iterfield=['stat_image'])
+    overlaymask.inputs.threshold = 0.5
+    workflow.connect(convert,'out_file', overlaymask,'background_image')
+    overlaymask2 = overlaymask.clone('acompcor_image')
+    workflow.connect(convert,'out_file', overlaymask2,'background_image')
+    workflow.connect(datagrabber,'tcompcor',overlaymask,'stat_image')
+    workflow.connect(datagrabber,'acompcor',overlaymask2,'stat_image')
+
     workflow.connect(datagrabber, ('mean_image', sort), plotanat, 'brain')
 
-    ts_and_spectra = pe.MapNode(util.Function(input_names=['stats_file',
-                                                        'tr'],
-                                           output_names=['imagetable'],
-                                           function=spectrum_ts_table),
-                            name='spectra_and_timeseries_table', iterfield=['stats_file'])
+    ts_and_spectra = spectrum_ts_table()
 
     timeseries_segstats = tsnr_roi(plot=False,name='timeseries_roi',roi=['all'],onsets=False)
     workflow.connect(inputspec,'tsnr_detrended', timeseries_segstats,'inputspec.tsnr_file')
@@ -285,9 +388,9 @@ def QA_workflow(c,QAc,name='QA'):
     workflow.connect(infosource, 'subject_id', timeseries_segstats, 'inputspec.subject')
     workflow.connect(fssource, ('aparc_aseg', pickfirst), timeseries_segstats, 'inputspec.aparc_aseg')
     timeseries_segstats.inputs.inputspec.TR = c.TR
-    ts_and_spectra.inputs.tr = c.TR
+    ts_and_spectra.inputs.inputspec.tr = c.TR
 
-    workflow.connect(timeseries_segstats,'outputspec.roi_file',ts_and_spectra, 'stats_file')
+    workflow.connect(timeseries_segstats,'outputspec.roi_file',ts_and_spectra, 'inputspec.stats_file')
 
 
 
@@ -298,10 +401,13 @@ def QA_workflow(c,QAc,name='QA'):
                                                           'Global_Intensity',
                                                           'Mean_Functional',
                                                           'Ribbon',
+                                                          'Mask',
                                                           'motion_plot_translations',
                                                           'motion_plot_rotations',
                                                           'tsdiffana',
                                                           'ADnorm',
+                                                          'A_CompCor',
+                                                          'T_CompCor',
                                                           'TSNR_Images',
                                                           'tsnr_roi_table']),
                                              name='report_sink')
@@ -327,7 +433,7 @@ def QA_workflow(c,QAc,name='QA'):
     workflow.connect(datagrabber,'art_stats',art_info,'stats_file')
     workflow.connect(inputspec,'art_file',art_info,'art_file')
     workflow.connect(art_info,('table',to1table), write_rep,'Art_Detect')
-    workflow.connect(ts_and_spectra,'imagetable',tablecombine, 'imagetable')
+    workflow.connect(ts_and_spectra,'outputspec.imagetable',tablecombine, 'imagetable')
     workflow.connect(art_info,'intensity_plot',write_rep,'Global_Intensity')
     workflow.connect(plot_m, 'fname_t',write_rep,'motion_plot_translations')
     workflow.connect(plot_m, 'fname_r',write_rep,'motion_plot_rotations')
@@ -352,27 +458,36 @@ def QA_workflow(c,QAc,name='QA'):
     workflow.connect(convert,'out_file', overlaynew,'background_image')
     
     workflow.connect(overlaynew, 'fnames', write_rep, 'TSNR_Images')
+    workflow.connect(overlaymask, 'fnames', write_rep, 'T_CompCor')
+    workflow.connect(overlaymask2, 'fnames', write_rep, 'A_CompCor')
+    workflow.connect(plotmask,'images',write_rep,'Mask')
     
     workflow.write_graph()
     return workflow
 
-    
+mwf.workflow_function = QA_workflow
+
+"""
+Part 5: Define the main function
+"""
+
 def main(config_file):
     
     QA_config = load_config(config_file, create_config)
-    if QA_config.task:
-        from .workflow1 import create_config as prep_config
-    else:
-        from .workflow2 import create_config as prep_config
+    from .workflow2 import create_config as prep_config
 
     c = load_config(QA_config.preproc_config, prep_config)
-    a = QA_workflow(c,QA_config)
+    a = QA_workflow(QA_config,c)
     a.base_dir = QA_config.working_dir
+
+    if c.debug:
+        a = debug_workflow(a)
+
     if QA_config.test_mode:
         a.write_graph()
 
-    a.inputs.inputspec.config_params = start_config_table(c)
-    a.config = {'execution' : {'crashdump_dir' : QA_config.crash_dir}}
+    a.inputs.inputspec.config_params = start_config_table(c,QA_config)
+    a.config = {'execution' : {'crashdump_dir' : QA_config.crash_dir, 'job_finished_timeout' : 14}}
 
     if QA_config.use_advanced_options:
         exec QA_config.advanced_script
@@ -382,80 +497,10 @@ def main(config_file):
     else:
         a.run()
 
-def create_view():
-    from traitsui.api import View, Item, Group, CSVListEditor
-    from traitsui.menu import OKButton, CancelButton
-    view = View(Group(Item(name='uuid', style='readonly'),
-                      Item(name='desc', style='readonly'),
-                      label='Description', show_border=True),
-                Group(Item(name='working_dir'),
-                    Item(name='sink_dir'),
-                    Item(name='crash_dir'),
-                    Item(name='json_sink'),
-                    label='Directories', show_border=True),
-                Group(Item(name='run_using_plugin'),
-                    Item(name='plugin', enabled_when="run_using_plugin"),
-                    Item(name='plugin_args', enabled_when="run_using_plugin"),
-                    Item(name='test_mode'),
-                    label='Execution Options', show_border=True),
-                Group(Item(name='subjects', editor=CSVListEditor()),
-                    label='Subjects', show_border=True),
-                Group(Item(name='preproc_config'),
-                      Item(name='resting',enabled_when='not task'),
-                      Item(name='task', enabled_when='not resting'),
-                      label = 'Preprocessing Info'),
-                Group(Item(name='use_advanced_options'),
-                    Item(name='advanced_script',enabled_when='use_advanced_options'),
-                    label='Advanced',show_border=True),
-                buttons = [OKButton, CancelButton],
-                resizable=True,
-                width=1050)
-    return view
-
-class config(HasTraits):
-    uuid = traits.Str(desc="UUID")
-    desc = traits.Str(desc='Workflow description')
-    # Directories
-    working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
-    base_dir = Directory(exists=True, desc='Base directory of data. (Should be subject-independent)')
-    sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
-    field_dir = Directory(exists=True, desc="Base directory of field-map data (Should be subject-independent) \
-                                                 Set this value to None if you don't want fieldmap distortion correction")
-    crash_dir = Directory(mandatory=False, desc="Location to store crash files")
-    json_sink = Directory(mandatory=False, desc= "Location to store json_files")
-    surf_dir = Directory(mandatory=True, desc= "Freesurfer subjects directory")
-
-    # Execution
-
-    run_using_plugin = Bool(False, usedefault=True, desc="True to run pipeline with plugin, False to run serially")
-    plugin = traits.Enum("PBS", "PBSGraph","MultiProc", "SGE", "Condor",
-        usedefault=True,
-        desc="plugin to use, if run_using_plugin=True")
-    plugin_args = traits.Dict({"qsub_args": "-q many"},
-        usedefault=True, desc='Plugin arguments.')
-    test_mode = Bool(False, mandatory=False, usedefault=True,
-        desc='Affects whether where and if the workflow keeps its \
-                            intermediary files. True to keep intermediary files. ')
-    # Subjects
-
-    subjects= traits.List(traits.Str, mandatory=True, usedefault=True,
-        desc="Subject id's. These subjects must match the ones that have been run in your preproc config")
-
-    preproc_config = traits.File(desc="preproc config file")
-    resting = traits.Bool(desc="True if running QA for resting preproc")
-    task = traits.Bool(desc="True if running QA for task fmri preproc")
-    # Advanced Options
-    use_advanced_options = traits.Bool()
-    advanced_script = traits.Code()
-
-def create_config():
-    c = config()
-    c.uuid = mwf.uuid
-    c.desc = mwf.help
-    return c
-
-
 mwf.workflow_main_function = main
-mwf.config_ui = create_config
-mwf.config_view = create_view
+
+"""
+Part 6: Register the Workflow
+"""
+
 register_workflow(mwf)

@@ -1,24 +1,25 @@
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
-import nipype.interfaces.fsl as fsl
 
-
-def mod_realign(node, in_file, tr, do_slicetime, sliceorder):
+def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
+                parameters={}):
     import nipype.interfaces.fsl as fsl
     import nipype.interfaces.spm as spm
     import nipype.interfaces.nipy as nipy
     import os
-
-    if node == "nipy":
+    parameter_source = "FSL"
+    keys=parameters.keys()
+    if node=="nipy":
         realign = nipy.FmriRealign4d()
         realign.inputs.in_file = in_file
         realign.inputs.tr = tr
-        realign.inputs.interleaved = False
+        if "loops" in keys:
+            realign.inputs.loops = parameters["loops"]
+        if "speedup" in keys:
+            realign.inputs.speedup = parameters["speedup"]
+        if "between_loops" in keys:
+            realign.inputs.between_loops = parameters["between_loops"]
         if do_slicetime:
             realign.inputs.slice_order = sliceorder
-        else:
-            realign.inputs.time_interp = False
-            realign.inputs.slice_order = [0]
+            realign.inputs.time_interp = True
 
         res = realign.run()
         out_file = res.outputs.out_file
@@ -106,11 +107,11 @@ def mod_realign(node, in_file, tr, do_slicetime, sliceorder):
         parameters = res.outputs.realignment_parameters
         if not isinstance(parameters, list):
             parameters = [parameters]
-        for i, p in enumerate(parameters):
-            params = np.genfromtxt(p)[:, [3, 4, 5, 0, 1, 2]]
-            parfilename = os.path.abspath('realignment_parameters_%d.par' % i)
-            np.savetxt(parfilename, params, delimiter='\t')
-            par_file.append(parfilename)
+        par_file = parameters
+        parameter_source='SPM'
+        fsl.ImageMaths(in_file=res.outputs.realigned_files,
+                       out_file=res.outputs.realigned_files,
+                       op_string='-nan').run()
         out_file = res.outputs.realigned_files
     elif node == 'afni':
         import nipype.interfaces.afni as afni
@@ -181,7 +182,7 @@ def mod_realign(node, in_file, tr, do_slicetime, sliceorder):
             #par_file.append(Realign_res.outputs.oned_file)
 
 
-    return out_file, par_file
+    return out_file, par_file, parameter_source
 
 def mod_smooth(in_file,brightness_threshold,usans,fwhm,
                smooth_type, reg_file, surface_fwhm, subjects_dir):
@@ -250,7 +251,9 @@ Example
 >>> smooth.run() # doctest: +SKIP
 
 """
-
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    import nipype.interfaces.fsl as fsl
     susan_smooth = pe.Workflow(name=name)
 
     """
@@ -373,11 +376,9 @@ Define a function to get the brightness threshold for SUSAN
 
     return susan_smooth
 
-def mod_filter(in_file,algorithm,lowpass_freq, highpass_freq,tr):
+def mod_filter(in_file, algorithm, lowpass_freq, highpass_freq, tr):
     import os
-    from nipype.utils.filemanip import split_filename
-    from nipype import logging
-    logger = logging.getLogger('workflow')
+    from nipype.utils.filemanip import fname_presuffix
     if algorithm == 'fsl':
         import nipype.interfaces.fsl as fsl
         filter = fsl.TemporalFilter()
@@ -398,20 +399,54 @@ def mod_filter(in_file,algorithm,lowpass_freq, highpass_freq,tr):
         import nibabel as nib
         import numpy as np
 
-        T = io.time_series_from_file(in_file)
+        T = io.time_series_from_file(in_file, TR=tr)
+        if highpass_freq < 0:
+            highpass_freq = 0
+        if lowpass_freq < 0:
+            lowpass_freq = None
         F = FilterAnalyzer(T, ub=lowpass_freq, lb=highpass_freq)
-
-        logger.info("Nitime going to filter data ...")
         if algorithm == 'IIR':
             Filtered_data = F.iir.data
-            print "Filtered!"
+            suffix = '_iir_filt'
+        elif algorithm == 'Boxcar':
+            Filtered_data = F.filtered_boxcar.data
+            suffix = '_boxcar_filt'
+        elif algorithm == 'Fourier':
+            Filtered_data = F.filtered_fourier.data
+            suffix = '_fourier_filt'
         elif algorithm == 'FIR':
             Filtered_data = F.fir.data
+            suffix = '_fir_filt'
+        else:
+            raise ValueError('Unknown Nitime filtering algorithm: %s' %
+                             algorithm)
 
-        out_file = os.path.abspath(split_filename(in_file)[1] +
-                                   "_iir_filt" + split_filename(in_file)[2])
-        
+        out_file = fname_presuffix(in_file, suffix=suffix,
+                                   newpath=os.getcwd())
+
         out_img = nib.Nifti1Image(Filtered_data,
                                   nib.load(in_file).get_affine())
         out_img.to_filename(out_file)
+
+    return out_file
+
+def mod_regressor(design_file,in_file,mask):
+    import nipype.interfaces.fsl as fsl
+    if "empty_file.txt" in design_file:
+        return in_file
+    else:
+        reg = fsl.FilterRegressor(filter_all=True)
+        reg.inputs.in_file = in_file
+        reg.inputs.design_file = design_file
+        reg.inputs.mask = mask
+        res = reg.run()
+        out_file = res.outputs.out_file
+        return out_file
+
+def mod_despike(in_file, do_despike):
+    out_file=in_file
+    if do_despike:
+        from nipype.interfaces.afni import Despike
+        ds = Despike(in_file=in_file)
+        out_file = ds.run().outputs.out_file
     return out_file
