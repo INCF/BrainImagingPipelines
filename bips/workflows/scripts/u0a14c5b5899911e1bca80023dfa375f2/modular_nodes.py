@@ -404,7 +404,11 @@ def mod_filter(in_file, algorithm, lowpass_freq, highpass_freq, tr):
             highpass_freq = 0
         if lowpass_freq < 0:
             lowpass_freq = None
-        F = FilterAnalyzer(T, ub=lowpass_freq, lb=highpass_freq)
+        filt_order = np.floor(T.shape[3]/3)
+        if filt_order % 2 == 1:
+            filt_order -= 1
+        F = FilterAnalyzer(T, ub=lowpass_freq, lb=highpass_freq,
+                           filt_order=filt_order)
         if algorithm == 'IIR':
             Filtered_data = F.iir.data
             suffix = '_iir_filt'
