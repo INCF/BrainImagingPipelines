@@ -5,6 +5,7 @@ from .base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
 from glob import glob
+from .flexible_datagrabber import Data, DataBase
 
 """
 Part 1: MetaWorkflow
@@ -42,7 +43,9 @@ class config(HasTraits):
     test_mode = Bool(False, mandatory=False, usedefault=True,
                      desc='Affects whether where and if the workflow keeps its \
                             intermediary files. True to keep intermediary files. ')
+    timeout = traits.Float(14.0)
     # Subjects
+    """
     subjects = traits.List(traits.Str, mandatory=True, usedefault=True,
                           desc="Subject id's. Note: These MUST match the subject id's in the \
                                 Freesurfer directory. For simplicity, the subject id's should \
@@ -53,7 +56,8 @@ class config(HasTraits):
     fsl_mat_template = traits.String('%s/preproc/bbreg/*.mat')
     unwarped_brain_template = traits.String('%s/smri/unwarped_brain/*.nii*')
     affine_transformation_template = traits.String('%s/smri/affine_transformation/*.nii*')
-    warp_field_template = traits.String('%s/smri/warped_field/*.nii*')
+    warp_field_template = traits.String('%s/smri/warped_field/*.nii*')"""
+    datagrabber = traits.Instance(Data, ())
 
     #Normalization
     norm_template = traits.File(mandatory=True,desc='Template to warp to')
@@ -88,6 +92,40 @@ class config(HasTraits):
 def create_config():
     c = config()
     c.uuid = mwf.uuid
+    
+    c.datagrabber = Data(['inputs',
+                          'meanfunc',
+                          'fsl_mat',
+                          'warp_field',
+                          'unwarped_brain',
+                          'affine_transformation'])
+    c.datagrabber.fields = []
+    subs = DataBase()
+    subs.name = 'subject_id'
+    subs.values = ['sub01','sub02','sub03']
+    subs.iterable = True
+    fwhm = DataBase()
+    fwhm.name='fwhm'
+    fwhm.values=['0','6.0']
+    fwhm.iterable = True
+    
+    c.datagrabber.fields.append(subs)
+    c.datagrabber.fields.append(fwhm)
+    
+    c.datagrabber.field_template = dict(inputs='%s/preproc/output/fwhm_%s/*.nii.gz',
+                                meanfunc='%s/preproc/mean/*_mean.nii.gz',
+                                fsl_mat='%s/preproc/bbreg/*.mat',
+                                warp_field = '%s/smri/warped_field/*.nii*',
+                                unwarped_brain='%s/smri/unwarped_brain/*.nii*',
+                                affine_transformation='%s/smri/affine_transformation/*.txt')
+                                
+    c.datagrabber.template_args = dict(inputs=[['subject_id', 'fwhm']],
+                                           meanfunc=[['subject_id']],
+                                           fsl_mat=[['subject_id']],
+                                           warp_field=[['subject_id']],
+                                           unwarped_brain=[['subject_id']],
+                                           affine_transformation=[['subject_id']])
+    
     return c
 
 mwf.config_ui = create_config
@@ -106,18 +144,9 @@ def create_view():
                 Group(Item(name='run_using_plugin'),
                       Item(name='plugin', enabled_when="run_using_plugin"),
                       Item(name='plugin_args', enabled_when="run_using_plugin"),
-                      Item(name='test_mode'),
+                      Item(name='test_mode'),Item('timeout'),
                       label='Execution Options', show_border=True),
-                Group(Item(name='subjects', editor=CSVListEditor()),
-                      Item(name='base_dir'),
-                      Item(name='fwhm', editor=CSVListEditor()),
-                      Item(name='inputs_template'),
-                      Item(name='meanfunc_template'),
-                      Item(name='fsl_mat_template'),
-                      Item(name='affine_transformation_template'),
-                      Item(name='unwarped_brain_template'),
-                      Item(name='warp_field_template'),
-                      Item(name='check_func_datagrabber'),
+                Group(Item(name='datagrabber'),
                       label='Subjects', show_border=True),
                 Group(Item(name='norm_template'),
                       Item(name="do_segment"),
@@ -179,43 +208,41 @@ def getsubstitutions(subject_id):
     subs.append(('_apply_transforms2/',"csf/"))
     return subs
 
-def get_regexp(fwhm):
-    subs= [('_apply_transforms0/*.nii.gz',"wm.nii.gz"),
-           ('_apply_transforms1/*.nii.gz',"gm.nii.gz"),
-           ('_apply_transforms2/*.nii.gz',"csf.nii.gz")]
-    return subs
 
 def normalize_workflow(c):
     import nipype.pipeline.engine as pe
     import nipype.interfaces.utility as util
     import nipype.interfaces.io as nio
     norm = get_post_struct_norm_workflow()
-    datagrab = func_datagrabber(c)
+    
+    datagrab = c.datagrabber.create_dataflow() #func_datagrabber(c)
     #fssource = pe.Node(interface=FreeSurferSource(), name='fssource')
     #fssource.inputs.subjects_dir = c.surf_dir
 
-    infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
-                         name='subject_names')
-    if c.test_mode:
-        infosource.iterables = ('subject_id', [c.subjects[0]])
-    else:
-        infosource.iterables = ('subject_id', c.subjects)
+    #infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
+    #                     name='subject_names')
+    #if c.test_mode:
+    #    infosource.iterables = ('subject_id', [c.subjects[0]])
+    #else:
+    #    infosource.iterables = ('subject_id', c.subjects)
 
-    infofwhm = pe.Node(util.IdentityInterface(fields=['fwhm']),
-                         name='fwhm')
-    infofwhm.iterables = ('fwhm', c.fwhm)
-
+    #infofwhm = pe.Node(util.IdentityInterface(fields=['fwhm']),
+    #                     name='fwhm')
+    #infofwhm.iterables = ('fwhm', c.fwhm)
+ 
+    infosource = datagrab.get_node('subject_id_iterable')
+ 
     inputspec = norm.get_node('inputspec')
-
-    norm.connect(infosource, 'subject_id', datagrab, 'subject_id')
-    norm.connect(infofwhm, 'fwhm', datagrab, 'fwhm')
-    norm.connect(datagrab, 'fsl_mat', inputspec, 'out_fsl_file')
-    norm.connect(datagrab, 'inputs', inputspec, 'moving_image')
-    norm.connect(datagrab, 'meanfunc', inputspec, 'mean_func')
-    norm.connect(datagrab, 'warp_field', inputspec, 'warp_field')
-    norm.connect(datagrab, 'affine_transformation',
+  
+    #norm.connect(infosource, 'subject_id', datagrab, 'subject_id')
+    #norm.connect(infofwhm, 'fwhm', datagrab, 'fwhm')
+    norm.connect(datagrab, 'datagrabber.fsl_mat', inputspec, 'out_fsl_file')
+    norm.connect(datagrab, 'datagrabber.inputs', inputspec, 'moving_image')
+    norm.connect(datagrab, 'datagrabber.meanfunc', inputspec, 'mean_func')
+    norm.connect(datagrab, 'datagrabber.warp_field', inputspec, 'warp_field')
+    norm.connect(datagrab, 'datagrabber.affine_transformation',
                  inputspec, 'affine_transformation')
-    norm.connect(datagrab, 'unwarped_brain',
+    norm.connect(datagrab, 'datagrabber.unwarped_brain',
                  inputspec, 'unwarped_brain')
     norm.inputs.inputspec.template_file = c.norm_template
 
@@ -230,11 +257,11 @@ def normalize_workflow(c):
         seg = warp_segments()
         norm.connect(infosource, 'subject_id', seg, 'inputspec.subject_id')
         seg.inputs.inputspec.subjects_dir = c.surf_dir
-        norm.connect(datagrab, 'warp_field', seg, 'inputspec.warp_file')
-        norm.connect(datagrab, 'affine_transformation', seg, "inputspec.ants_affine")
+        norm.connect(datagrab, 'datagrabber.warp_field', seg, 'inputspec.warp_file')
+        norm.connect(datagrab, 'datagrabber.affine_transformation', seg, "inputspec.ants_affine")
         norm.connect(inputspec, 'template_file',seg, "inputspec.warped_brain")
         norm.connect(seg,"outputspec.out_files",sinkd,"smri.segments")
-        #norm.connect(infofwhm,('fwhm',get_regexp),sinkd,'regexp_substitutions')
+        
     norm.connect(infosource,('subject_id',getsubstitutions),sinkd,'substitutions')
     return norm
 
@@ -249,7 +276,7 @@ def main(config_file):
 
     workflow = normalize_workflow(c)
     workflow.base_dir = c.working_dir
-    workflow.config = {'execution': {'crashdump_dir': c.crash_dir}}
+    workflow.config = {'execution': {'crashdump_dir': c.crash_dir,'job_finished_timeout': c.timeout}}
     
     if c.test_mode:
         workflow.write_graph()

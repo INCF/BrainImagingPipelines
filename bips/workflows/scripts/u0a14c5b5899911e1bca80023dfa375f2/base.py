@@ -621,7 +621,7 @@ def create_rest_prep(name='preproc',fieldmap=False):
                           iterfield=['motion_params',
                                        'composite_norm',
                                        'compcorr_components',
-                                       'art_outliers'])
+                                       'art_outliers','global_signal'])
 
     # regress out noise
     remove_noise = pe.MapNode(util.Function(input_names=["in_file","design_file","mask"],

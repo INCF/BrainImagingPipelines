@@ -11,6 +11,29 @@ desc = """
 Task/Resting fMRI Quality Assurance workflow
 ============================================
 
+This workflow produces a PDF which shows:
+
+* configuration parameters
+* the mean and mask images
+* ribbon.mgz from freesurfer
+* artifact detect statistics
+* global intensity and norm component (with artifact timepoints marked) graphs
+* timeseries diagnostics
+* TSNR
+* mean and standard deviation values by freesurfer region
+* the mean timeseries and spectra by region
+* image of voxels that were used from A and T compcor (even if one wasn't selected in preprocessing).
+
+.. admonition:: NOTE
+   
+   This workflow uses information from the `fMRI Preprocessing Workflow`__ . If the output directory was changed (for example, if iterables were added in preprocessing), this workflow may not work!
+
+Click_ for more documentation
+
+.. _Click: ../../interfaces/generated/bips.workflows.workflow3.html
+
+.. __: uuid_7757e3168af611e1b9d5001e4fb1404c.html
+
 """
 mwf = MetaWorkflow()
 mwf.uuid = '5dd866fe8af611e1b9d5001e4fb1404c'
@@ -115,17 +138,66 @@ to1table = lambda x: [x]
 pickfirst = lambda x: x[0]
 
 def sort(x):
+    """Sorts list, if input is a list
+
+Parameters
+----------
+
+x : List
+
+Outputs
+-------
+
+Sorted list
+
+"""
     if isinstance(x,list):
         return sorted(x)
     else:
         return x
 
 def get_config_params(subject_id, table):
-        table.insert(0,['subject_id',subject_id])
-        return table
+    """Inserts subject_id to the top of the table
+
+Parameters
+----------
+
+subject_id : String
+             Subject_id 
+
+table : List
+        2d table that will go into QA report
+
+Outputs
+-------
+
+table : List
+"""    
+    table.insert(0,['subject_id',subject_id])
+    return table
 
 def preproc_datagrabber(c,name='preproc_datagrabber'):
-    # create a node to obtain the preproc files
+    """Nipype datagrabber node that looks for the following fields from preprocessing:
+
+* motion_parameters : parameters from motion correction
+* outlier_files : art outlier text files which specify the outlier timepoints
+* art_norm : the norm components output from art
+* art_intensity : global intensity file from art
+* art_stats : other statistics from art
+* tsnr : signal-to-noise ratio image
+* tsnr_detrended : detrended timeseries image
+* tsnr_stddev : standard-deviation image 
+* reg_file : bbregister's registration file
+* mean_image : mean image after motion correction
+* mask : mask image from preprocessing
+* tcompcor : image of voxels used for t-compcor
+* acompcor : image of voxels used for a-compcor
+
+.. admonition :: Warning
+
+   This datagrabber assumes a certain directory structure. One must replace the datagrabber if using this workflow with a different directory structure.
+
+"""
     import nipype.pipeline.engine as pe
     import nipype.interfaces.io as nio
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id','node_type'],
@@ -177,6 +249,22 @@ def preproc_datagrabber(c,name='preproc_datagrabber'):
 
 
 def start_config_table(c,c_qa):
+    """Returns a list with information from the preprocessing .json file and and QA .json file
+
+Parameters
+----------
+
+c : a preproc config object (from workflow2_)
+c_qa : a config object for this workflow
+
+.. _workflow2: bips.workflows.workflow2.html
+
+Returns:
+
+table : List
+        Contains preprocessing parameters
+
+"""
     table = []
     table.append(['TR',str(c.TR)])
     table.append(['Slice Order',str(c.SliceOrder)])
@@ -209,18 +297,17 @@ def QA_workflow(QAc,c=foo, name='QA'):
     
     Inputs
     ------
-    inputspec.subject_id :
-    inputspec.config_params :
-    inputspec.in_file :
-    inputspec.art_file :
-    inputspec.motion_plots :
-    inputspec.reg_file :
-    inputspec.tsnr_detrended :
-    inputspec.tsnr :
-    inputspec.tsnr_mean :
-    inputspec.tsnr_stddev :
-    inputspec.ADnorm :
-    inputspec.TR :
+    inputspec.subject_id : Subject id
+    inputspec.config_params : configuration parameters to print in PDF (in the form of a 2D List)
+    inputspec.in_file : original functional run
+    inputspec.art_file : art outlier file
+    inputspec.reg_file : bbregister file
+    inputspec.tsnr_detrended : detrended image
+    inputspec.tsnr : signal-to-noise ratio image
+    inputspec.tsnr_mean : mean image
+    inputspec.tsnr_stddev : standard deviation image
+    inputspec.ADnorm : norm components file from art
+    inputspec.TR : repetition time of acquisition
     inputspec.sd : freesurfer subjects directory
     
     """
@@ -472,7 +559,15 @@ Part 5: Define the main function
 """
 
 def main(config_file):
-    
+    """Runs preprocessing QA workflow
+
+Parameters
+----------
+
+config_file : String
+              Filename to .json file of configuration parameters for the workflow
+
+"""    
     QA_config = load_config(config_file, create_config)
     from .workflow2 import create_config as prep_config
 

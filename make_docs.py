@@ -71,9 +71,9 @@ for wf in workflows:
         graph = write_graph_section(graphname) + '\n'
         foo.write(graph)
     except TypeError:
-        continue
-    except:
-        print "There is some error :("
+        pass
+    #except:
+    #    print "There is some error :("
 
     foo.close()
     all_wf.write("   "+container+'/'+"uuid_"+uuid+'.rst'+'\n')

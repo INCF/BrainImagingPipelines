@@ -50,8 +50,8 @@ class config(HasTraits):
     run_datagrabber_without_submitting = Bool(True)
     # Subjects
 
-    prep_config = traits.File()
-
+    #prep_config = traits.File()
+    tr = traits.Float()
     n_subjects= traits.Int()
     project_name=traits.Str()
 
@@ -117,7 +117,7 @@ def create_view():
         Group(Item(name='datagrabber', enabled_when="1"),
               Item(name='n_subjects'),
               Item(name='project_name'),
-              Item('prep_config'),
+              Item('tr'),
             label='Data', show_border=True),
         buttons = [OKButton, CancelButton],
         resizable=True,
@@ -207,9 +207,9 @@ def get_outliers(art_outliers,motion):
 
     return out_file
 
-foo = prep_config()
+#foo = prep_config()
 
-def import_workflow(c,c_prep=foo):
+def import_workflow(c):
     import nipype.interfaces.io as nio
     import nipype.interfaces.utility as niu
     import nipype.pipeline.engine as pe
@@ -236,7 +236,7 @@ def import_workflow(c,c_prep=foo):
     workflow.connect(datagrabber,'datagrabber.realignment', outliers, 'motion')
     workflow.connect(outliers, 'out_file', importer,'outliers')
 
-    importer.inputs.tr = c_prep.TR
+    importer.inputs.tr = c.tr #c_prep.TR
     importer.inputs.n_subjects = c.n_subjects
     importer.inputs.project_name = c.project_name
 
@@ -262,9 +262,9 @@ Part 5: Main
 def main(config_file):
 
     c = load_config(config_file,config)
-    c_prep = load_config(c.config_file,prep_config)
+    #c_prep = load_config(c.prep_config,prep_config)
 
-    workflow = import_workflow(c,c_prep)
+    workflow = import_workflow(c)
 
     if c.run_using_plugin:
         workflow.run(plugin=c.plugin,plugin_args=c.plugin_args)

@@ -127,7 +127,7 @@ But in this example, we don't want to convert the localizer and we want to renam
 .. testcode::
    
    def infotodict(sdir, dicominfofile):
-       from bips.workflows.dicomconvert_dcmstack import isMoco #this is a function that checks if a run was motion corrected
+       from bips.workflows.workkflow19 import isMoco #this is a function that checks if a run was motion corrected
        import numpy as np
        from glob import glob
        import os
