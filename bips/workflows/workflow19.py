@@ -49,6 +49,7 @@ class config(HasTraits):
     #Conversion Options
     embed_meta = traits.Bool(True)
     info_only = traits.Bool(True)
+    no_moco = traits.Bool(False,desc="only convert non-moco files")
     use_heuristic = traits.Bool(False)
     heuristic_file = traits.File(desc="heuristic file")
 
@@ -84,7 +85,8 @@ def create_view():
             Item(name='dicom_dir_template'),
             label='Subjects', show_border=True),
         Group(Item('info_only'),
-            Item('use_heuristic',enabled_when="not info_only"),
+            Item('use_heuristic',enabled_when="not info_only"), 
+            Item('no_moco',enabled_when="not info_only and not use_heuristic"),
             Item('heuristic_file',enabled_when="use_heuristic"),
             Item('embed_meta',enabled_when='not info_only')),
         buttons = [OKButton, CancelButton],
@@ -162,7 +164,7 @@ def isMoco(dcmfile):
 
 
 def convert_dicoms(sid, dicom_dir_template, outputdir, queue=None, heuristic_func=None,
-                   extension = None,embed=False):
+                   extension = None,embed=False,no_moco=False):
 
     import os
     from nipype.utils.filemanip import load_json,save_json
@@ -193,13 +195,27 @@ def convert_dicoms(sid, dicom_dir_template, outputdir, queue=None, heuristic_fun
                 print convertcmd
                 os.system(convertcmd)
     else:
-        convertcmd = ['dcmstack', sdir, '--dest-dir', os.path.join(outputdir,sid),
-                      '--force-read','-v']
-        if embed:
-            convertcmd.append('--embed-meta')
-        convertcmd = ' '.join(convertcmd)
-        print convertcmd
-        os.system(convertcmd)
+        if not no_moco:
+            convertcmd = ['dcmstack', sdir, '--dest-dir', os.path.join(outputdir,sid),
+                          '--force-read','-v']
+            if embed:
+                convertcmd.append('--embed-meta')
+            convertcmd = ' '.join(convertcmd)
+            print convertcmd
+            os.system(convertcmd)
+        else:
+            import numpy as np
+            from bips.workflows.workflow19 import isMoco
+            foo = np.genfromtxt(os.path.join(tdir,'dicominfo.txt'),dtype=str)
+            for f in foo:
+                if not isMoco(os.path.join(sdir,f[1])):
+                    convertcmd = ['dcmstack', sdir, '--dest-dir', os.path.join(outputdir,sid),
+                          '--force-read','-v','--file-ext','*-%s-*'%f[2]]
+                    if embed:
+                        convertcmd.append('--embed-meta')
+                    convertcmd = ' '.join(convertcmd)
+                    print convertcmd
+                    os.system(convertcmd)
     return 1
 
 
@@ -210,7 +226,7 @@ def convert_wkflw(c,heuristic_func=None):
     infosource=pe.Node(util.IdentityInterface(fields=['subject_id']),name='subject_names')
     convert = pe.Node(util.Function(input_names=['sid', 'dicom_dir_template',
                                                  'outputdir', 'queue',
-                                                 'heuristic_func','extension','embed'],
+                                                 'heuristic_func','extension','embed','no_moco'],
                                     output_names=['out'],
                                     function=convert_dicoms),
                       name='converter')
@@ -226,6 +242,7 @@ def convert_wkflw(c,heuristic_func=None):
     convert.inputs.heuristic_func = heuristic_func
     convert.inputs.extension= None
     convert.inputs.embed=c.embed_meta
+    convert.inputs.no_moco = c.no_moco
     wk.base_dir = c.working_dir
     return wk
 

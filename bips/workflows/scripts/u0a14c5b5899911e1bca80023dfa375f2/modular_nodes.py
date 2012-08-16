@@ -25,8 +25,8 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
         out_file = res.outputs.out_file
         par_file = res.outputs.par_file
 
-    elif node=="fsl":
-        if not isinstance(in_file,list):
+    elif node == "fsl":
+        if not isinstance(in_file, list):
             in_file = [in_file]
         out_file = []
         par_file = []
@@ -34,7 +34,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
         if not do_slicetime:
             extract = fsl.ExtractROI()
             extract.inputs.t_min = 0
-            extract.inputs.t_size=1
+            extract.inputs.t_size = 1
             extract.inputs.in_file = in_file[0]
             ref_vol = extract.run().outputs.roi_file
 
@@ -42,18 +42,18 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
             if do_slicetime:
                 slicetime = fsl.SliceTimer()
                 slicetime.inputs.in_file = file
-                custom_order = open(os.path.abspath('FSL_custom_order_file.txt'),'w')
-                for t in sliceorder:
-                    custom_order.write('%d\n'%(t+1))
-                custom_order.close()
-                slicetime.inputs.custom_order = os.path.abspath('FSL_custom_order_file.txt') # needs to be 1-based
+                sliceorder_file = os.path.abspath('FSL_custom_order.txt')
+                with open(sliceorder_file, 'w') as custom_order_fp:
+                    for t in sliceorder:
+                        custom_order_fp.write('%d\n' % (t + 1))
+                slicetime.inputs.custom_order = sliceorder_file
                 slicetime.inputs.time_repetition = tr
                 res = slicetime.run()
                 file_to_realign = res.outputs.slice_time_corrected_file
                 if not idx:
                     extract = fsl.ExtractROI()
                     extract.inputs.t_min = 0
-                    extract.inputs.t_size=1
+                    extract.inputs.t_size = 1
                     extract.inputs.in_file = file_to_realign
                     ref_vol = extract.run().outputs.roi_file
             else:
@@ -62,16 +62,17 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
             realign.inputs.save_plots = True
             realign.inputs.mean_vol = True
             realign.inputs.in_file = file_to_realign
-            realign.inputs.out_file = 'fsl_corr_'+os.path.split(file_to_realign)[1]
+            realign.inputs.out_file = 'fsl_corr_' + \
+                                      os.path.split(file_to_realign)[1]
             Realign_res = realign.run()
             out_file.append(Realign_res.outputs.out_file)
             par_file.append(Realign_res.outputs.par_file)
 
-    elif node=='spm':
+    elif node == 'spm':
         import numpy as np
         import nibabel as nib
         import nipype.interfaces.freesurfer as fs
-        if not isinstance(in_file,list):
+        if not isinstance(in_file, list):
             in_file = [in_file]
         new_in_file = []
         for f in in_file:
@@ -89,10 +90,9 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
             num_slices = img.shape[2]
             st = spm.SliceTiming()
             st.inputs.in_files = new_in_file
-            print new_in_file
             st.inputs.num_slices = num_slices
             st.inputs.time_repetition = tr
-            st.inputs.time_acquisition = tr - tr/num_slices
+            st.inputs.time_acquisition = tr - tr / num_slices
             st.inputs.slice_order = (np.asarray(sliceorder) + 1).astype(int).tolist()
             st.inputs.ref_slice = 1
             res_st = st.run()
@@ -105,13 +105,8 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
         #realign.inputs.out_prefix = 'spm_corr_'
         res = realign.run()
         parameters = res.outputs.realignment_parameters
-        if not isinstance(parameters,list):
+        if not isinstance(parameters, list):
             parameters = [parameters]
-        #for i, p in enumerate(parameters):
-        #    foo = np.genfromtxt(p)
-        #    boo = np.hstack((foo[:,3:],foo[:,:3]))
-        #    np.savetxt(os.path.abspath('realignment_parameters_%d.par'%i),boo,delimiter='\t')
-        #    par_file.append(os.path.abspath('realignment_parameters_%d.par'%i))
         par_file = parameters
         parameter_source='SPM'
         fsl.ImageMaths(in_file=res.outputs.realigned_files,
@@ -122,7 +117,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
         import nipype.interfaces.afni as afni
         import nibabel as nib
         import numpy as np
-        if not isinstance(in_file,list):
+        if not isinstance(in_file, list):
             in_file = [in_file]
         img = nib.load(in_file[0])
         Nz = img.shape[2]
@@ -132,7 +127,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
         if not do_slicetime:
             extract = fsl.ExtractROI()
             extract.inputs.t_min = 0
-            extract.inputs.t_size=1
+            extract.inputs.t_size = 1
             extract.inputs.in_file = in_file[0]
             ref_vol = extract.run().outputs.roi_file
 
@@ -159,7 +154,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
                 if not idx:
                     extract = fsl.ExtractROI()
                     extract.inputs.t_min = 0
-                    extract.inputs.t_size=1
+                    extract.inputs.t_size = 1
                     extract.inputs.in_file = file_to_realign
                     ref_vol = extract.run().outputs.roi_file
 
@@ -391,15 +386,13 @@ def mod_filter(in_file, algorithm, lowpass_freq, highpass_freq, tr):
         if highpass_freq < 0:
             filter.inputs.highpass_sigma = -1
         else:
-            filter.inputs.highpass_sigma = 1/(2*tr*highpass_freq)
+            filter.inputs.highpass_sigma = 1 / (2 * tr * highpass_freq)
         if lowpass_freq < 0:
             filter.inputs.lowpass_sigma = -1
         else:
-            filter.inputs.lowpass_sigma = 1/(2*tr*lowpass_freq)
-
+            filter.inputs.lowpass_sigma = 1 / (2 * tr * lowpass_freq)
         res = filter.run()
         out_file = res.outputs.out_file
-
     else:
         import nitime.fmri.io as io
         from nitime.analysis import FilterAnalyzer
@@ -411,7 +404,11 @@ def mod_filter(in_file, algorithm, lowpass_freq, highpass_freq, tr):
             highpass_freq = 0
         if lowpass_freq < 0:
             lowpass_freq = None
-        F = FilterAnalyzer(T, ub=lowpass_freq, lb=highpass_freq)
+        filt_order = np.floor(T.shape[3]/3)
+        if filt_order % 2 == 1:
+            filt_order -= 1
+        F = FilterAnalyzer(T, ub=lowpass_freq, lb=highpass_freq,
+                           filt_order=filt_order)
         if algorithm == 'IIR':
             Filtered_data = F.iir.data
             suffix = '_iir_filt'

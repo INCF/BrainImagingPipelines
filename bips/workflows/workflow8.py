@@ -65,14 +65,16 @@ class config(HasTraits):
     combine_surfaces = traits.Bool() 
 
     # Target surface
-    target_surf = traits.Enum('fsaverage5', 'fsaverage', 'fsaverage3',
-        'fsaverage4', 'fsaverage6',
-        desc='which average surface to map to')
+    target_surf = traits.Enum('fsaverage4', 'fsaverage3', 'fsaverage5',
+                              'fsaverage6', 'fsaverage', 'subject',
+                              desc='which average surface to map to')
     surface_fwhm = traits.List([5], traits.Float(), mandatory=True,
         usedefault=True,
         desc="How much to smooth on target surface")
     projection_stem = traits.Str('-projfrac-avg 0 1 0.1',
-        desc='how to project data onto the surface')
+                                 desc='how to project data onto the surface')
+    combine_surfaces = traits.Bool(desc=('compute correlation matrix across'
+                                         'both left and right surfaces'))
 
     # Saving output
     out_type = traits.Enum('mat', 'hdf5', desc='mat or hdf5')
@@ -83,7 +85,8 @@ class config(HasTraits):
     advanced_script = traits.Code()
 
     # Atlas mapping
-    #surface_atlas = ??
+    surface_atlas = traits.Str('None',
+                               desc='Name of parcellation atlas')
 
     # Buttons
     check_func_datagrabber = Button("Check")
@@ -128,7 +131,7 @@ Part 3: Create a View
 """
 
 def create_view():
-    from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
+    from traitsui.api import View, Item, Group, CSVListEditor
     from traitsui.menu import OKButton, CancelButton
     view = View(Group(Item(name='working_dir'),
                       Item(name='sink_dir'),
@@ -144,7 +147,9 @@ def create_view():
                       label='Subjects', show_border=True),
                 Group(Item(name='target_surf'),
                       Item(name='surface_fwhm', editor=CSVListEditor()),
-                      Item(name='projection_stem'),Item(name='combine_surfaces'),
+                      Item(name='projection_stem'),
+                      Item(name='combine_surfaces'),
+                      Item(name='surface_atlas'),
                       label='Smoothing', show_border=True),
                 Group(Item(name='out_type'),
                       Item(name='hdf5_package',
