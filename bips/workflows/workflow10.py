@@ -60,6 +60,21 @@ class config(HasTraits):
     interscan_interval = traits.Float()
     film_threshold = traits.Float()
     input_units = traits.Enum('scans','secs')
+    is_sparse = traits.Bool(False)
+    model_hrf = traits.Bool(True)
+    stimuli_as_impulses = traits.Bool(True)
+    use_temporal_deriv = traits.Bool(True)
+    volumes_in_cluster = traits.Int(1)
+    ta = traits.Float()
+    tr = traits.Float()
+    hpcutoff = traits.Float()
+    scan_onset = traits.Int(0)
+    scale_regressors = traits.Bool(True)
+    #bases = traits.Dict({'dgamma':{'derivs': False}},use_default=True)
+    bases = traits.Dict({'dgamma':{'derivs': False}}, 
+                        traits.Enum('dgamma','gamma','none'), traits.Dict(traits.Enum('derivs',None), traits.Bool),
+                        desc="name of basis function and options e.g., {'dgamma': {'derivs': True}}")
+
     # preprocessing info
     preproc_config = traits.File(desc="preproc config file")
     use_compcor = traits.Bool(desc="use noise components from CompCor")
@@ -127,7 +142,17 @@ def create_view():
             Item(name='film_threshold'),
             Item(name='input_units'),
             Item(name='subjectinfo'),
-            Item(name='contrasts'),
+            Item(name='contrasts'),Item("is_sparse"),
+            Item("ta",enabled_when="is_sparse"),
+            Item("tr"),
+            Item("hpcutoff"),
+            Item("model_hrf",enabled_when="is_sparse"),
+            Item("stimuli_as_impulses",enabled_when="is_sparse"),
+            Item("use_temporal_deriv",enabled_when="is_sparse"),
+            Item("volumes_in_cluster",enabled_when="is_sparse"),
+            Item("scan_onset",enabled_when="is_sparse"),
+            Item("scale_regressors",enabled_when="is_sparse"),
+            Item("bases"),
             label = 'First Level'),
         Group(Item(name='preproc_config'),
               Item(name="use_compcor"),
@@ -223,7 +248,8 @@ def combine_wkflw(c,prep_c=foo, name='work_dir'):
     import nipype.interfaces.utility as util    # utility
     import nipype.pipeline.engine as pe         # pypeline engine
     import nipype.interfaces.io as nio          # input/output
-    from nipype.algorithms.modelgen import SpecifyModel
+    from nipype.algorithms.modelgen import SpecifyModel, SpecifySparseModel
+    import numpy as np
     modelflow = pe.Workflow(name=name)
     modelflow.base_dir = os.path.join(c.working_dir)
     
@@ -285,10 +311,21 @@ def combine_wkflw(c,prep_c=foo, name='work_dir'):
         output_names=['subs'], function=getsubs), name='getsubs')
 
     # create a node to create the subject info
-    s = pe.Node(SpecifyModel(),name='s')
+    if not c.is_sparse:
+        s = pe.Node(SpecifyModel(),name='s')
+    else:
+        s = pe.Node(SpecifySparseModel(model_hrf=c.model_hrf,
+                                       stimuli_as_impulses=c.stimuli_as_impulses,
+                                       use_temporal_deriv=c.use_temporal_deriv,
+                                       volumes_in_cluster=c.volumes_in_cluster, 
+                                       scan_onset=c.scan_onset,scale_regressors=c.scale_regressors),
+            name='s')
+        s.inputs.time_acquisition = c.ta
     s.inputs.input_units =                              c.input_units
-    s.inputs.time_repetition =                          prep_c.TR
-    s.inputs.high_pass_filter_cutoff =                  prep_c.hpcutoff
+    s.inputs.time_repetition =                          c.tr
+    if c.hpcutoff < 0:
+        c.hpcutoff = np.inf
+    s.inputs.high_pass_filter_cutoff =                  c.hpcutoff
     #subjinfo =                                          subjectinfo(subj)
     
     
@@ -336,7 +373,7 @@ def combine_wkflw(c,prep_c=foo, name='work_dir'):
                      contrasts, 'subject_id')
     modelflow.connect(contrasts,'contrasts', modelfit, 'inputspec.contrasts')
     
-    modelfit.inputs.inputspec.bases =                   {'dgamma':{'derivs': False}}
+    modelfit.inputs.inputspec.bases =                   c.bases
     modelfit.inputs.inputspec.model_serial_correlations = True
     noise_motn.inputs.num_noise_components =           prep_c.num_noise_components
     
