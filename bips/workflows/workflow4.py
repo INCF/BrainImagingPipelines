@@ -11,11 +11,21 @@ Part 1: Define MetaWorkflow
 desc = """
 Test Freesurfer workflow
 =======================================
-Grab data
-Freesurfer source
-Convert brainmask.mgz to brainmask.nii.gz
-Convert brainmask.nii.gz to brainmask.mgz
-DataSink 
+
+This workflow just tests freesurfer to make sure that BIPS is working and freesurfer is correctly set up.
+
+The order of steps is as follows:
+
+#. Grab data
+#. Freesurfer source
+#. Convert brainmask.mgz to brainmask.nii.gz
+#. Convert brainmask.nii.gz to brainmask.mgz
+#. DataSink 
+
+Click_ for more documentation
+
+
+.. Click_: ../../interfaces/generated/bips.workflows.workflow4.html
 """
 
 mwf = MetaWorkflow()
@@ -79,6 +89,24 @@ Part 4: Workflow Construction
 
 
 def test_fs(c,name='test_fs'):
+    """Constructs a workflow to test freesurfer.
+
+Inputs
+------
+
+inputspec.subject_id : Freesurfer subject id 
+inputspec.sd : Freesurfer SUBJECTS_DIR
+
+Outputs
+-------
+
+outputspec.outfile : brainmask.mgz
+
+Returns
+--------
+
+a nipype workflow
+"""
     import nipype.pipeline.engine as pe
     import nipype.interfaces.utility as util
     import nipype.interfaces.io as nio
@@ -136,6 +164,15 @@ Part 5: Define the main function
 """
 
 def main(config):
+    """Runs test freesurfer workflow
+
+Parameters
+----------
+
+config : String
+         filename of configuration .json file
+
+"""
     c = load_config(config,create_config)
     wk = test_fs(c)
 

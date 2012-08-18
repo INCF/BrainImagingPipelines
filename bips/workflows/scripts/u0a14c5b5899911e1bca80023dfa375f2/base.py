@@ -3,7 +3,8 @@ from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
 
 
 def create_filter_matrix(motion_params, composite_norm,
-                         compcorr_components, art_outliers, global_signal, selector):
+                         compcorr_components, art_outliers, global_signal,
+                         selector, demean=False):
     """Combine nuisance regressor components into a single file
 
     Parameters
@@ -21,6 +22,7 @@ def create_filter_matrix(motion_params, composite_norm,
     filter_file : a file with selected parameters concatenated
     """
     import numpy as np
+    from scipy.signal import detrend
     import os
     if not len(selector) == 6:
         print "selector is not the right size!"
@@ -48,12 +50,13 @@ def create_filter_matrix(motion_params, composite_norm,
     # concatenate all files except art_outliers and motion_derivs
         if i == 0:
             z = try_import(opt)
-
         else:
             a = try_import(opt)
             if len(a.shape) == 1:
                 a = np.array([a]).T
             z = np.hstack((z, a))
+    if z is not None and demean:
+        z = detrend(z, axis=0, type='constant')
 
     if selector[-2]:
         #import outlier file
@@ -78,6 +81,10 @@ def create_filter_matrix(motion_params, composite_norm,
             a = try_import(motion_params)
             temp = np.zeros(a.shape)
             temp[1:, :] = np.diff(a, axis=0)
+            if demean:
+                out = np.hstack((out, detrend(temp, axis=0, type='constant')))
+            else:
+                out = np.hstack((out, temp))
             out = np.hstack((out, temp))
     if out is not None:
         np.savetxt(filter_file, out)
@@ -614,14 +621,15 @@ def create_rest_prep(name='preproc',fieldmap=False):
                                                      'composite_norm',
                                                      "compcorr_components","global_signal",
                                                      "art_outliers",
-                                                     "selector"],
+                                                     "selector",
+                                                     "demean"],
                                         output_names=['filter_file'],
                                         function=create_filter_matrix),
                           name='create_nuisance_filter',
                           iterfield=['motion_params',
                                        'composite_norm',
                                        'compcorr_components',
-                                       'art_outliers'])
+                                       'art_outliers','global_signal'])
 
     # regress out noise
     remove_noise = pe.MapNode(util.Function(input_names=["in_file","design_file","mask"],

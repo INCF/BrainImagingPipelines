@@ -11,6 +11,24 @@ desc = """
 Localizer Workflow
 ==================
 
+This workflow is used for a realtime fMRI project.
+It will create an ROI mask based on task activation and a background mask
+and the output will be organized in this way:
+
+* subject id
+
+  * mask
+
+    * roi.nii.gz
+    * background.nii.gz
+
+  * xfm
+
+    * study_ref.nii.gz
+
+This format is used by the realtime software murfi_
+
+.. _murfi: mindhive.mit.edu/realtime
 """
 mwf = MetaWorkflow()
 mwf.uuid = 'localizer'
@@ -49,7 +67,7 @@ class config(HasTraits):
     reg_file = traits.File()
     mean_image = traits.File()
     background_thresh = traits.Float(0.5)
-    roi = traits.Enum('superiortemporal',
+    roi = traits.List(['superiortemporal','bankssts'],traits.Enum('superiortemporal',
                        'bankssts',
                        'caudalanteriorcingulate',
                        'caudalmiddlefrontal',
@@ -83,7 +101,7 @@ class config(HasTraits):
                        'frontalpole',
                        'temporalpole',
                        'transversetemporal',
-                       'insula') #35 freesurfer regions,
+                       'insula'),usedefault=True) #35 freesurfer regions,
     thresh = traits.Float(1.5)
 
 
@@ -149,7 +167,7 @@ exit"""%(vertex, vertex, filename)
     os.system(cmd)
     return filename
 
-def get_vertices(sub,sd,overlay,reg,mean,hemi,roi='superiortemporal',thresh=1.5):
+def get_vertices(sub,sd,overlay,reg,mean,hemi,roi=['superiortemporal'],thresh=1.5):
     import os
     import nibabel as nib
     import numpy as np
@@ -161,12 +179,17 @@ def get_vertices(sub,sd,overlay,reg,mean,hemi,roi='superiortemporal',thresh=1.5)
     datax = (np.abs(data) > thresh).astype(int)
     values = nib.freesurfer.read_annot('%s/label/%s.aparc.annot'%(os.path.join(sd,sub),hemi))
     names = values[2]
-    names_idx = np.asarray(range(len(names)))[np.asarray(names)==roi]
-    names_idx = names_idx[0]
-    idxs = np.asarray(range(0,img.shape[0]))
-    foo = (np.asarray(values[0]) == names_idx).astype(int)
-    valid_idxs = idxs[(datax + foo) ==2]
-    goo = data[(foo + datax)==2]
+    for i, ro in enumerate(roi):
+        names_idx = np.asarray(range(len(names)))[np.asarray(names)==ro]
+        names_idx = names_idx[0]
+        idxs = np.asarray(range(0,img.shape[0]))
+        if not i:
+            foo = (np.asarray(values[0]) == names_idx).astype(int)
+        else:
+            foo += (np.asarray(values[0]) == names_idx).astype(int)
+  
+    valid_idxs = idxs[(datax + foo) ==len(roi)]
+    goo = data[(foo + datax)==len(roi)]
     return int(valid_idxs[np.argmax(goo)])
 
 def mask_overlay(mask,overlay,use_mask_overlay, thresh):
@@ -187,6 +210,18 @@ def background(overlay,uthresh):
     cmd = 'fslmaths %s -abs -uthr %s -bin %s -odt short'%(overlay,uthresh,outfile)
     os.system(cmd)
     return outfile
+
+def study_ref(mean):
+    from nibabel import load
+    import numpy as np
+    import os
+
+    os.environ['FSLOUTPUTTYPE'] = 'NIFTI'
+    img = load(mean)
+    max = np.max(img.get_data())
+    cmd = 'fslmaths %s -div %f -mul 20000 %s  -odt short'%(mean,max,os.path.abspath('study_ref'))
+    os.system(cmd)   
+    return os.path.abspath('study_ref.nii')
 
 def localizer(name='localizer'):
     import nipype.interfaces.freesurfer as fs
@@ -268,8 +303,12 @@ def localizer(name='localizer'):
     wf.connect(verts,'vertex',surf_label,'vertex')
     wf.connect(inputspec,'thresh',surf_label,'thresh')
 
-    outputspec = pe.Node(niu.IdentityInterface(fields=['rois','reference']),name='outputspec')
+    studyref = pe.Node(niu.Function(input_names=['mean'],output_names=['study_ref'], function=study_ref),name='studyref')
+    wf.connect(inputspec,'mean',studyref,'mean')
 
+    outputspec = pe.Node(niu.IdentityInterface(fields=['rois','reference','study_ref']),name='outputspec')
+
+    wf.connect(studyref,'study_ref', outputspec, 'study_ref')
     bin = pe.Node(fsl.ImageMaths(op_string = '-bin'),name="binarize_roi")
     changetype = pe.Node(fsl.ChangeDataType(output_datatype='short'),name='to_short')
 
@@ -278,6 +317,15 @@ def localizer(name='localizer'):
     wf.connect(bin,'out_file', changetype, 'in_file')
     wf.connect(changetype, 'out_file', outputspec, 'rois')
     return wf
+
+
+def get_substitutions(subject_id):
+    subs = [('_labels2vol0',''),
+            ('_labels2vol1',''),
+            ('lh_label_vol_maths_chdt.nii','%s_roi.nii'%subject_id),
+            ('background','%s_background'%subject_id),
+            ('study_ref','%s_study_ref'%subject_id)]
+    return subs
 
 mwf.workflow_function = localizer
 
@@ -297,11 +345,9 @@ def main(config_file):
     outputspec = wk.get_node('outputspec')
     wk.connect(outputspec,'rois', sinker,'mask.@roi')
     wk.connect(outputspec,'reference', sinker,'mask.@ref')
+    wk.connect(outputspec,'study_ref', sinker,'xfm.@studyref')
     sinker.inputs.container = c.subject_id
-    sinker.inputs.substitutions = [('_labels2vol0',''),
-                                   ('_labels2vol1',''),
-                                   ('lh_label_vol_maths_chdt.nii','roi.nii')]
-
+    sinker.inputs.substitutions = get_substitutions(c.subject_id)
 
     sinker.inputs.base_directory = c.sink_dir
     wk.inputs.inputspec.subject_id = c.subject_id

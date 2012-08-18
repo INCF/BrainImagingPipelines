@@ -14,6 +14,47 @@ mwf.help = """
 fMRI preprocessing workflow
 ===========================
 
+This workflow can be used to preprocess resting-state and task fMRI. 
+
+.. admonition: For Task fMRI
+
+   * Do not regress anything from the timeseries (Nuisance Filter tab should have nothing selected)
+   * The lowpass frequency of the bandpass filter tab should be set to -1
+
+For a tutorial on this workflow, click here_.
+
+.. _here: ../../Preprocessing_Resting_State_Data_Tutorial.html
+
+Click_ for more documentation.
+
+.. _Click: ../../interfaces/generated/bips.workflows.workflow2.html
+
+Outputs
+^^^^^^^
+
+* art : Results of artiface detection
+
+* bbreg : Output of BBRegister
+
+* compcor : A and T compcor regions (both are computed even if only 1 is selected)
+ 
+* fieldmap : If use_fieldmap is true, this folder contains the fieldmap unwarped epi
+
+* mask : The mask created from the anatomical in functional space
+
+* mean : mean image after motion correction 
+
+* motion : contains motion parameters
+
+* noise_components : compcor components (from A and/or T compcor)
+
+* output : the bandpassed and full spectrum output from preprocessing
+
+* regressors : components regressed from timeseries (if none were selected, a blank text file)
+
+* tsnr : signal-to-noise image, detrended timeseries image, mean and standard deviation image (useful for QA)
+
+
 """
 
 mwf.uuid = '7757e3168af611e1b9d5001e4fb1404c'
@@ -42,6 +83,7 @@ class config(baseconfig):
     do_despike = traits.Bool(False,usedefault=True)
     do_whitening = traits.Bool(False, usedefault=True)
     use_metadata = traits.Bool(True)
+    update_hash = traits.Bool(False)
 
 def create_config():
     c = config()
@@ -66,13 +108,12 @@ def create_view():
         Group(Item(name='working_dir'),
             Item(name='sink_dir'),
             Item(name='crash_dir'),
-            Item(name='json_sink'),
             Item(name='surf_dir'),
             label='Directories', show_border=True),
         Group(Item(name='run_using_plugin'),
             Item(name='plugin', enabled_when="run_using_plugin"),
             Item(name='plugin_args', enabled_when="run_using_plugin"),
-            Item(name='test_mode'),
+            Item(name='test_mode'),Item('update_hash'),
             label='Execution Options', show_border=True),
         Group(Item(name='subjects', editor=CSVListEditor()),
             Item(name='base_dir', ),
@@ -143,6 +184,26 @@ from scripts.u0a14c5b5899911e1bca80023dfa375f2.base import create_rest_prep
 from scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import get_datasink, get_substitutions, get_regexp_substitutions
 
 def extract_meta(func):
+    """Extracts meta-data from niftis that were created from dcmstack_
+
+Parameters
+----------
+
+func : String
+       Filename of nifti image created from dcmstack_
+
+Returns
+-------
+
+so : List of Integers
+     Slice order of nifti
+
+tr : Float
+     Repetition Time (TR) in seconds
+
+.. _dcmstack: https://github.com/moloney/dcmstack
+
+"""
     from nibabel import load
     import numpy as np
     from dcmstack.dcmmeta import NiftiWrapper
@@ -166,6 +227,19 @@ def extract_meta(func):
         return so, trs[0]/1000.
 
 def prep_workflow(c=create_config()):
+    """Creates a project-specific fMRI preprocessing workflow
+
+Parameters
+----------
+
+c : Config objects
+
+Returns
+-------
+
+Preprocessing nipype workflow
+
+"""
     import nipype.pipeline.engine as pe
     import nipype.interfaces.utility as util
     import nipype.interfaces.io as nio
@@ -339,6 +413,14 @@ Part 5: Define the main function
 """
 
 def main(config_file):
+    """Runs the fMRI preprocessing workflow
+
+Parameters
+----------
+
+config_file : JSON file with configuration parameters
+
+"""
     c = load_config(config_file, create_config)
     preprocess = prep_workflow(c)
     preprocess.config = {'execution': {'crashdump_dir': c.crash_dir, 'job_finished_timeout' : 14}}
@@ -354,9 +436,9 @@ def main(config_file):
         exec c.advanced_script
 
     if c.run_using_plugin:
-        preprocess.run(plugin=c.plugin, plugin_args = c.plugin_args)
+        preprocess.run(plugin=c.plugin, plugin_args = c.plugin_args, updatehash=c.update_hash)
     else:
-        preprocess.run()
+        preprocess.run(updatehash=c.update_hash)
 
 mwf.workflow_main_function = main
 

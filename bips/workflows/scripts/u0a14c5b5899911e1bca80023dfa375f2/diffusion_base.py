@@ -28,7 +28,10 @@ def create_workflow(name='tracking'):
     wf.connect(inputspec,'bvecs', bed_wf, 'inputnode.bvecs')
     wf.connect(inputspec,'bvals', bed_wf, 'inputnode.bvals')
 
-    prob2 = fsl.ProbTrackX2(verbose=2)
+    try:
+        prob2 = fsl.ProbTrackX2(verbose=2)
+    except AttributeError:
+        prob2 = fsl.ProbTrackX(verbose=2)
     #prob2._cmd='probtrackx2'
     #prob2.inputs.mode = Undefined
     track = pe.MapNode(prob2,name='probtrackx',iterfield=["seed"])

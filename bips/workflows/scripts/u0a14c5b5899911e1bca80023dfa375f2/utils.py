@@ -426,6 +426,8 @@ def get_regexp_substitutions(subject_id, use_fieldmap):
 
 
 def get_datasink(root_dir, fwhm):
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
     sinkd = pe.Node(nio.DataSink(), name='sinkd')
     sinkd.inputs.base_directory = os.path.join(root_dir)
     return sinkd

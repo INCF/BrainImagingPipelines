@@ -44,21 +44,12 @@ class config(HasTraits):
                      desc='Affects whether where and if the workflow keeps its \
                             intermediary files. True to keep intermediary files. ')
     timeout = traits.Float(14.0)
-    # Subjects
-    #subjects = traits.List(traits.Str, mandatory=True, usedefault=True,
-    #                      desc="Subject id's. Note: These MUST match the subject id's in the \
-    #                            Freesurfer directory. For simplicity, the subject id's should \
-    #                            also match with the location of individual functional files.")
-    #fwhm=traits.List(traits.Float())
-    #copes_template = traits.String('%s/preproc/output/fwhm_%s/cope*.nii.gz')
-    #varcopes_template = traits.String('%s/preproc/output/fwhm_%s/varcope*.nii.gz')
-    #contrasts = traits.List(traits.Str,desc="contrasts")
-
     datagrabber = traits.Instance(Data, ())
 
     #Normalization
     norm_template = traits.File(mandatory=True,desc='Template to warp to')
     name_of_project = traits.String("group_analysis",usedefault=True)
+    do_randomize = traits.Bool(True)
 
     #Correction:
     run_correction = traits.Bool(True)
@@ -119,7 +110,7 @@ def create_view():
                 Group(Item(name='datagrabber'),
                       label='Datagrabber', show_border=True),
                 Group(Item(name='norm_template'),
-                      Item(name='name_of_project'),
+                      Item(name='do_randomize'),
                       label='Second Level', show_border=True),
                 Group(Item("run_correction"),Item("z_threshold"),Item("connectivity"),
                     label='Correction', show_border=True),
@@ -154,7 +145,7 @@ def create_2lvl(name="group"):
     
     mergecopes = pe.Node(fsl.Merge(dimension='t'),name='merge_copes')
     mergevarcopes = pe.Node(fsl.Merge(dimension='t'),name='merge_varcopes')
-
+    
     flame = pe.Node(fsl.FLAMEO(run_mode='ols'),name='flameo')
     wk.connect(inputspec,'copes',mergecopes,'in_files')
     wk.connect(inputspec,'varcopes',mergevarcopes,'in_files')
@@ -195,6 +186,56 @@ def create_2lvl(name="group"):
 
     return wk
 
+
+def create_2lvl_rand(name="group_randomize"):
+    import nipype.interfaces.fsl as fsl
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as niu
+    import nipype.interfaces.io as nio
+    wk = pe.Workflow(name=name)
+    
+    inputspec = pe.Node(niu.IdentityInterface(fields=['copes','varcopes','template']),name='inputspec')
+    
+    model = pe.Node(fsl.L2Model(),name='l2model')
+    
+    wk.connect(inputspec,('copes',get_len),model,'num_copes')
+    
+    mergecopes = pe.Node(fsl.Merge(dimension='t'),name='merge_copes')
+    mergevarcopes = pe.Node(fsl.Merge(dimension='t'),name='merge_varcopes')
+    
+    rand = pe.Node(fsl.Randomise(base_name='OneSampleT', raw_stats_imgs=True, tfce=True),name='randomize')
+
+    wk.connect(inputspec,'copes',mergecopes,'in_files')
+    wk.connect(inputspec,'varcopes',mergevarcopes,'in_files')
+    wk.connect(model,'design_mat',rand,'design_mat')
+    wk.connect(model,'design_con',rand, 'tcon')
+    wk.connect(mergecopes, 'merged_file', rand, 'in_file')
+    #wk.connect(model,'design_grp',rand,'cov_split_file')
+    
+    bet = pe.Node(fsl.BET(mask=True,frac=0.3),name="template_brainmask")
+    wk.connect(inputspec,'template',bet,'in_file')
+    wk.connect(bet,'mask_file',rand,'mask')
+
+    outputspec = pe.Node(niu.IdentityInterface(fields=['f_corrected_p_files',
+                                                       'f_p_files',
+                                                       'fstat_files',
+                                                       't_corrected_p_files',
+                                                       't_p_files', 
+                                                       'tstat_file','mask']),
+                         name='outputspec')
+                             
+    wk.connect(rand,'f_corrected_p_files',outputspec,'f_corrected_p_files')
+    wk.connect(rand,'f_p_files',outputspec,'f_p_files')
+    wk.connect(rand,'fstat_files',outputspec,'fstat_files')
+    wk.connect(rand,'t_corrected_p_files',outputspec,'t_corrected_p_files')
+    wk.connect(rand,'t_p_files',outputspec,'t_p_files')
+    wk.connect(rand,'tstat_files',outputspec,'tstat_file')
+    wk.connect(bet,'mask_file',outputspec,'mask')
+
+    return wk
+
+
+
 def get_datagrabber(c):
 
     import nipype.pipeline.engine as pe
@@ -229,7 +270,11 @@ def get_substitutions(contrast):
 def connect_to_config(c):
     import nipype.pipeline.engine as pe
     import nipype.interfaces.io as nio
-    wk = create_2lvl()
+    if not c.do_randomize:
+        wk = create_2lvl()
+    else:
+        wk  =create_2lvl_rand()
+
     wk.base_dir = c.working_dir
     datagrabber = c.datagrabber.create_dataflow()  #get_datagrabber(c)
     #infosourcecon = pe.Node(niu.IdentityInterface(fields=["contrast"]),name="contrasts")
@@ -252,20 +297,21 @@ def connect_to_config(c):
     wk.connect(datagrabber,'datagrabber.copes', inputspec, 'copes')
     wk.connect(datagrabber,'datagrabber.varcopes', inputspec, 'varcopes')
     wk.inputs.inputspec.template = c.norm_template
-    wk.connect(outputspec,'cope',sinkd,'output.@cope')
-    wk.connect(outputspec,'varcope',sinkd,'output.@varcope')
-    wk.connect(outputspec,'mrefvars',sinkd,'output.@mrefvars')
-    wk.connect(outputspec,'pes',sinkd,'output.@pes')
-    wk.connect(outputspec,'res4d',sinkd,'output.@res4d')
-    wk.connect(outputspec,'weights',sinkd,'output.@weights')
-    wk.connect(outputspec,'zstat',sinkd,'output.@zstat')
-    wk.connect(outputspec,'tstat',sinkd,'output.@tstat')
-    wk.connect(outputspec,'pstat',sinkd,'output.@pstat')
-    wk.connect(outputspec,'tdof',sinkd,'output.@tdof')
-    wk.connect(outputspec,'mask',sinkd,'output.@bet_mask')
-    wk.connect(inputspec,'template',sinkd,'output.@template')
+    if not c.do_randomize:
+        wk.connect(outputspec,'cope',sinkd,'output.@cope')
+        wk.connect(outputspec,'varcope',sinkd,'output.@varcope')
+        wk.connect(outputspec,'mrefvars',sinkd,'output.@mrefvars')
+        wk.connect(outputspec,'pes',sinkd,'output.@pes')
+        wk.connect(outputspec,'res4d',sinkd,'output.@res4d')
+        wk.connect(outputspec,'weights',sinkd,'output.@weights')
+        wk.connect(outputspec,'zstat',sinkd,'output.@zstat')
+        wk.connect(outputspec,'tstat',sinkd,'output.@tstat')
+        wk.connect(outputspec,'pstat',sinkd,'output.@pstat')
+        wk.connect(outputspec,'tdof',sinkd,'output.@tdof')
+        wk.connect(outputspec,'mask',sinkd,'output.@bet_mask')
+        wk.connect(inputspec,'template',sinkd,'output.@template')
 
-    if c.run_correction:
+    if c.run_correction and not c.do_randomize:
         cluster = cluster_image()
         wk.connect(outputspec,"zstat",cluster,'inputspec.zstat')
         wk.connect(outputspec,"mask",cluster,"inputspec.mask")
@@ -275,6 +321,11 @@ def connect_to_config(c):
         wk.connect(cluster,'outputspec.corrected_z',sinkd,'output.corrected.@zthresh')
         wk.connect(cluster,'outputspec.slices',sinkd,'output.corrected.clusters')
         wk.connect(cluster,'outputspec.cuts',sinkd,'output.corrected.slices')
+
+    if c.do_randomize:
+        wk.connect(outputspec,'t_corrected_p_files',sinkd,'output.@t_corrected_p_files')
+        wk.connect(outputspec,'t_p_files',sinkd,'output.@t_p_files')
+        wk.connect(outputspec,'tstat_file',sinkd,'output.@tstat_file')
 
 
     return wk
@@ -292,6 +343,8 @@ def main(config_file):
     
     if c.test_mode:
         wk.write_graph()
+    if c.use_advanced_options:
+        exec c.advanced_script
     if c.run_using_plugin:
         wk.run(plugin=c.plugin,plugin_args=c.plugin_args)
     else:

@@ -3,6 +3,7 @@ import os
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
 from .base import MetaWorkflow, load_config, register_workflow
+from .flexible_datagrabber import Data,DataBase
 
 """
 Part 1: Define a MetaWorkflow
@@ -53,6 +54,7 @@ class config(HasTraits):
         desc='Affects whether where and if the workflow keeps its \
                             intermediary files. True to keep intermediary files. ')
     # Subjects
+    datagrabber = traits.Instance(Data, ())
     subjects = traits.List(traits.Str, mandatory=True, usedefault=True,
         desc="Subject id's. Note: These MUST match the subject id's in the \
                                 Freesurfer directory. For simplicity, the subject id's should \
@@ -60,16 +62,19 @@ class config(HasTraits):
     func_template = traits.String('%s/cleaned_resting.nii.gz')
     reg_template = traits.String('%s/cleaned_resting_reg.dat')
     ref_template = traits.String('%s/cleaned_resting_ref.nii.gz')
+    combine_surfaces = traits.Bool() 
 
     # Target surface
-    target_surf = traits.Enum('fsaverage5', 'fsaverage', 'fsaverage3',
-        'fsaverage4', 'fsaverage6',
-        desc='which average surface to map to')
+    target_surf = traits.Enum('fsaverage4', 'fsaverage3', 'fsaverage5',
+                              'fsaverage6', 'fsaverage', 'subject',
+                              desc='which average surface to map to')
     surface_fwhm = traits.List([5], traits.Float(), mandatory=True,
         usedefault=True,
         desc="How much to smooth on target surface")
     projection_stem = traits.Str('-projfrac-avg 0 1 0.1',
-        desc='how to project data onto the surface')
+                                 desc='how to project data onto the surface')
+    combine_surfaces = traits.Bool(desc=('compute correlation matrix across'
+                                         'both left and right surfaces'))
 
     # Saving output
     out_type = traits.Enum('mat', 'hdf5', desc='mat or hdf5')
@@ -80,7 +85,8 @@ class config(HasTraits):
     advanced_script = traits.Code()
 
     # Atlas mapping
-    #surface_atlas = ??
+    surface_atlas = traits.Str('None',
+                               desc='Name of parcellation atlas')
 
     # Buttons
     check_func_datagrabber = Button("Check")
@@ -96,6 +102,26 @@ class config(HasTraits):
 def create_config():
     c = config()
     c.uuid = mwf.uuid
+    
+    c.datagrabber = Data(['timeseries_file','reg_file','ref_file'])
+    subid = DataBase()
+    subid.name = "subject_id"
+    subid.values = ["subject01","subject02"]
+    subid.iterable = True
+    c.datagrabber.fields.append(subid)
+    c.datagrabber.field_template = dict(timeseries_file='%s/preproc/output/bandpassed/fwhm_5/*.nii',
+                                        ref_file='%s/preproc/mean/*.nii*',
+                                        reg_file='%s/preproc/bbreg/*.dat')
+    c.datagrabber.template_args = dict(timeseries_file=[["subject_id"]],
+                                       ref_file=[["subject_id"]], 
+                                       reg_file=[["subject_id"]])
+    """
+    datasource.inputs.template = '*'
+    datasource.inputs.base_directory = os.path.abspath(c.base_dir)
+    datasource.inputs.field_template = dict(timeseries_file=c.func_template,
+                                            ref_file=c.ref_template,
+                                            reg_file=c.reg_template)
+    """
     return c
 
 mwf.config_ui = create_config
@@ -105,7 +131,7 @@ Part 3: Create a View
 """
 
 def create_view():
-    from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
+    from traitsui.api import View, Item, Group, CSVListEditor
     from traitsui.menu import OKButton, CancelButton
     view = View(Group(Item(name='working_dir'),
                       Item(name='sink_dir'),
@@ -117,16 +143,13 @@ def create_view():
                       Item(name='plugin_args', enabled_when="run_using_plugin"),
                       Item(name='test_mode'),
                       label='Execution Options', show_border=True),
-                Group(Item(name='subjects', editor=CSVListEditor()),
-                      Item(name='base_dir', ),
-                      Item(name='func_template'),
-                      Item(name='reg_template'),
-                      Item(name='ref_template'),
-                      Item(name='check_func_datagrabber'),
+                Group(Item(name='datagrabber'),
                       label='Subjects', show_border=True),
                 Group(Item(name='target_surf'),
                       Item(name='surface_fwhm', editor=CSVListEditor()),
                       Item(name='projection_stem'),
+                      Item(name='combine_surfaces'),
+                      Item(name='surface_atlas'),
                       label='Smoothing', show_border=True),
                 Group(Item(name='out_type'),
                       Item(name='hdf5_package',
@@ -146,15 +169,23 @@ mwf.config_view = create_view
 Part 4: Workflow Construction
 """
 
-def create_correlation_matrix(infile, out_type, package):
+def create_correlation_matrix(infiles, out_type, package):
     import os
     import numpy as np
     import scipy.io as sio
     import nibabel as nb
-    from nipype.utils.filemanip import split_filename
-    img = nb.load(infile)
-    corrmat = np.corrcoef(np.squeeze(img.get_data()))
-    _, name, _ = split_filename(infile)
+    from nipype.utils.filemanip import split_filename, filename_to_list
+    for idx, fname in enumerate(filename_to_list(infiles)):
+        data = np.squeeze(nb.load(fname).get_data())
+        if idx == 0:
+            timeseries = data
+        else:
+            timeseries = np.vstack((timeseries, data))
+
+    corrmat = np.corrcoef(timeseries)
+    _, name, _ = split_filename(filename_to_list(infiles)[0])
+    if len(filename_to_list(infiles))>1:
+        name = 'combined_' + name
     if 'mat' in out_type:
         matfile = os.path.abspath(name + '.mat')
         sio.savemat(matfile, {'corrmat': corrmat})
@@ -164,7 +195,7 @@ def create_correlation_matrix(infile, out_type, package):
         if package == 'h5py':
             import h5py
             f = h5py.File(hdf5file, 'w')
-            dset = f.create_dataset('corrmat', data=corrmat, compression=5)
+            f.create_dataset('corrmat', data=corrmat, compression=5)
             f.close()
         else:
             from tables import openFile, Float64Atom, Filters
@@ -185,45 +216,43 @@ def create_workflow(c):
     import nipype.interfaces.io as nio
     from nipype.interfaces.freesurfer import SampleToSurface
     workflow = pe.Workflow(name='surface_correlation')
-    inputnode = pe.Node(util.IdentityInterface(fields=['subject_id']),
-                        name='subjectsource')
-    inputnode.iterables = ('subject_id', c.subjects)
-    datasource = pe.Node(nio.DataGrabber(infields=['subject_id'],
-                                         outfields=['timeseries_file',
-                                                   'ref_file',
-                                                   'reg_file']),
-                         name='datasource')
-    datasource.inputs.template = '*'
-    datasource.inputs.base_directory = os.path.abspath(c.base_dir)
-    datasource.inputs.field_template = dict(timeseries_file=c.func_template,
-                                            ref_file=c.ref_template,
-                                            reg_file=c.reg_template)
-    workflow.connect(inputnode, 'subject_id', datasource, 'subject_id')
-
+   
+    datasource = c.datagrabber.create_dataflow()
+    dg = datasource.get_node("datagrabber")
+    dg.run_without_submitting = True
+    inputnode = datasource.get_node("subject_id_iterable")
     # vol2surf
-    vol2surf = pe.MapNode(SampleToSurface(),
-                       name='sampletimeseries',iterfield=['source_file'])
+    if c.combine_surfaces:
+        vol2surf = pe.MapNode(SampleToSurface(),
+                              iterfield=['hemi'],
+                              name='sampletimeseries')
+        vol2surf.iterables = ('smooth_surf', c.surface_fwhm)
+        vol2surf.inputs.hemi = ['lh', 'rh']
+    else:
+        vol2surf = pe.Node(SampleToSurface(),
+                           name='sampletimeseries')
+        vol2surf.iterables = [('smooth_surf', c.surface_fwhm),
+                              ('hemi', ['lh', 'rh'])]
     vol2surf.inputs.projection_stem = c.projection_stem
-    vol2surf.iterables = [('hemi', ['lh', 'rh']),
-                          ('smooth_surf', c.surface_fwhm)]
     vol2surf.inputs.interp_method = 'trilinear'
     vol2surf.inputs.out_type = 'niigz'
-    vol2surf.inputs.target_subject = c.target_surf
     vol2surf.inputs.subjects_dir = c.surf_dir
+    if c.target_surf != 'subject':
+        vol2surf.inputs.target_subject = c.target_surf
 
-    workflow.connect(datasource, 'timeseries_file', vol2surf, 'source_file')
-    workflow.connect(datasource, 'reg_file', vol2surf, 'reg_file')
-    workflow.connect(datasource, 'ref_file', vol2surf, 'reference_file')
+    workflow.connect(datasource, 'datagrabber.timeseries_file', vol2surf, 'source_file')
+    workflow.connect(datasource, 'datagrabber.reg_file', vol2surf, 'reg_file')
+    workflow.connect(datasource, 'datagrabber.ref_file', vol2surf, 'reference_file')
 
     # create correlation matrix
-    corrmat = pe.MapNode(util.Function(input_names=['infile', 'out_type',
+    corrmat = pe.Node(util.Function(input_names=['infiles', 'out_type',
                                                  'package'],
                                     output_names=['corrmatfile'],
                                     function=create_correlation_matrix),
-                      name='correlation_matrix',iterfield=['infile'])
+                      name='correlation_matrix')
     corrmat.inputs.out_type = c.out_type
     corrmat.inputs.package = c.hdf5_package
-    workflow.connect(vol2surf, 'out_file', corrmat, 'infile')
+    workflow.connect(vol2surf, 'out_file', corrmat, 'infiles')
 
     datasink = pe.Node(nio.DataSink(), name='sinker')
     datasink.inputs.base_directory = c.sink_dir
@@ -231,6 +260,8 @@ def create_workflow(c):
     workflow.connect(inputnode, 'subject_id', datasink, 'container')
     workflow.connect(corrmat, 'corrmatfile', datasink, '@corrmat')
     return workflow
+
+
 
 mwf.workflow_function = create_workflow
 
@@ -242,7 +273,7 @@ def main(config_file):
     c = load_config(config_file, create_config)
     workflow = create_workflow(c)
     workflow.base_dir = c.working_dir
-    workflow.config = {'execution': {'crashdump_dir': c.crash_dir}}
+    workflow.config = {'execution': {'crashdump_dir': c.crash_dir, "job_finished_timout":14}}
     if c.use_advanced_options:
         exec c.advanced_script
     if c.run_using_plugin:
