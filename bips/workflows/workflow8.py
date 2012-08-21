@@ -219,7 +219,7 @@ def create_workflow(c):
    
     datasource = c.datagrabber.create_dataflow()
     dg = datasource.get_node("datagrabber")
-    dg.run_without_submitting = True
+    #dg.run_without_submitting = True
     inputnode = datasource.get_node("subject_id_iterable")
     # vol2surf
     if c.combine_surfaces:
