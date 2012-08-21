@@ -218,6 +218,8 @@ def create_workflow(c):
     workflow = pe.Workflow(name='surface_correlation')
    
     datasource = c.datagrabber.create_dataflow()
+    dg = datasource.get_node("datagrabber")
+    dg.run_without_submitting = True
     inputnode = datasource.get_node("subject_id_iterable")
     # vol2surf
     if c.combine_surfaces:
@@ -271,7 +273,7 @@ def main(config_file):
     c = load_config(config_file, create_config)
     workflow = create_workflow(c)
     workflow.base_dir = c.working_dir
-    workflow.config = {'execution': {'crashdump_dir': c.crash_dir}}
+    workflow.config = {'execution': {'crashdump_dir': c.crash_dir, "job_finished_timout":14}}
     if c.use_advanced_options:
         exec c.advanced_script
     if c.run_using_plugin:
