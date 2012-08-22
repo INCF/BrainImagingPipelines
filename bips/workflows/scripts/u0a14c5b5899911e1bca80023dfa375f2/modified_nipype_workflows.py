@@ -374,7 +374,7 @@ def create_get_stats_flow(name='getstats', withreg=False):
 
     """
     if withreg:
-        voltransform = pe.MapNode(fs.ApplyVolTransform(inverse=True),
+        voltransform = pe.MapNode(fs.ApplyVolTransform(inverse=True, interp='nearest'),
             iterfield=['source_file', 'reg_file'],
             name='transform')
         getstats.connect(inputnode, 'reg_file', voltransform, 'reg_file')

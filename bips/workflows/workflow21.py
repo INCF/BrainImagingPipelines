@@ -56,6 +56,7 @@ class config(HasTraits):
     rh_annotation = traits.File()
     color_table_file = traits.Enum("Default","Color_Table","GCA_color_table","None")
     color_file = traits.File()
+    proj = traits.BaseTuple(("frac",0,1,0.1),traits.Enum("abs","frac"),traits.Float(),traits.Float(),traits.Float())
 
 def create_config():
     c = config()
@@ -106,7 +107,7 @@ def create_view():
               Item('use_standard_label'),
               Item('label_file',enabled_when="use_standard_label"),
               Item('color_table_file'),
-              Item("color_file"),
+              Item("color_file"),Item('proj'),
             label='Data', show_border=True),
         buttons=[OKButton, CancelButton],
         resizable=True,
@@ -119,8 +120,10 @@ mwf.config_view = create_view
 Construct Workflow
 """
 
-
-
+def aparc2aseg(subject_id,annot):
+    import os
+    outfile = os.path.abspath(os.path.split(annot)[1]+'_aparc2aseg.nii.gz')
+    os.system("mri_aparc2aseg --s %s --o %s --annot %s" % (subject_id,outfile,annot))
 
 def segstats_workflow(c, name='segstats'):
     import nipype.interfaces.fsl as fsl
@@ -159,20 +162,25 @@ def segstats_workflow(c, name='segstats'):
                             name="surf2surf",
                             iterfield=['hemi','source_annot_file'])
         surf2surf.inputs.source_annot_file = [c.lh_annotation,c.rh_annotation]
-        label2vol = pe.MapNode(fs.Label2Vol(subjects_dir=c.surf_dir),name='label2vol',iterfield=["hemi","annot_file"])
+        workflow.connect(subject_iterable,"subject_id",surf2surf,"target_subject")
+        surf2surf.inputs.hemi=['lh','rh']
+
+        add = pe.Node(fsl.BinaryMaths(operation='add'),name="add")
+        workflow.connect(add,'out_file',inputspec,"label_file")
+        label2vol = pe.MapNode(fs.Label2Vol(subjects_dir=c.surf_dir, proj=c.proj),name='label2vol',iterfield=["hemi","annot_file"])
         workflow.connect(surf2surf,"out_file",label2vol,"annot_file")
         workflow.connect(subject_iterable,"subject_id",label2vol,"subject_id")
-        workflow.connect(subject_iterable,"subject_id",surf2surf,"target_subject")
+        #fssource = pe.Node(nio.FreeSurferSource(subjects_dir = c.surf_dir),name='fssource')
+        #workflow.connect(subject_iterable,"subject_id",fssource,"subject_id")
+        #workflow.connect(subject_iterable,"subject_id",label2vol,"reg_header")
+        #workflow.connect(fssource,"orig",label2vol,"template_file")
         workflow.connect(merge,"merged_file",label2vol,"template_file")
-        surf2surf.inputs.hemi=['lh','rh']
         label2vol.inputs.hemi=['lh','rh']
         workflow.connect(datagrabber,'datagrabber.reg_file',label2vol,'reg_file')
-        label2vol.inputs.invert_mtx = c.inverse_reg
-        add = pe.Node(fsl.BinaryMaths(operation='add'),name="add")
+        if c.inverse_reg:
+            label2vol.inputs.invert_mtx = c.inverse_reg
         workflow.connect(label2vol,('vol_label_file',pickidx,0),add,'in_file')
         workflow.connect(label2vol,('vol_label_file',pickidx,1),add,'operand_file')
-        workflow.connect(add,'out_file',inputspec,"label_file")
-
 
     workflow.connect(merge,'merged_file',inputspec,'source_file')
 
