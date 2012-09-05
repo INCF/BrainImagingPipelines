@@ -293,10 +293,10 @@ def combine_wkflw(c,prep_c=foo, name='work_dir'):
             subs.append(('varcope%d.'%(i+1), 'varcope%02d_%s.'%(i+1,con[0])))
             subs.append(('zstat%d.'%(i+1), 'zstat%02d_%s.'%(i+1,con[0])))
             subs.append(('tstat%d.'%(i+1), 'tstat%02d_%s.'%(i+1,con[0])))
-        for i, name in enumerate(info[0].conditions):
+        """for i, name in enumerate(info[0].conditions):
             subs.append(('pe%d.'%(i+1), 'pe%02d_%s.'%(i+1,name)))
         for i in range(len(info[0].conditions), 256):
-            subs.append(('pe%d.'%(i+1), 'others/pe%02d.'%(i+1)))
+            subs.append(('pe%d.'%(i+1), 'others/pe%02d.'%(i+1)))"""
         for i in fwhm:
             subs.append(('_register%d/'%(i),''))
         

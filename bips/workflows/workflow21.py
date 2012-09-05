@@ -42,6 +42,7 @@ class config(HasTraits):
     test_mode = Bool(False, mandatory=False, usedefault=True,
         desc='Affects whether where and if the workflow keeps its \
                             intermediary files. True to keep intermediary files. ')
+    timeout = traits.Float(30.0)
     # DataGrabber
     datagrabber = datagrabber = traits.Instance(Data, ())
 
@@ -96,7 +97,7 @@ def create_view():
         Group(Item(name='run_using_plugin'),
             Item(name='plugin', enabled_when="run_using_plugin"),
             Item(name='plugin_args', enabled_when="run_using_plugin"),
-            Item(name='test_mode'),
+            Item(name='test_mode'),Item('timeout'),
             label='Execution Options', show_border=True),
         Group(Item(name='datagrabber'),
               Item('use_reg'),
@@ -218,6 +219,9 @@ def main(config_file):
     c = load_config(config_file,config)
     wk = segstats_workflow(c)
     wk.base_dir = c.working_dir
+    wk.config = {'execution' : {'crashdump_dir' : c.crash_dir, 
+                                'job_finished_timeout' : c.timeout}}
+
     if c.test_mode:
         wk.write_graph()
     if c.run_using_plugin:
