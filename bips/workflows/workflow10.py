@@ -403,6 +403,7 @@ def combine_wkflw(c,prep_c=foo, name='work_dir'):
     modelflow.connect(noise_motn,'subinfo',                         s,          'subject_info')
     modelflow.connect(s,'session_info',                             modelfit,   'inputspec.session_info')
     modelflow.connect(modelfit, 'outputspec.parameter_estimates',   sinkd,      'modelfit.estimates')
+    modelflow.connect(modelfit, 'outputspec.sigmasquareds',   sinkd,      'modelfit.estimates.@sigsq')
     modelflow.connect(modelfit, 'outputspec.dof_file',              sinkd,      'modelfit.dofs')
     modelflow.connect(modelfit, 'outputspec.copes',                 sinkd,      'modelfit.contrasts.@copes')
     modelflow.connect(modelfit, 'outputspec.varcopes',              sinkd,      'modelfit.contrasts.@varcopes')

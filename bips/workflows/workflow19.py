@@ -155,6 +155,7 @@ def isMoco(dcmfile):
     """Determine if a dicom file is a mocoseries
     """
     import subprocess
+    print dcmfile
     cmd = ['mri_probedicom', '--i', dcmfile, '--t', '8', '103e']
     proc  = subprocess.Popen(cmd,
                              stdout=subprocess.PIPE,
@@ -168,7 +169,7 @@ def convert_dicoms(sid, dicom_dir_template, outputdir, queue=None, heuristic_fun
 
     import os
     from nipype.utils.filemanip import load_json,save_json
-
+    from glob import glob
     sdir = dicom_dir_template%sid
     tdir = os.path.join(outputdir, sid)
     infofile =  os.path.join(tdir,'%s.auto.txt' % sid)
@@ -208,7 +209,7 @@ def convert_dicoms(sid, dicom_dir_template, outputdir, queue=None, heuristic_fun
             from bips.workflows.workflow19 import isMoco
             foo = np.genfromtxt(os.path.join(tdir,'dicominfo.txt'),dtype=str)
             for f in foo:
-                if not isMoco(os.path.join(sdir,f[1])):
+                if not isMoco(glob(os.path.join(sdir,f[1]))[0]):
                     convertcmd = ['dcmstack', sdir, '--dest-dir', os.path.join(outputdir,sid),
                           '--force-read','-v','--file-ext','*-%s-*'%f[2]]
                     if embed:
@@ -216,6 +217,8 @@ def convert_dicoms(sid, dicom_dir_template, outputdir, queue=None, heuristic_fun
                     convertcmd = ' '.join(convertcmd)
                     print convertcmd
                     os.system(convertcmd)
+                else:
+                    print "skipping moco run %s"%f[1]
     return 1
 
 
