@@ -1,8 +1,5 @@
 import os
-from nipype.interfaces import fsl
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
-import nipype.interfaces.io as nio
+
 from .base import MetaWorkflow, load_config, register_workflow
 from nipype.interfaces.io import FreeSurferSource
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import pickfirst
@@ -13,6 +10,11 @@ from .scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import tsnr_roi, \
                                                                get_labels,\
                                                                get_coords
 import traits.api as traits
+from .flexible_datagrabber import Data, DataBase
+
+"""
+Part 1: Define a MetaWorkflow
+"""
 
 desc = """
 fMRI First Level or FixedFx QA workflow
@@ -24,6 +26,10 @@ mwf.uuid = '9ecc82228b1d11e1b99a001e4fb1404c'
 mwf.tags = ['QA','first-level','activation','constrast images']
 mwf.help = desc
 
+"""
+Part 2: Define the config class & create_config function
+"""
+
 from .workflow3 import config as baseconfig
 
 class config(baseconfig):
@@ -33,12 +39,52 @@ class config(baseconfig):
     first_level_config = traits.File
     fx_config = traits.File
     is_block_design = traits.Bool
+    datagrabber = traits.Instance(Data, ())
 
 def create_config():
     c = config()
     c.uuid = mwf.uuid
     c.desc = mwf.help
+    c.datagrabber = create_datagrabber_config()
     return c
+
+def create_datagrabber_config():
+    dg = Data(['func',
+               'mask',
+               'reg',
+               'des_mat',
+               'des_mat_cov',
+               'detrended'])
+    foo = DataBase()
+    foo.name="subject_id"
+    foo.iterable = True
+    foo.values=["sub01","sub02"]
+    bar = DataBase()
+    bar.name = 'fwhm'
+    bar.iterable =True
+    bar.values = ['0', '6.0']
+    dg.template= '*'
+    dg.field_template = dict(func='%s/modelfit/contrasts/fwhm_'+'%s'+'/*/*zstat*',
+        mask = '%s/preproc/mask/'+'*.nii',
+        reg = '%s/preproc/bbreg/*.dat',
+        detrended = '%s/preproc/tsnr/*detrended.nii.gz',
+        des_mat = '%s/modelfit/design/fwhm_%s/*/run?.png',
+        des_mat_cov = '%s/modelfit/design/fwhm_%s/*/*cov.png')
+
+    dg.template_args = dict(func=[['subject_id','fwhm']],
+        mask=[['subject_id']],
+        reg = [['subject_id']],
+        detrended = [['subject_id']],
+        des_mat = [['subject_id','fwhm']],
+        des_mat_cov = [['subject_id','fwhm']])
+    dg.fields = [foo, bar]
+    return dg
+
+mwf.config_ui = create_config
+
+"""
+Part 3: Create a View
+"""
 
 def create_view():
     from traitsui.api import View, Item, Group, CSVListEditor
@@ -56,7 +102,7 @@ def create_view():
             Item(name='plugin_args', enabled_when="run_using_plugin"),
             Item(name='test_mode'),
             label='Execution Options', show_border=True),
-        Group(Item(name='subjects', editor=CSVListEditor()),
+        Group(Item(name='datagrabber'),
             label='Subjects', show_border=True),
         Group(Item(name='first_level_config'),
               Item(name='fx_config', enabled_when='is_fixed_fx'),
@@ -72,9 +118,16 @@ def create_view():
     return view
 
 mwf.config_view = create_view
-mwf.config_ui = create_config
+
+"""
+Part 4: Workflow Construction
+"""
 
 def img_wkflw(thr, csize, name='slice_image_generator'):
+    from nipype.interfaces import fsl
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+
     inputspec = pe.Node(util.IdentityInterface(fields=['in_file',
                                                        'mask_file',
                                                        'anat_file',
@@ -158,7 +211,8 @@ def img_wkflw(thr, csize, name='slice_image_generator'):
     return workflow               
     
 def get_data(c,name='first_level_datagrab'):
-    
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
     datasource = pe.Node(nio.DataGrabber(infields=['subject_id',
                                                    'fwhm'],
                                         outfields=['func',
@@ -189,7 +243,8 @@ def get_data(c,name='first_level_datagrab'):
     return datasource
     
 def get_fx_data(c, name='fixedfx_datagrab'):
-    
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
     datasource = pe.Node(nio.DataGrabber(infields=['subject_id',
                                                    'fwhm'],
                                          outfields=['func',
@@ -218,19 +273,30 @@ def get_fx_data(c, name='fixedfx_datagrab'):
                                            des_mat = [['subject_id','fwhm']],
                                            des_mat_cov = [['subject_id','fwhm']])
     return datasource
-    
-def combine_report(c, first_c, prep_c, fx_c=None, thr=2.326,csize=30,fx=False):
+
+from .workflow10 import create_config as first_config
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import create_config as prep_config
+
+foo0 = first_config()
+foo1 = prep_config()
+
+def combine_report(c, first_c=foo0, prep_c=foo1, fx_c=None, thr=2.326,csize=30,fx=False):
+    from nipype.interfaces import fsl
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    import nipype.interfaces.io as nio
 
     if not fx:
         workflow = pe.Workflow(name='first_level_report')
-        dataflow = get_data(first_c)
+        #dataflow = get_data(first_c)
     else:
         workflow = pe.Workflow(name='fixedfx_report')
-        dataflow =  get_fx_data(fx_c)
+        #dataflow =  get_fx_data(fx_c)
     
     infosource = pe.Node(util.IdentityInterface(fields=['subject_id']),
                          name='subject_names')
 
+    """
     if c.test_mode:
         infosource.iterables = ('subject_id', [c.subjects[0]])
     else:
@@ -239,12 +305,17 @@ def combine_report(c, first_c, prep_c, fx_c=None, thr=2.326,csize=30,fx=False):
     infosource1 = pe.Node(util.IdentityInterface(fields=['fwhm']),
                          name='fwhms')
     infosource1.iterables = ('fwhm', prep_c.fwhm)
-    
+    """
+
+    dataflow = c.datagrabber.create_dataflow()
+
     fssource = pe.Node(interface = FreeSurferSource(),name='fssource')
     
-    workflow.connect(infosource, 'subject_id', dataflow, 'subject_id')
-    workflow.connect(infosource1, 'fwhm', dataflow, 'fwhm')
-    
+    #workflow.connect(infosource, 'subject_id', dataflow, 'subject_id')
+    #workflow.connect(infosource1, 'fwhm', dataflow, 'fwhm')
+
+    infosource = dataflow.get_node("subject_id_iterable")
+
     workflow.connect(infosource, 'subject_id', fssource, 'subject_id')
     fssource.inputs.subjects_dir = prep_c.surf_dir
     
@@ -253,8 +324,8 @@ def combine_report(c, first_c, prep_c, fx_c=None, thr=2.326,csize=30,fx=False):
     # adding cluster correction before sending to imgflow
     
     smoothest = pe.MapNode(fsl.SmoothEstimate(), name='smooth_estimate', iterfield=['zstat_file'])
-    workflow.connect(dataflow,'func', smoothest, 'zstat_file')
-    workflow.connect(dataflow,'mask',smoothest, 'mask_file')
+    workflow.connect(dataflow,'datagrabber.func', smoothest, 'zstat_file')
+    workflow.connect(dataflow,'datagrabber.mask',smoothest, 'mask_file')
     
     cluster = pe.MapNode(fsl.Cluster(), name='cluster', iterfield=['in_file','dlh','volume'])
     workflow.connect(smoothest,'dlh', cluster, 'dlh')
@@ -262,12 +333,12 @@ def combine_report(c, first_c, prep_c, fx_c=None, thr=2.326,csize=30,fx=False):
     cluster.inputs.connectivity = csize
     cluster.inputs.threshold = thr
     cluster.inputs.out_threshold_file = True
-    workflow.connect(dataflow,'func',cluster,'in_file')
+    workflow.connect(dataflow,'datagrabber.func',cluster,'in_file')
     
     workflow.connect(cluster, 'threshold_file',imgflow,'inputspec.in_file')
     #workflow.connect(dataflow,'func',imgflow, 'inputspec.in_file')
-    workflow.connect(dataflow,'mask',imgflow, 'inputspec.mask_file')
-    workflow.connect(dataflow,'reg',imgflow, 'inputspec.reg_file')
+    workflow.connect(dataflow,'datagrabber.mask',imgflow, 'inputspec.mask_file')
+    workflow.connect(dataflow,'datagrabber.reg',imgflow, 'inputspec.reg_file')
     
     workflow.connect(fssource,'brain',imgflow, 'inputspec.anat_file')
     
@@ -298,10 +369,10 @@ def combine_report(c, first_c, prep_c, fx_c=None, thr=2.326,csize=30,fx=False):
     if c.is_block_design:
         plottseries = tsnr_roi(plot=True, onsets=True)
         plottseries.inputs.inputspec.TR = prep_c.TR
-        workflow.connect(dataflow,'reg',plottseries, 'inputspec.reg_file')
+        workflow.connect(dataflow,'datagrabber.reg',plottseries, 'inputspec.reg_file')
         workflow.connect(fssource, ('aparc_aseg',pickfirst), plottseries, 'inputspec.aparc_aseg')
         workflow.connect(infosource, 'subject_id', plottseries, 'inputspec.subject')
-        workflow.connect(dataflow, 'detrended', plottseries,'inputspec.tsnr_file')
+        workflow.connect(dataflow, 'datagrabber.detrended', plottseries,'inputspec.tsnr_file')
 
         subjectinfo = pe.Node(util.Function(input_names=['subject_id'], output_names=['output']), name='subjectinfo')
         subjectinfo.inputs.function_str = first_c.subjectinfo
@@ -320,8 +391,12 @@ def combine_report(c, first_c, prep_c, fx_c=None, thr=2.326,csize=30,fx=False):
     
     workflow.connect(infosource, 'subject_id', writereport, 'subjects')
     #workflow.connect(infosource, 'subject_id', writereport, 'container')
-    workflow.connect(infosource1, 'fwhm', writereport, 'fwhm')
-    
+    try:
+        infosource1 = dataflow.get_node('fwhm_iterable')
+        workflow.connect(infosource1, 'fwhm', writereport, 'fwhm')
+    except:
+        writereport.inputs.fwhm = prep_c.fwhm[0]
+
     writereport.inputs.thr = thr
     writereport.inputs.csize = csize
     
@@ -344,18 +419,18 @@ def combine_report(c, first_c, prep_c, fx_c=None, thr=2.326,csize=30,fx=False):
     sinker.inputs.base_directory = os.path.join(c.sink_dir)
     
     workflow.connect(infosource,'subject_id',sinker,'container')
-    workflow.connect(dataflow,'func',makesurfaceplots,'con_image')
-    workflow.connect(dataflow,'reg',makesurfaceplots,'reg_file')
+    workflow.connect(dataflow,'datagrabber.func',makesurfaceplots,'con_image')
+    workflow.connect(dataflow,'datagrabber.reg',makesurfaceplots,'reg_file')
     
-    workflow.connect(dataflow, 'des_mat', writereport, 'des_mat')
-    workflow.connect(dataflow, 'des_mat_cov', writereport, 'des_mat_cov')
+    workflow.connect(dataflow, 'datagrabber.des_mat', writereport, 'des_mat')
+    workflow.connect(dataflow, 'datagrabber.des_mat_cov', writereport, 'des_mat_cov')
     workflow.connect(imgflow, 'outputspec.cs', writereport, 'cs')
     workflow.connect(imgflow, 'outputspec.locations', writereport, 'locations')
     workflow.connect(imgflow, 'outputspec.percents', writereport, 'percents')
     workflow.connect(imgflow, 'outputspec.meanval', writereport, 'meanval')
     workflow.connect(imgflow,'outputspec.imagefiles', writereport, 'imagefiles')
     
-    workflow.connect(dataflow, 'func', writereport, 'in_files')
+    workflow.connect(dataflow, 'datagrabber.func', writereport, 'in_files')
     workflow.connect(makesurfaceplots,'surface_ims', writereport, 'surface_ims')
     if not fx:
         workflow.connect(writereport,"report",sinker,"first_level_report")
@@ -365,12 +440,15 @@ def combine_report(c, first_c, prep_c, fx_c=None, thr=2.326,csize=30,fx=False):
     
     return workflow
 
+mwf.workflow_function = combine_report
+
+"""
+Part 5: Define the main function
+"""
 
 def main(config_file):
     c = load_config(config_file, create_config)
-    from .workflow10 import create_config as first_config
     first_c = load_config(c.first_level_config, first_config)
-    from .workflow1 import create_config as prep_config
     prep_c = load_config(first_c.preproc_config, prep_config)
     if c.is_fixed_fx:
         from .workflow11 import create_config as fx_config
@@ -387,13 +465,18 @@ def main(config_file):
 
     if not os.environ['SUBJECTS_DIR'] == prep_c.surf_dir:
         print "Your SUBJECTS_DIR is incorrect!"
-        print "export SUBJECTS_DIR=%s"%prep_c.surf_dir
+        print "changing SUBJECTS_DIR=%s"%prep_c.surf_dir
+        os.environ['SUBJECTS_DIR'] = prep_c.surf_dir
         
+    #else:
+    if c.run_using_plugin:
+        workflow.run(plugin=c.plugin, plugin_args=c.plugin_args)
     else:
-        if c.run_using_plugin:
-            workflow.run(plugin=c.plugin, plugin_args=c.plugin_args)
-        else:
-            workflow.run()
+        workflow.run()
         
 mwf.workflow_main_function = main
+
+"""
+Part 6: Register the Workflow
+"""
 register_workflow(mwf)

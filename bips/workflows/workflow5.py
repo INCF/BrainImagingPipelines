@@ -1,30 +1,102 @@
 import os
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
-import nipype.interfaces.io as nio
-from bips.utils.reportsink.io import ReportSink
+from ..utils.reportsink.io import ReportSink
 from .base import MetaWorkflow, load_config, register_workflow
 from scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import corr_image, vol2surf
 from .scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import pickfirst
+
+"""
+Part 1: Define a MetaWorkflow
+"""
 
 desc = """
 Resting State correlation QA workflow
 =====================================
 
+This workflow outputs a PDF with surface corellation images preprocessed resting state data with the seed as the average timeseries of the left hemisphere precuneus.
+
+Click_ for more documentation.
+
+.. _Click: ../../interfaces/generated/bips.workflows.workflow5.html
 """
 mwf = MetaWorkflow()
 mwf.uuid = '62aff7328b0a11e1be5d001e4fb1404c'
 mwf.tags = ['resting','fMRI','QA','correlation']
 mwf.uses_outputs_of = ['7757e3168af611e1b9d5001e4fb1404c']
 mwf.help = desc
+
+"""
+Part 2: Define the config class & create_config function
+"""
+
+from .workflow3 import config
+
+def create_config():
+    c = config()
+    c.uuid = mwf.uuid
+    c.desc = mwf.help
+    return c
+
+mwf.config_ui = create_config
+
+"""
+Part 3: Create a View
+"""
+
+def create_view():
+    from traitsui.api import View, Item, Group, CSVListEditor
+    from traitsui.menu import OKButton, CancelButton
+    view = View(Group(Item(name='uuid', style='readonly'),
+        Item(name='desc', style='readonly'),
+        label='Description', show_border=True),
+        Group(Item(name='working_dir'),
+            Item(name='sink_dir'),
+            Item(name='crash_dir'),
+            Item(name='json_sink'),
+            label='Directories', show_border=True),
+        Group(Item(name='run_using_plugin'),
+            Item(name='plugin', enabled_when="run_using_plugin"),
+            Item(name='plugin_args', enabled_when="run_using_plugin"),
+            Item(name='test_mode'),
+            label='Execution Options', show_border=True),
+        Group(Item(name='subjects', editor=CSVListEditor()),
+            label='Subjects', show_border=True),
+        Group(Item(name='preproc_config'),
+            label = 'Preprocessing Info'),
+        buttons = [OKButton, CancelButton],
+        resizable=True,
+        width=1050)
+    return view
+
+mwf.config_view = create_view
+
+"""
+Part 4: Workflow Construction
+"""
+
 # Define Workflow
 
 addtitle = lambda x: "Resting_State_Correlations_fwhm%s"%str(x)
 
 
 def start_config_table(c):
+    """Generated 2D list with configuration parameters
+
+Parameters
+----------
+
+c: config object from workflow2_
+
+.._workflow2: bips.workflows.workflow2
+
+Outputs
+-------
+
+table : List 
+        2D list with configuration parameters
+ 
+"""
     import numpy as np
-    param_names = np.asarray(['motion', 'composite norm', 'compcorr components', 'outliers', 'motion derivatives'])
+    param_names = np.asarray(['motion', 'composite norm', 'compcorr components','global_signal', 'outliers', 'motion derivatives'])
     boolparams=np.asarray(c.reg_params)
     params = param_names[boolparams]
     table = []
@@ -45,6 +117,32 @@ def start_config_table(c):
 
 
 def resting_datagrab(c,name="resting_datagrabber"):
+    """Returns a datagrabber nipype node. The datagrabber looks for the following files:
+
+* reg_file : bbregister file
+* mean_image : mean image after motion correction
+* mask : mask image
+* func : functional output of preprocessing
+
+.. admonition:: Warning
+
+   This function only works for directories with the directory structure from the output of workflow2_. Changing the directory structure will cause the datagrabber to fail
+
+Parameters
+----------
+
+c : cofig object form workfow2_
+
+Returns
+-------
+
+Datagrabber nipype node
+
+.._workflow2: bips.workflows.workflow2.html
+
+"""
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.io as nio
     datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id',
                                                              'fwhm'],
                                                    outfields=['reg_file',
@@ -65,8 +163,41 @@ def resting_datagrab(c,name="resting_datagrabber"):
                                            func=[['subject_id','fwhm']])
     return datasource
 
-def resting_QA(c,QA_c, name="resting_QA"):
-    
+from .workflow2 import create_config as prep_config
+foo=prep_config()
+
+def resting_QA(QA_c,c=foo, name="resting_QA"):
+    """Returns resting-state quality assurance workflow.
+
+Inputs
+------
+
+inputspec.in_files : preprocessed functional runs
+inputspec.reg_file : bbregister file
+inputspec.subjects_dir : Freesurfer SUBJECTS_DIR
+inputspec.mean_image : Mean image after motion correction
+
+Outputs
+-------
+
+QA PDF
+
+Parameters
+----------
+
+QA_c : config object
+c : config object from workflow2_
+name : workflow name
+
+Returns
+-------
+
+Nipype workflow object : resting state QA workflow
+
+"""
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    import nipype.interfaces.io as nio
     workflow=pe.Workflow(name=name)
     inputspec = pe.Node(interface=util.IdentityInterface(fields=["in_files",
                                                                  "reg_file",
@@ -153,48 +284,26 @@ def resting_QA(c,QA_c, name="resting_QA"):
     
     return workflow
 
-from .workflow3 import config
+mwf.workflow_function = resting_QA
 
-def create_config():
-    c = config()
-    c.uuid = mwf.uuid
-    c.desc = mwf.help
-    return c
-
-from .workflow2 import create_config as prep_config
-
-def create_view():
-    from traitsui.api import View, Item, Group, CSVListEditor
-    from traitsui.menu import OKButton, CancelButton
-    view = View(Group(Item(name='uuid', style='readonly'),
-        Item(name='desc', style='readonly'),
-        label='Description', show_border=True),
-        Group(Item(name='working_dir'),
-            Item(name='sink_dir'),
-            Item(name='crash_dir'),
-            Item(name='json_sink'),
-            label='Directories', show_border=True),
-        Group(Item(name='run_using_plugin'),
-            Item(name='plugin', enabled_when="run_using_plugin"),
-            Item(name='plugin_args', enabled_when="run_using_plugin"),
-            Item(name='test_mode'),
-            label='Execution Options', show_border=True),
-        Group(Item(name='subjects', editor=CSVListEditor()),
-            label='Subjects', show_border=True),
-        Group(Item(name='preproc_config'),
-            label = 'Preprocessing Info'),
-        buttons = [OKButton, CancelButton],
-        resizable=True,
-        width=1050)
-    return view
+"""
+Part 5: Define the main function
+"""
 
 # Define Main
 def main(config):
-    
+    """Runs resting state QA workfow
+
+Parameters
+----------
+
+config : String
+         Filename of .json configuration file
+"""
     QA_config = load_config(config,create_config)
     c = load_config(QA_config.preproc_config, prep_config)
 
-    a = resting_QA(c,QA_config)
+    a = resting_QA(QA_config,c)
     a.base_dir = QA_config.working_dir
     if QA_config.test_mode:
         a.write_graph()
@@ -209,8 +318,11 @@ def main(config):
             a.run()
 
 
-mwf.config_ui = create_config
-mwf.config_view = create_view
 mwf.workflow_main_function = main
+
+"""
+Part 6: Register the Workflow
+"""
+
 register_workflow(mwf)
 

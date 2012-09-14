@@ -1,7 +1,3 @@
-import nipype.interfaces.freesurfer as fs
-import nipype.interfaces.ants as ants
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
 from bips.workflows.scripts.ua780b1988e1c11e1baf80019b9f22493.utils import (convert_affine, get_image_dimensions)
 
 
@@ -31,6 +27,10 @@ def get_struct_norm_workflow(name='normalize_struct'):
     workflow : structural normalization workflow
     """
     #inputs to workflow
+    import nipype.interfaces.freesurfer as fs
+    import nipype.interfaces.ants as ants
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
     inputspec = pe.Node(
         util.IdentityInterface(
             fields=['template_file', 'brain', 'segmentation']),
@@ -118,6 +118,10 @@ def get_post_struct_norm_workflow(name='normalize_post_struct'):
     workflow : post-structural normalization workflow
     """
     #inputs to workflow
+    import nipype.interfaces.freesurfer as fs
+    import nipype.interfaces.ants as ants
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
     inputspec = pe.Node(
         util.IdentityInterface(
             fields=['template_file', 'unwarped_brain', 'warp_field',
@@ -199,6 +203,8 @@ def get_full_norm_workflow(name="normalize_struct_and_post"):
     -------
     workflow : combined structural and post-structural normalization workflow
     """
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
     normalize_struct = get_struct_norm_workflow()
     normalize_post_struct = get_post_struct_norm_workflow()
 

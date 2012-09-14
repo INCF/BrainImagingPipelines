@@ -1,17 +1,10 @@
-import nipype.interfaces.fsl as fsl         # fsl
-import nipype.algorithms.rapidart as ra     # rapid artifact detection
-from nipype.interfaces.fsl.utils import EPIDeWarp
-from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
-from .modular_nodes import create_mod_smooth, mod_realign, mod_filter
-import nipype.pipeline.engine as pe
-import nipype.interfaces.utility as util
-
 from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
-                   getmeanscale, highpass_operand, pickfirst)
+                   getmeanscale, highpass_operand, pickfirst, whiten)
 
 
 def create_filter_matrix(motion_params, composite_norm,
-                         compcorr_components, art_outliers, selector):
+                         compcorr_components, art_outliers, global_signal,
+                         selector, demean=False):
     """Combine nuisance regressor components into a single file
 
     Parameters
@@ -21,7 +14,7 @@ def create_filter_matrix(motion_params, composite_norm,
     compcorr_components : components from compcor
     art_outliers : outlier timepoints from artifact detection
     selector : a boolean list corresponding to the files to concatenate together\
-               [motion_params, composite_norm, compcorr_components, art_outliers,\
+               [motion_params, composite_norm, compcorr_components, global_signal, art_outliers,\
                 motion derivatives]
                 
     Returns
@@ -29,8 +22,9 @@ def create_filter_matrix(motion_params, composite_norm,
     filter_file : a file with selected parameters concatenated
     """
     import numpy as np
+    from scipy.signal import detrend
     import os
-    if not len(selector) == 5:
+    if not len(selector) == 6:
         print "selector is not the right size!"
         return None
 
@@ -42,9 +36,9 @@ def create_filter_matrix(motion_params, composite_norm,
             return np.array([])
 
     options = np.array([motion_params, composite_norm,
-                        compcorr_components, art_outliers])
+                        compcorr_components, global_signal, art_outliers])
     selector = np.array(selector)
-    fieldnames = ['motion', 'comp_norm', 'compcor', 'art', 'dmotion']
+    fieldnames = ['motion', 'comp_norm', 'compcor', 'global_signal', 'art', 'dmotion']
 
     splitter = np.vectorize(lambda x: os.path.split(x)[1])
     filenames = [fieldnames[i] for i, val in enumerate(selector) if val]
@@ -56,12 +50,13 @@ def create_filter_matrix(motion_params, composite_norm,
     # concatenate all files except art_outliers and motion_derivs
         if i == 0:
             z = try_import(opt)
-
         else:
             a = try_import(opt)
             if len(a.shape) == 1:
                 a = np.array([a]).T
             z = np.hstack((z, a))
+    if z is not None and demean:
+        z = detrend(z, axis=0, type='constant')
 
     if selector[-2]:
         #import outlier file
@@ -86,10 +81,19 @@ def create_filter_matrix(motion_params, composite_norm,
             a = try_import(motion_params)
             temp = np.zeros(a.shape)
             temp[1:, :] = np.diff(a, axis=0)
+            if demean:
+                out = np.hstack((out, detrend(temp, axis=0, type='constant')))
+            else:
+                out = np.hstack((out, temp))
             out = np.hstack((out, temp))
-
-    np.savetxt(filter_file, out)
-    return filter_file
+    if out is not None:
+        np.savetxt(filter_file, out)
+        return filter_file
+    else:
+        filter_file = os.path.abspath("empty_file.txt")
+        a = open(filter_file,'w')
+        a.close()
+        return filter_file
 
 
 def create_prep(name='preproc'):
@@ -147,6 +151,14 @@ def create_prep(name='preproc'):
     -------
     workflow : preprocessing workflow
     """
+
+    import nipype.interfaces.fsl as fsl         # fsl
+    import nipype.algorithms.rapidart as ra     # rapid artifact detection
+    from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
+    from .modular_nodes import create_mod_smooth, mod_realign, mod_despike
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+
     preproc = pe.Workflow(name=name)
 
     # Compcorr node
@@ -174,7 +186,11 @@ def create_prep(name='preproc'):
                                                       'smooth_type',
                                                       'surface_fwhm',
                                                       'filter_type',
-                                                      'timepoints_to_remove']),
+                                                      'timepoints_to_remove',
+                                                      'do_whitening',
+                                                      'regress_before_PCA',
+                                                      'realign_parameters',
+                                                      'do_despike']),
                         name='inputspec')
 
     # Separate input node for FWHM
@@ -193,12 +209,19 @@ def create_prep(name='preproc'):
                            iterfield=['in_file'],
                            name='img2float')
 
+    #afni despike
+    despike=pe.MapNode(util.Function(input_names=['in_file',"do_despike"],
+                                     output_names=["out_file"],
+                                     function=mod_despike),
+        name="despike",iterfield=["in_file"])
+    preproc.connect(inputnode,"do_despike",despike,"do_despike")
     # define the motion correction node
     #motion_correct = pe.Node(interface=FmriRealign4d(),
     #                            name='realign')
 
-    motion_correct = pe.Node(util.Function(input_names=['node','in_file','tr','do_slicetime','sliceorder'],
-        output_names=['out_file','par_file'],
+    motion_correct = pe.Node(util.Function(input_names=['node','in_file','tr',
+                                                        'do_slicetime','sliceorder',"parameters"],
+        output_names=['out_file','par_file','parameter_source'],
         function=mod_realign),
         name="mod_realign")
 
@@ -267,7 +290,7 @@ def create_prep(name='preproc'):
     # declare some node inputs...
     #plot_motion.iterables = ('plot_type', ['rotations', 'translations'])
 
-    ad.inputs.parameter_source = 'FSL'
+    #ad.inputs.parameter_source = 'FSL'
     meanfunc.inputs.inputspec.parameter_source = 'FSL'
     ad.inputs.mask_type = 'file'
     ad.inputs.use_differences = [True, False]
@@ -284,6 +307,10 @@ def create_prep(name='preproc'):
                     ad, 'zintensity_threshold')
     preproc.connect(inputnode, 'tr',
                     motion_correct, 'tr')
+    preproc.connect(inputnode, 'realign_parameters',
+        motion_correct, 'parameters')
+    preproc.connect(motion_correct,'parameter_source',
+        ad,'parameter_source')
     preproc.connect(inputnode, 'do_slicetime',
                     motion_correct, 'do_slicetime')
     preproc.connect(inputnode, 'sliceorder',
@@ -298,8 +325,8 @@ def create_prep(name='preproc'):
     preproc.connect(inputnode, 'func', strip_rois, 'in_file')
     preproc.connect(strip_rois, 'roi_file', img2float, 'in_file')
 
-    preproc.connect(img2float, 'out_file',
-                    motion_correct, 'in_file')
+    preproc.connect(img2float, 'out_file', despike, "in_file")
+    preproc.connect(despike,"out_file", motion_correct, 'in_file')
     #preproc.connect(motion_correct, 'par_file',
     #                plot_motion, 'in_file')
     preproc.connect(motion_correct, 'out_file', 
@@ -310,6 +337,8 @@ def create_prep(name='preproc'):
                     getmask, 'inputspec.source_file')
     preproc.connect(inputnode, 'num_noise_components',
                     compcor, 'inputspec.num_components')
+    preproc.connect(inputnode, 'regress_before_PCA',
+                    compcor, 'inputspec.regress_before_PCA')
     preproc.connect(motion_correct, 'out_file',
                     compcor, 'inputspec.realigned_file')
     preproc.connect(meanfunc, 'outputspec.mean_image',
@@ -318,6 +347,10 @@ def create_prep(name='preproc'):
                     compcor, 'inputspec.fsaseg_file')
     preproc.connect(getmask, ('outputspec.reg_file', pickfirst),
                     compcor, 'inputspec.reg_file')
+    preproc.connect(ad, 'outlier_files',
+                    compcor, 'inputspec.outlier_files')
+    preproc.connect(motion_correct, 'par_file',
+                    compcor, 'inputspec.realignment_parameters')
     preproc.connect(motion_correct, 'out_file',
                     ad, 'realigned_files')
     preproc.connect(motion_correct, 'par_file',
@@ -385,7 +418,9 @@ def create_prep(name='preproc'):
                 'FM_unwarped_mean',
                 'vsm_file',
                 'bandpassed_file',
-                'intensity_files']),
+                'intensity_files',
+                'noise_mask',
+                'csf_mask']),
                         name='outputspec')
 
     # make output connection
@@ -407,6 +442,10 @@ def create_prep(name='preproc'):
                     outputnode, 'outlier_stat_files')
     preproc.connect(compcor, 'outputspec.noise_components',
                     outputnode, 'noise_components')
+    preproc.connect(compcor, 'outputspec.noise_mask',
+                    outputnode, 'noise_mask')
+    preproc.connect(compcor, 'outputspec.csf_mask',
+                    outputnode, 'csf_mask')
     preproc.connect(getmask, 'outputspec.mask_file',
                     outputnode, 'mask')
     preproc.connect(getmask, 'register.out_fsl_file',
@@ -436,6 +475,10 @@ def create_prep(name='preproc'):
 def create_prep_fieldmap(name='preproc'):
     """Rewiring of base fMRI workflow, adding fieldmap distortion correction
     """
+    import nipype.interfaces.fsl as fsl         # fsl
+    from nipype.interfaces.fsl.utils import EPIDeWarp
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
     preproc = create_prep()
     
     inputnode = pe.Node(util.IdentityInterface(fields=['phase_file',
@@ -565,6 +608,9 @@ def create_rest_prep(name='preproc',fieldmap=False):
     -------
     workflow : resting state preprocessing workflow
     """
+    from .modular_nodes import mod_filter, mod_regressor
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
     if fieldmap:
         preproc = create_prep_fieldmap()
     else:
@@ -573,21 +619,26 @@ def create_rest_prep(name='preproc',fieldmap=False):
     #add outliers and noise components
     addoutliers = pe.MapNode(util.Function(input_names=['motion_params',
                                                      'composite_norm',
-                                                     "compcorr_components",
+                                                     "compcorr_components","global_signal",
                                                      "art_outliers",
-                                                     "selector"],
+                                                     "selector",
+                                                     "demean"],
                                         output_names=['filter_file'],
                                         function=create_filter_matrix),
                           name='create_nuisance_filter',
                           iterfield=['motion_params',
                                        'composite_norm',
                                        'compcorr_components',
-                                       'art_outliers'])
+                                       'art_outliers','global_signal'])
 
     # regress out noise
-    remove_noise = pe.MapNode(fsl.FilterRegressor(filter_all=True),
-                       name='regress_nuisance',
-                       iterfield=['design_file','in_file'])
+    remove_noise = pe.MapNode(util.Function(input_names=["in_file","design_file","mask"],
+        output_names=["out_file"],function=mod_regressor),
+        name='regress_nuisance',iterfield=["in_file","design_file"])
+
+    #pe.MapNode(fsl.FilterRegressor(filter_all=True),
+                   #    name='regress_nuisance',
+                   #    iterfield=['design_file','in_file'])
 
     # bandpass filter
     #bandpass_filter = pe.MapNode(fsl.TemporalFilter(),
@@ -602,6 +653,12 @@ def create_rest_prep(name='preproc',fieldmap=False):
                                 output_names=['out_file'],
                                 function=mod_filter),
                       name='bandpass_filter',iterfield=['in_file'])
+
+    whitening = pe.MapNode(util.Function(input_names=['in_file',
+                                                      "do_whitening"],
+                                         output_names=["out_file"],
+                                         function=whiten),
+        name="whitening",iterfield=["in_file"])
 
     # Get old nodes
     inputnode = preproc.get_node('inputspec')
@@ -637,6 +694,8 @@ def create_rest_prep(name='preproc',fieldmap=False):
     preproc.remove_nodes([highpass])
 
     # connect nodes
+    preproc.connect(inputnode,'do_whitening',
+                    whitening, "do_whitening")
     preproc.connect(inputnode,'tr',
         bandpass_filter,'tr')
     preproc.connect(inputnode,'filter_type',
@@ -645,6 +704,7 @@ def create_rest_prep(name='preproc',fieldmap=False):
                     addoutliers, 'art_outliers')
     preproc.connect(ad, 'norm_files',
                     addoutliers, 'composite_norm')
+    preproc.connect(ad, 'intensity_files', addoutliers, 'global_signal')
     preproc.connect(compcor, 'outputspec.noise_components', 
                     addoutliers, 'compcorr_components')
     preproc.connect(motion_correct, 'par_file',  
@@ -659,8 +719,12 @@ def create_rest_prep(name='preproc',fieldmap=False):
                     choosesusan, 'motion_files')
     preproc.connect(compcor, 'tsnr.detrended_file',
                     remove_noise, 'in_file')
+
     preproc.connect(meanscale, 'out_file',
+                    whitening, "in_file")
+    preproc.connect(whitening, "out_file",
                     bandpass_filter, 'in_file')
+
     preproc.connect(bandpass_filter, 'out_file',
                     outputnode, 'bandpassed_file')
     preproc.connect(choosesusan, 'cor_smoothed_files',
@@ -677,9 +741,6 @@ def create_rest_prep(name='preproc',fieldmap=False):
                     addoutliers, 'selector')
     preproc.connect(addoutliers, 'filter_file',
                     outputnode, 'filter_file')
-    
-    
-    
     return preproc
 
 
@@ -717,6 +778,9 @@ def create_first(name='modelfit'):
     -------
     workflow : first-level workflow
     """
+    import nipype.interfaces.fsl as fsl         # fsl
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
     modelfit = pe.Workflow(name=name)
 
     inputspec = pe.Node(util.IdentityInterface(fields=['session_info',
