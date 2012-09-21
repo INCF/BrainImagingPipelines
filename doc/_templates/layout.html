@@ -7,13 +7,20 @@
         <li><a href="{{ pathto('documentation') }}">documentation</a>|&nbsp;</li>
 {% endblock %}
 
+#floater	{float:left; height:50%; margin-bottom:-120px;}
+#content	{clear:both; height:240px; position:relative;}
 
 {% block relbar1 %}
 
 <div style="background-color: white; text-align: left; padding: 10px 10px 15px 15px">
+
+<div id="floater">
+<div id="content">
 <a href="{{ pathto('index') }}"><img src="{{
 pathto("_static/logo.png", 1) }}" border="0" alt="py4sci"/></a>
-</div>
+
+<font size="6"><b>Brain Imaging Pipelines</b></font>
+</div></div></div>
 {{ super() }}
 {% endblock %}
 
