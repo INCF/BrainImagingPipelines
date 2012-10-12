@@ -109,7 +109,13 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
             parameters = [parameters]
         par_file = parameters
         parameter_source='SPM'
-        fsl.ImageMaths(in_file=res.outputs.realigned_files,
+        if isinstance(res.outputs.realigned_files, list):
+            for rf in res.outputs.realigned_files:
+                fsl.ImageMaths(in_file=rf,
+                       out_file=rf,
+                       op_string='-nan').run()
+        else:
+            fsl.ImageMaths(in_file=res.outputs.realigned_files,
                        out_file=res.outputs.realigned_files,
                        op_string='-nan').run()
         out_file = res.outputs.realigned_files

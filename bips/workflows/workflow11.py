@@ -92,8 +92,7 @@ def create_view():
         Group(Item(name='preproc_config'),
               Item(name='first_level_config'),
             label = 'Preproc & First Level Info'),
-        Group(Item('overlay_thresh'),
-              Item(name='num_runs'),
+        Group(Item(name='num_runs'),
             label='Fixed Effects'),
         buttons = [OKButton, CancelButton],
         resizable=True,
@@ -131,9 +130,14 @@ def getsubs(subject_id, cons):
 
 
 from .workflow10 import create_config as first_config
-from .workflow2 import create_config as prep_config
 
 foo0 = first_config()
+
+def doublelist(x):
+    if isinstance(x[0],list):
+        return x
+    else:
+        return [x]
 
 def create_fixedfx(c, first_c=foo0, name='fixedfx'):
     from nipype.workflows.fmri.fsl.estimate import create_fixed_effects_flow
@@ -152,29 +156,6 @@ def create_fixedfx(c, first_c=foo0, name='fixedfx'):
                                iterfield=['inlist'])
 
     dofselect = pe.Node(interface=util.Select(), name='dofselect')
-
-    """if c.test_mode:
-        infosource = pe.Node(interface=util.IdentityInterface(fields=['subject_id','fwhm']), name="infosource")
-        infosource.iterables = [('subject_id', [c.subjects[0]]),
-                                ('fwhm',prep_c.fwhm)]
-    else:
-        infosource = pe.Node(interface=util.IdentityInterface(fields=['subject_id','fwhm']), name="infosource")
-        infosource.iterables = [('subject_id', c.subjects),('fwhm',prep_c.fwhm)]
-
-    datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id','fwhm'],
-                                                   outfields=['copes', 
-                                                              'varcopes',
-                                                              'dof_files',
-                                                              'mask_file']),
-                         name = 'datasource')
-
-    datasource.inputs.base_directory = c.sink_dir
-    datasource.inputs.template ='*'
-    datasource.inputs.sort_filelist = True
-    datasource.inputs.field_template = dict(copes='%s/modelfit/contrasts/fwhm_%s/_estimate_contrast*/cope%02d*.nii*',
-                                            varcopes='%s/modelfit/contrasts/fwhm_%s/_estimate_contrast*/varcope%02d*.nii*',
-                                            dof_files='%s/modelfit/dofs/fwhm_%s/*/*',
-                                            mask_file='%s/preproc/mask/*.nii*')"""
 
     datasource = c.datagrabber.create_dataflow()
     infosource = datasource.get_node('subject_id_iterable')
@@ -206,12 +187,12 @@ def create_fixedfx(c, first_c=foo0, name='fixedfx'):
     #fixedfxflow.connect(get_info,'info',datasource,'template_args')
 
     #fixedfxflow.connect(infosource, 'fwhm',                 datasource, 'fwhm')
-    fixedfxflow.connect(datasource,'datagrabber.copes',                 copeselect,'inlist')
+    fixedfxflow.connect(datasource,('datagrabber.copes',doublelist),                 copeselect,'inlist')
     fixedfxflow.connect(selectnode,'runs',                  copeselect,'index')
-    fixedfxflow.connect(datasource,'datagrabber.copes',                   fixedfx,'inputspec.copes')
-    fixedfxflow.connect(datasource,'datagrabber.varcopes',              varcopeselect,'inlist')
+    fixedfxflow.connect(datasource,('datagrabber.copes',doublelist),                   fixedfx,'inputspec.copes')
+    fixedfxflow.connect(datasource,('datagrabber.varcopes',doublelist),               varcopeselect,'inlist')
     fixedfxflow.connect(selectnode,'runs',                  varcopeselect,'index')
-    fixedfxflow.connect(datasource,'datagrabber.varcopes',                fixedfx,'inputspec.varcopes')
+    fixedfxflow.connect(datasource,('datagrabber.varcopes',doublelist),                 fixedfx,'inputspec.varcopes')
     fixedfxflow.connect(datasource,'datagrabber.dof_files',             dofselect,'inlist')
     fixedfxflow.connect(selectnode,'runs',                  dofselect,'index')
     fixedfxflow.connect(datasource,'datagrabber.dof_files',                    fixedfx,'inputspec.dof_files')

@@ -829,7 +829,7 @@ def create_first(name='modelfit'):
                                                         'tstats',
                                                         'design_image',
                                                         'design_file',
-                                                        'design_cov']),
+                                                        'design_cov','sigmasquareds']),
                          name='outputspec')
 
     # Utility function
@@ -858,7 +858,8 @@ def create_first(name='modelfit'):
         (conestimate, ztopval,      [(('zstats', pop_lambda),   'in_file')]),
         (ztopval, outputspec,       [('out_file',               'pfiles')]),
         (modelestimate, outputspec, [('param_estimates',        'parameter_estimates'),
-                                     ('dof_file',               'dof_file')]),
+                                     ('dof_file',               'dof_file'),
+                                     ('sigmasquareds','sigmasquareds')]),
         (conestimate, outputspec,   [('copes',                  'copes'),
                                      ('varcopes',               'varcopes'),
                                      ('tstats',                 'tstats'),

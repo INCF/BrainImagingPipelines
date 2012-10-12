@@ -71,9 +71,7 @@ class config(HasTraits):
     scan_onset = traits.Int(0)
     scale_regressors = traits.Bool(True)
     #bases = traits.Dict({'dgamma':{'derivs': False}},use_default=True)
-    bases = traits.Dict({'dgamma':{'derivs': False}}, 
-                        traits.Enum('dgamma','gamma','none'), traits.Dict(traits.Enum('derivs',None), traits.Bool),
-                        desc="name of basis function and options e.g., {'dgamma': {'derivs': True}}")
+    bases = traits.Dict({'dgamma':{'derivs': False}},use_default=True)#traits.Enum('dgamma','gamma','none'), traits.Enum(traits.Dict(traits.Enum('derivs',None), traits.Bool),None), desc="name of basis function and options e.g., {'dgamma': {'derivs': True}}")
 
     # preprocessing info
     preproc_config = traits.File(desc="preproc config file")
@@ -295,10 +293,10 @@ def combine_wkflw(c,prep_c=foo, name='work_dir'):
             subs.append(('varcope%d.'%(i+1), 'varcope%02d_%s.'%(i+1,con[0])))
             subs.append(('zstat%d.'%(i+1), 'zstat%02d_%s.'%(i+1,con[0])))
             subs.append(('tstat%d.'%(i+1), 'tstat%02d_%s.'%(i+1,con[0])))
-        for i, name in enumerate(info[0].conditions):
+        """for i, name in enumerate(info[0].conditions):
             subs.append(('pe%d.'%(i+1), 'pe%02d_%s.'%(i+1,name)))
         for i in range(len(info[0].conditions), 256):
-            subs.append(('pe%d.'%(i+1), 'others/pe%02d.'%(i+1)))
+            subs.append(('pe%d.'%(i+1), 'others/pe%02d.'%(i+1)))"""
         for i in fwhm:
             subs.append(('_register%d/'%(i),''))
         
@@ -405,6 +403,7 @@ def combine_wkflw(c,prep_c=foo, name='work_dir'):
     modelflow.connect(noise_motn,'subinfo',                         s,          'subject_info')
     modelflow.connect(s,'session_info',                             modelfit,   'inputspec.session_info')
     modelflow.connect(modelfit, 'outputspec.parameter_estimates',   sinkd,      'modelfit.estimates')
+    modelflow.connect(modelfit, 'outputspec.sigmasquareds',   sinkd,      'modelfit.estimates.@sigsq')
     modelflow.connect(modelfit, 'outputspec.dof_file',              sinkd,      'modelfit.dofs')
     modelflow.connect(modelfit, 'outputspec.copes',                 sinkd,      'modelfit.contrasts.@copes')
     modelflow.connect(modelfit, 'outputspec.varcopes',              sinkd,      'modelfit.contrasts.@varcopes')

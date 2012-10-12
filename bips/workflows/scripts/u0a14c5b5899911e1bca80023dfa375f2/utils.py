@@ -62,6 +62,8 @@ def pickvol(filenames, fileidx, which):
         raise Exception('unknown value for volume selection : %s' % which)
     return idx
 
+def pickidx(filenames, fileidx):
+    return filenames[fileidx]
 
 def get_threshold_op(thresh):
     return ['-thr %.10f -Tmin -bin' % (0.1 * val[1]) for val in thresh]
@@ -599,8 +601,12 @@ def z_image(image,outliers):
     return z_img
 
 
+def tolist(x):
+    if isinstance(x,list):
+        return x
+    else:
+        return [x]
 
-tolist = lambda x: [x]
 highpass_operand = lambda x: '-bptf %.10f -1' % x
 
 def whiten(in_file, do_whitening):

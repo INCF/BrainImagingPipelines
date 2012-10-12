@@ -73,7 +73,7 @@ from .scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import get_dataflow
 class config(baseconfig):
     highpass_freq = traits.Float()
     lowpass_freq = traits.Float()
-    filtering_algorithm = traits.Enum("fsl","IIR","FIR")
+    filtering_algorithm = traits.Enum("fsl","IIR","FIR","Fourier")
     reg_params = traits.BaseTuple(traits.Bool(desc="motion parameters"),
                                   traits.Bool(desc="norm components"),
                                   traits.Bool(desc="noise components (CompCor)"),
@@ -100,7 +100,7 @@ Part 3: Create a View
 """
 
 def create_view():
-    from traitsui.api import View, Item, Group, CSVListEditor
+    from traitsui.api import View, Item, Group, CSVListEditor, TupleEditor
     from traitsui.menu import OKButton, CancelButton
     view = View(Group(Item(name='uuid', style='readonly'),
         Item(name='desc', style='readonly'),
