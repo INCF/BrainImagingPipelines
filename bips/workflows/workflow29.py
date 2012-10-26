@@ -140,15 +140,18 @@ def create_correlation_matrix(infiles, roi, out_type, package):
         else:
             timeseries = np.vstack((timeseries, data))
     roi_data = np.genfromtxt(roi)
-    print roi_data.shape
+    if not len(roi_data.shape)==2:
+        roi_data = roi_data[:,None]
     corrmat = np.zeros((roi_data.shape[1],timeseries.shape[0]))
     print timeseries.shape
     for i in xrange(roi_data.shape[1]):
         for j in xrange(timeseries.shape[0]):
-            corrmat[i,j] = np.corrcoef(timeseries[j,:],roi_data[:,i])[0][1]
+            r = np.corrcoef(timeseries[j,:],roi_data[:,i])[0][1]
+            corrmat[i,j] = np.sqrt(timeseries.shape[1]-3)*0.5*np.log((1+r)/(1-r))
 
     #corrmat = np.corrcoef(timeseries,roi_data.T)
     print corrmat.shape
+    
     _, name, _ = split_filename(filename_to_list(infiles)[0])
     if len(filename_to_list(infiles))>1:
         name = 'combined_' + name
@@ -205,7 +208,6 @@ def roi_connectivity(c):
     workflow.connect(datasource, 'datagrabber.reg_file', vol2surf, 'reg_file')
     workflow.connect(datasource, 'datagrabber.mean_image', vol2surf, 'reference_file')
 
-
     # create correlation matrix
     corrmat = pe.Node(util.Function(input_names=['infiles','roi', 'out_type',
                                                  'package'],
@@ -221,7 +223,8 @@ def roi_connectivity(c):
     datasink.inputs.base_directory = c.sink_dir
     datasink.inputs.regexp_substitutions = [('_subject_id.*smooth_surf', 'surffwhm')]
     workflow.connect(inputnode, 'subject_id', datasink, 'container')
-    workflow.connect(corrmat, 'corrmatfile', datasink, 'roi_connectivity.%s'%c.roiname)
+    workflow.connect(corrmat, 'corrmatfile', datasink, 'roi_connectivity.%s.z_corrmat'%c.roiname)
+    workflow.connect(vol2surf,'out_file',datasink,'roi_connectivity.%s.surfaces')
     return workflow
 
 
