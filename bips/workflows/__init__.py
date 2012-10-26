@@ -27,6 +27,7 @@ import workflow25
 import workflow26
 import workflow27
 import workflow28
+import workflow29
 from .base import (get_workflow, get_workflows, list_workflows,
                    configure_workflow, run_workflow, display_workflow_info)
 
