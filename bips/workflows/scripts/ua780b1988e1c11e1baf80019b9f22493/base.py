@@ -54,6 +54,7 @@ def get_struct_norm_workflow(name='normalize_struct'):
         fs.model.Binarize(),
         name='create_mask')
     create_mask.inputs.min = 1
+    create_mask.inputs.dilate = 1
     create_mask.inputs.out_type = 'nii'
 
     #apply mask to anatomical
