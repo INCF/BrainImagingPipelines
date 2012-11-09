@@ -8,13 +8,13 @@ MetaWorkflow
 """
 
 desc = """
-Create ANTS custom template
+Create FS Brainmasks
 ===========================
 
 """
 mwf = MetaWorkflow()
-mwf.uuid = 'ants_custom_template'
-mwf.tags = ['ants', 'template']
+mwf.uuid = '04a4dc102aa711e2a14700259080ab1a'
+mwf.tags = ['masks', 'freesurfer']
 
 mwf.help = desc
 
@@ -94,11 +94,12 @@ Construct Workflow
 def pickaparc(files):
     """Return the aparc+aseg.mgz file"""
     aparcs = []
-    for sets in files:
-        for s in sets:
-            if 'aparc+aseg.mgz' in s:
-                aparcs.append(s)
-    return aparcs
+    for s in files:
+        if 'aparc+aseg.mgz' in s:
+            aparcs.append(s)
+    if aparcs == []:
+        raise Exception("can't find aparc")
+    return aparcs[0]
 
 
 def create_custom_template(c):
@@ -108,22 +109,31 @@ def create_custom_template(c):
     import nipype.interfaces.utility as niu
     import nipype.interfaces.freesurfer as fs
 
-    wf = pe.Workflow(name='create_custom_template')
-    temp = pe.Node(BuildTemplate(parallelization=1), name='create_template')
-    fssource = pe.MapNode(nio.FreeSurferSource(subjects_dir = c.surf_dir),name='fssource',iterfield='subject_id')
-    fssource.inputs.subject_id = c.subjects
+    wf = pe.Workflow(name='create_fs_masked_brains')
+    #temp = pe.Node(BuildTemplate(parallelization=1), name='create_template')
+    fssource = pe.Node(nio.FreeSurferSource(subjects_dir = c.surf_dir),name='fssource')
+    infosource = pe.Node(niu.IdentityInterface(fields=["subject_id"]),name="subject_names")
+    infosource.iterables = ("subject_id", c.subjects)
+    wf.connect(infosource,"subject_id",fssource,"subject_id")
     sink = pe.Node(nio.DataSink(base_directory=c.sink_dir),name='sinker')
-    applymask = pe.MapNode(fs.ApplyMask(mask_thresh=0.5),name='applymask',iterfield=['in_file','mask_file'])   
-    binarize = pe.MapNode(fs.Binarize(dilate=1,min=0.5,subjects_dir=c.surf_dir),name='binarize',iterfield=['in_file']) 
-    convert = pe.MapNode(fs.MRIConvert(out_type='niigz'),iterfield=['in_file'],name='convert')
+    applymask = pe.Node(fs.ApplyMask(mask_thresh=0.5),name='applymask')   
+    binarize = pe.Node(fs.Binarize(dilate=1,min=0.5,subjects_dir=c.surf_dir),name='binarize') 
+    convert = pe.Node(fs.MRIConvert(out_type='niigz'),name='convert')
     wf.connect(fssource,'orig',applymask,'in_file')
     wf.connect(fssource,('aparc_aseg',pickaparc),binarize,'in_file')
     wf.connect(binarize,'binary_file',applymask,'mask_file')
     wf.connect(applymask,'out_file',convert,'in_file')
-    wf.connect(convert,'out_file',temp,'in_files')
-    wf.connect(temp,'final_template_file',sink,'custom_template.final_template_file')
-    wf.connect(temp,'subject_outfiles',sink,'custom_template.subject_outfiles')
-    wf.connect(temp,'template_files',sink,'template_files')
+    wf.connect(convert,"out_file",sink,"masked_images")
+
+    def getsubs(subject_id):
+        subs = []
+        subs.append(('_subject_id_%s/'%subject_id, '%s_'%subject_id))
+        return subs
+    wf.connect(infosource, ("subject_id", getsubs), sink, "substitutions")
+    #wf.connect(convert,'out_file',temp,'in_files')
+    #wf.connect(temp,'final_template_file',sink,'custom_template.final_template_file')
+    #wf.connect(temp,'subject_outfiles',sink,'custom_template.subject_outfiles')
+    #wf.connect(temp,'template_files',sink,'template_files')
     return wf
 
 mwf.workflow_function = create_custom_template
