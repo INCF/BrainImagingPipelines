@@ -90,7 +90,7 @@ class Data(HasTraits):
         import nipype.pipeline.engine as pe
         self._wk = pe.Workflow(name='custom_datagrabber')
         self._dg = pe.Node(nio.DataGrabber(outfields = self.outfields, 
-                                     infields = self._get_infields()),
+                                     infields = self._get_infields(),sort_filelist=True),
                                      name='datagrabber') 
         self._set_inputs()
         self._dg.inputs.base_directory = self.base_directory
