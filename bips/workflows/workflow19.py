@@ -184,17 +184,25 @@ def convert_dicoms(sid, dicom_dir_template, outputdir, queue=None, heuristic_fun
         save_json(infofile, info)
 
     if heuristic_func:
+        import dicom
+        import dcmstack
         for key in info:
             if not os.path.exists(os.path.join(tdir,key)):
                 os.mkdir(os.path.join(tdir,key))
             for idx, ext in enumerate(info[key]):
-                convertcmd = ['dcmstack', sdir,'--dest-dir', os.path.join(tdir,key),
-                              '--file-ext', '*-%d-*'%ext, '--force-read', '-v', '--output-name', key+'%03d'%(idx+1)]
-                if embed:
-                    convertcmd.append('--embed-meta')
-                convertcmd = ' '.join(convertcmd)
-                print convertcmd
-                os.system(convertcmd)
+                src = glob(os.path.join(sdir,'*-%d-*'%ext))
+                dcm = dcmstack.DicomStack()
+                for f in src:
+                    dcm.add_dcm(dicom.read_file(f,force=True))
+                a = dcm.to_nifti(embed_meta = embed)
+                a.to_filename(os.path.join(tdir,key,key+'%03d'%(idx+1)))
+                #convertcmd = ['dcmstack', sdir,'--dest-dir', os.path.join(tdir,key),
+                #              '--file-ext', '*-%d-*'%ext, '--force-read', '-v', '--output-name', key+'%03d'%(idx+1)]
+                #if embed:
+                #    convertcmd.append('--embed-meta')
+                #convertcmd = ' '.join(convertcmd)
+                #print convertcmd
+                #os.system(convertcmd)
     else:
         if not no_moco:
             convertcmd = ['dcmstack', sdir, '--dest-dir', os.path.join(outputdir,sid),
