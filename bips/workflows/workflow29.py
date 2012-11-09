@@ -224,7 +224,7 @@ def roi_connectivity(c):
     datasink.inputs.regexp_substitutions = [('_subject_id.*smooth_surf', 'surffwhm')]
     workflow.connect(inputnode, 'subject_id', datasink, 'container')
     workflow.connect(corrmat, 'corrmatfile', datasink, 'roi_connectivity.%s.z_corrmat'%c.roiname)
-    workflow.connect(vol2surf,'out_file',datasink,'roi_connectivity.%s.surfaces')
+    workflow.connect(vol2surf,'out_file',datasink,'roi_connectivity.%s.surfaces'%c.roiname)
     return workflow
 
 
