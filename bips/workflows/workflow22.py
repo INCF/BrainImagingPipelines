@@ -148,6 +148,7 @@ Construct Workflow
 
 def get_surface_label(vertex, hemi,subject, overlay, reg, sd, thresh = 2.0):
     import os
+    from glob import glob
     if not os.environ["SUBJECTS_DIR"] == sd:
         os.environ["SUBJECTS_DIR"] = sd
     tcl_filename = os.path.abspath('hemi_%s_vertex_%d_subject_%s.tcl'%(hemi,vertex,subject))
@@ -165,7 +166,8 @@ exit"""%(vertex, vertex, filename)
     a.close()
     cmd = 'tksurfer %s %s inflated -overlay %s -reg %s -abs -fthresh %s -tcl %s'%(subject, hemi, overlay, reg, thresh, tcl_filename)
     os.system(cmd)
-    return filename
+    labels = glob(os.path.abspath('*.label'))
+    return filename, labels
 
 def get_vertices(sub,sd,overlay,reg,mean,hemi,roi=['superiortemporal'],thresh=1.5):
     import os
@@ -246,7 +248,7 @@ def localizer(name='localizer'):
                                                    'reg',
                                                    'sd',
                                                    'thresh'],
-                                      output_names=['filename'],
+                                      output_names=['filename','labels'],
                                       function=get_surface_label),
         name='get_surface_label', iterfield=['hemi','vertex'])
     surf_label.inputs.hemi=['lh','rh']
@@ -306,7 +308,7 @@ def localizer(name='localizer'):
     studyref = pe.Node(niu.Function(input_names=['mean'],output_names=['study_ref'], function=study_ref),name='studyref')
     wf.connect(inputspec,'mean',studyref,'mean')
 
-    outputspec = pe.Node(niu.IdentityInterface(fields=['rois','reference','study_ref']),name='outputspec')
+    outputspec = pe.Node(niu.IdentityInterface(fields=['rois','reference','study_ref','labels']),name='outputspec')
 
     wf.connect(studyref,'study_ref', outputspec, 'study_ref')
     bin = pe.Node(fsl.ImageMaths(op_string = '-bin'),name="binarize_roi")
@@ -316,12 +318,15 @@ def localizer(name='localizer'):
     wf.connect(label2vol,'vol_label_file',bin,'in_file')
     wf.connect(bin,'out_file', changetype, 'in_file')
     wf.connect(changetype, 'out_file', outputspec, 'rois')
+    wf.connect(surf_label,'labels',outputspec,'labels')
     return wf
 
 
 def get_substitutions(subject_id):
     subs = [('_labels2vol0',''),
             ('_labels2vol1',''),
+            ('_get_surface_label0/','%s_'%subject_id),
+            ('_get_surface_label1/','%s_'%subject_id),
             ('lh_label_vol_maths_chdt.nii','%s_roi.nii'%subject_id),
             ('background','%s_background'%subject_id),
             ('study_ref','%s_study_ref'%subject_id)]
@@ -346,6 +351,7 @@ def main(config_file):
     wk.connect(outputspec,'rois', sinker,'mask.@roi')
     wk.connect(outputspec,'reference', sinker,'mask.@ref')
     wk.connect(outputspec,'study_ref', sinker,'xfm.@studyref')
+    wk.connect(outputspec,'labels',sinker,'mask.@labels')
     sinker.inputs.container = c.subject_id
     sinker.inputs.substitutions = get_substitutions(c.subject_id)
 

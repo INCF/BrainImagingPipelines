@@ -19,6 +19,7 @@ def get_view():
         Item(name='template'),
         Item(name='field_template'),
         Item(name='template_args')),
+        Item(name='sort'),
         Item(name='check'),
         buttons=[OKButton, CancelButton],
         resizable=True,
@@ -43,6 +44,7 @@ class Data(HasTraits):
     template = traits.Str('*')     
     template_args = traits.Dict({"a":"b"},usedefault=True) 
     field_template = traits.Dict({"key":["hi"]},usedefault=True)
+    sort = traits.Bool(True)
 
     if use_view:
         check = traits.Button("Check")
@@ -90,7 +92,7 @@ class Data(HasTraits):
         import nipype.pipeline.engine as pe
         self._wk = pe.Workflow(name='custom_datagrabber')
         self._dg = pe.Node(nio.DataGrabber(outfields = self.outfields, 
-                                     infields = self._get_infields()),
+                                     infields = self._get_infields(),sort_filelist=self.sort),
                                      name='datagrabber') 
         self._set_inputs()
         self._dg.inputs.base_directory = self.base_directory
