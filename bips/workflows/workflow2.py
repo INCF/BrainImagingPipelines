@@ -304,11 +304,14 @@ Preprocessing nipype workflow
         modelflow.connect(preproc, 'outputspec.mean',
                           sinkd, 'preproc.mean')
 
-    if c.use_metadata and c.do_slicetiming:
+    if c.use_metadata:
         get_meta = pe.Node(util.Function(input_names=['func'],output_names=['so','tr'],function=extract_meta),name="get_metadata")
         modelflow.connect(dataflow,'func',get_meta, 'func')
         modelflow.connect(get_meta,'so',preproc,"inputspec.sliceorder")
         modelflow.connect(get_meta,'tr',preproc,"inputspec.tr")
+    else:
+        preproc.inputs.inputspec.sliceorder = c.SliceOrder
+        preproc.inputs.inputspec.tr = c.tr
 
     # inputs
     preproc.inputs.inputspec.motion_correct_node = c.motion_correct_node
@@ -330,10 +333,7 @@ Preprocessing nipype workflow
     preproc.inputs.inputspec.ad_zthresh = c.z_thresh
     preproc.inputs.inputspec.tr = c.TR
     preproc.inputs.inputspec.do_slicetime = c.do_slicetiming
-    if c.do_slicetiming and not c.use_metadata:
-        preproc.inputs.inputspec.sliceorder = c.SliceOrder
-    elif not c.do_slicetiming and not c.use_metadata:
-        preproc.inputs.inputspec.sliceorder = None
+        
 
     preproc.inputs.inputspec.compcor_select = c.compcor_select
 
@@ -350,6 +350,10 @@ Preprocessing nipype workflow
     modelflow.connect(infosource, ('subject_id', get_regexp_substitutions,
                                    fieldmap),
                       sinkd, 'regexp_substitutions')
+
+
+
+
 
     # make connections
 
