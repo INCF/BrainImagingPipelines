@@ -190,7 +190,8 @@ def create_prep(name='preproc'):
                                                       'do_whitening',
                                                       'regress_before_PCA',
                                                       'realign_parameters',
-                                                      'do_despike']),
+                                                      'do_despike',
+                                                      'anatomical']),
                         name='inputspec')
 
     # Separate input node for FWHM
@@ -743,6 +744,90 @@ def create_rest_prep(name='preproc',fieldmap=False):
                     outputnode, 'filter_file')
     return preproc
 
+
+def create_rest_NoFS(name='preproc',use_fieldmap=False,segmentation_type='FAST'):
+    from alternate_brain_mask import new_getmask
+    from utils import create_no_FS_compcor
+    wf = create_rest_prep(name,use_fieldmap)
+    getmask = wf.get_node('getmask')
+    compcor = wf.get_node('CompCor')
+    outputnode = wf.get_node('outputspec')
+    inputspec = wf.get_node('inputspec')
+    remove_noise = wf.get_node('regress_nuisance')
+    smooth = wf.get_node('modular_smooth')
+    medianval = wf.get_node('compute_median_val')
+    ad = wf.get_node('artifactdetect')
+    motion_correct = wf.get_node('mod_realign')
+    meanfunc = wf.get_node('take_mean_art')
+    addoutliers = wf.get_node('create_nuisance_filter')
+    fssource = wf.get_node('fssource')
+    wf.remove_nodes([getmask,compcor,fssource])
+
+    # New getmask connections
+    getmask = new_getmask(segmentation_type)
+    compcor = create_no_FS_compcor()
+
+    if use_fieldmap:
+        fieldmap = wf.get_node('fieldmap_unwarp')
+        dewarper = wf.get_node('dewarper')
+        wf.connect(fieldmap, 'exfdw',
+            getmask, 'inputspec.functional')
+        wf.connect(dewarper, 'unwarped_file',
+            compcor, 'inputspec.realigned_file')
+    else:
+        wf.connect(meanfunc, 'outputspec.mean_image',
+            getmask, 'inputspec.functional')
+        wf.connect(motion_correct, 'out_file',
+            compcor, 'inputspec.realigned_file')
+
+    wf.connect(getmask, 'outputspec.mask',
+        remove_noise, 'mask')
+    wf.connect(getmask, 'outputspec.mask',
+        outputnode, 'mask')
+    wf.connect(getmask, 'outputspec.reg_file',
+        outputnode, 'reg_file')
+    wf.connect(getmask, 'outputspec.mask',
+        smooth, 'inputnode.mask_file')
+    wf.connect(getmask, 'outputspec.reg_file',
+        smooth, 'inputnode.reg_file')
+    wf.connect(getmask, 'outputspec.mask',
+        ad, 'mask_file')
+    wf.connect(getmask, 'outputspec.mask',
+        medianval, 'mask_file')
+    wf.connect(inputspec,'anatomical',
+        getmask,'inputspec.structural')
+
+    # new compcor connections
+    wf.connect(inputspec, 'num_noise_components',
+        compcor, 'inputspec.num_components')
+    wf.connect(inputspec, 'regress_before_PCA',
+        compcor, 'inputspec.regress_before_PCA')
+    wf.connect(ad, 'outlier_files',
+        compcor, 'inputspec.outlier_files')
+    wf.connect(motion_correct, 'par_file',
+        compcor, 'inputspec.realignment_parameters')
+    wf.connect(compcor, 'outputspec.noise_components',
+        addoutliers, 'compcorr_components')
+    wf.connect(compcor, 'tsnr.detrended_file',
+        remove_noise, 'in_file')
+    wf.connect(compcor, 'outputspec.tsnr_file',
+        outputnode, 'tsnr_file')
+    wf.connect(compcor, 'outputspec.stddev_file',
+        outputnode, 'stddev_file')
+    wf.connect(compcor, 'outputspec.tsnr_detrended',
+        outputnode, 'tsnr_detrended')
+    wf.connect(compcor, 'outputspec.noise_components',
+        outputnode, 'noise_components')
+    wf.connect(compcor, 'outputspec.noise_mask',
+        outputnode, 'noise_mask')
+    wf.connect(compcor, 'outputspec.csf_mask',
+        outputnode, 'csf_mask')
+    wf.connect(inputspec, 'compcor_select',
+        compcor, 'inputspec.selector')
+
+    wf.connect(getmask,('outputspec.segments',pickfirst),compcor,'inputspec.segment_files')
+
+    return wf
 
 def create_first(name='modelfit'):
     """First level task-fMRI modelling workflow

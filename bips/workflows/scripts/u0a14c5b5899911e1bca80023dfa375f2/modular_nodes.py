@@ -191,7 +191,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
     return out_file, par_file, parameter_source
 
 def mod_smooth(in_file,brightness_threshold,usans,fwhm,
-               smooth_type, reg_file, surface_fwhm, subjects_dir):
+               smooth_type, reg_file, surface_fwhm, subjects_dir=None):
     import nipype.interfaces.fsl as fsl
     import nipype.interfaces.freesurfer as fs
     if smooth_type == 'susan':

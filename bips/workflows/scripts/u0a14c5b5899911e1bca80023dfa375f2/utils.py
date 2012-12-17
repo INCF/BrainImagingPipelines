@@ -222,6 +222,55 @@ def extract_csf_mask():
     return extract_csf
 
 
+def create_no_FS_compcor(name='CompCor'):
+
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    import nipype.interfaces.fsl as fsl
+    import nipype.interfaces.freesurfer as fs
+
+    compproc = create_compcorr(name=name)
+    inputspec = pe.Node(util.IdentityInterface(fields=['num_components',
+                                                       'realigned_file',
+                                                       'segment_files',
+                                                       'realignment_parameters',
+                                                       'outlier_files',
+                                                       'selector',
+                                                       'regress_before_PCA']),
+        name='inputspec')
+    acomp_old = compproc.get_node('extract_csf_mask')
+    inputspec_old = compproc.get_node('inputspec')
+    tsnr = compproc.get_node('tsnr')
+    compcor = compproc.get_node('compcor_components')
+    outputspec = compproc.get_node('outputspec')
+
+    compproc.remove_nodes([acomp_old,inputspec_old])
+
+    bin = pe.Node(fs.Binarize(match=[1,3],erode=1),name='binarize')
+    compproc.connect(inputspec,'segment_files',bin,'in_file')
+
+    compproc.connect(inputspec, 'realigned_file',
+        tsnr, 'in_file')
+    compproc.connect(inputspec, 'num_components',
+        compcor, 'num_components')
+    compproc.connect(inputspec, 'realignment_parameters',
+        compcor, 'realignment_parameters')
+    compproc.connect(inputspec, 'outlier_files',
+        compcor, 'outlier_file')
+    compproc.connect(inputspec, 'regress_before_PCA',
+        compcor, 'regress_before_PCA')
+    compproc.connect(inputspec, 'selector',
+        compcor, 'selector')
+    compproc.connect(bin,'binary_file',
+        compcor,'csf_mask_file')
+    compproc.connect(bin,'binary_file',
+        outputspec,'csf_mask')
+    #compcor needs the csf mask file input
+
+
+
+    return compproc
+
 def create_compcorr(name='CompCor'):
     """Workflow that implements (t and/or a) compcor method from 
     
