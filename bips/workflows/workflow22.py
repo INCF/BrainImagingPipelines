@@ -225,12 +225,21 @@ def study_ref(mean):
     os.system(cmd)   
     return os.path.abspath('study_ref.nii')
 
+
+def shorty(in_file):
+    import os
+    os.environ['FSLOUTPUTTYPE'] = 'NIFTI'
+    out_file = in_file#os.path.abspath(os.path.split(in_file)[1])
+    cmd = "fslmaths %s %s -odt short"%(in_file,out_file)
+    os.system(cmd)
+    return out_file
+
 def localizer(name='localizer'):
     import nipype.interfaces.freesurfer as fs
     import nipype.interfaces.fsl as fsl
     import nipype.pipeline.engine as pe
     import nipype.interfaces.utility as niu
-
+    import nipype.interfaces.io as nio
     wf = pe.Workflow(name=name)
     inputspec = pe.Node(niu.IdentityInterface(fields=["subject_id",
                                                       "subjects_dir",
@@ -305,6 +314,25 @@ def localizer(name='localizer'):
     wf.connect(verts,'vertex',surf_label,'vertex')
     wf.connect(inputspec,'thresh',surf_label,'thresh')
 
+    from workflow27 import pickaparc
+
+    fssource = pe.Node(nio.FreeSurferSource(),name='fssource')
+    wf.connect(inputspec,"subjects_dir",fssource,"subjects_dir")
+    wf.connect(inputspec,"subject_id", fssource,"subject_id")
+
+    bg_mask = pe.Node(fs.Binarize(wm_ven_csf=True, erode=2),name="bg_mask")
+
+    wf.connect(fssource,("aparc_aseg",pickaparc),bg_mask,"in_file")
+
+    warp_mask = pe.Node(fs.ApplyVolTransform(inverse=True,interp='nearest'),name="warp_to_func")
+    wf.connect(inputspec,"mean",warp_mask,"source_file")
+    wf.connect(bg_mask,"binary_file",warp_mask,"target_file")
+    wf.connect(inputspec,"reg", warp_mask,"reg_file")
+    
+
+    do_bg_mask = pe.Node(fs.ApplyMask(),name="do_bg_mask")
+    wf.connect(warp_mask,"transformed_file",do_bg_mask,"mask_file")
+
     studyref = pe.Node(niu.Function(input_names=['mean'],output_names=['study_ref'], function=study_ref),name='studyref')
     wf.connect(inputspec,'mean',studyref,'mean')
 
@@ -314,7 +342,8 @@ def localizer(name='localizer'):
     bin = pe.Node(fsl.ImageMaths(op_string = '-bin'),name="binarize_roi")
     changetype = pe.Node(fsl.ChangeDataType(output_datatype='short'),name='to_short')
 
-    wf.connect(bg,'outfile',outputspec,'reference')
+    wf.connect(bg,'outfile',do_bg_mask,"in_file")
+    wf.connect(do_bg_mask,("out_file",shorty), outputspec,'reference')
     wf.connect(label2vol,'vol_label_file',bin,'in_file')
     wf.connect(bin,'out_file', changetype, 'in_file')
     wf.connect(changetype, 'out_file', outputspec, 'rois')
@@ -328,7 +357,7 @@ def get_substitutions(subject_id):
             ('_get_surface_label0/','%s_'%subject_id),
             ('_get_surface_label1/','%s_'%subject_id),
             ('lh_label_vol_maths_chdt.nii','%s_roi.nii'%subject_id),
-            ('background','%s_background'%subject_id),
+            ('background_masked','%s_background'%subject_id),
             ('study_ref','%s_study_ref'%subject_id)]
     return subs
 

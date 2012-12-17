@@ -96,6 +96,12 @@ Part 4: Workflow Construction
 
 tolist = lambda x: [x]
 
+def run_kelly(in_file):
+    import os
+    outfile = os.path.abspath('kellyk_cortical_thickness.nii.gz')
+    cmd = 'KellyKapowski -d 3 -s [%s,2,3] -o %s'%(infile,outfile)
+    return outfile
+
 def kellyk(c):
     import nipype.interfaces.io as nio
     import nipype.interfaces.utility as niu
