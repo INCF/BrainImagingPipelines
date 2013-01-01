@@ -296,6 +296,10 @@ Preprocessing nipype workflow
         sinkd, 'preproc.flirtreg')
     modelflow.connect(preproc, 'mask_segment_register.outputspec.warped_struct',
         sinkd, 'preproc.flirtreg.@flirtstruct')
+    modelflow.connect(preproc, 'mask_segment_register.outputspec.bet_struct',
+        sinkd, 'bet')
+    modelflow.connect(preproc, 'mask_segment_register.outputspec.inverse_reg',
+        sinkd, 'flirtreg.func2struct')
     modelflow.connect(preproc, 'outputspec.highpassed_files',
         sinkd, 'preproc.highpass')
     modelflow.connect(preproc, 'outputspec.tsnr_file',

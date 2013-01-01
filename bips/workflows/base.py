@@ -82,6 +82,8 @@ class MetaWorkflow(HasStrictTraits):
     config_ui = traits.Function
     # config view
     config_view = traits.Function
+    #html_config view
+    html_view = traits.Function
     # purl to describe workflow
     url = traits.Str()
     # keyword tags for the workflow

@@ -11,6 +11,7 @@ from cherrypy import expose
 import numpy as np
 
 from ..workflows import get_workflows, get_workflow
+from scripts.form_scripts import get_form
 
 MEDIA_DIR = os.path.join(os.path.dirname(__file__), 'scripts')
 FILE_DIR = os.path.join(os.getcwd(), 'files')
@@ -71,6 +72,17 @@ class BIPS(object):
         with open(os.path.join(MEDIA_DIR, 'workflows.html')) as fp:
             msg = fp.readlines()
         return msg
+
+    @expose
+    def edit_config(self,uuid='7757e3168af611e1b9d5001e4fb1404c'):
+        conf = get_workflow(uuid).config_ui()
+        with open(os.path.join(MEDIA_DIR, 'edit_config.html')) as fp:
+            m = fp.readlines()
+            form = get_form(conf)
+            
+            msg = '\n'.join(m).replace('**TEMPLATE**',form)
+        return msg
+
 
     @expose
     def queryworkflows(self, tags=None):

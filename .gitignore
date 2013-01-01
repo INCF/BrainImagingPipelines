@@ -1,2 +1,6 @@
 *.pyc
 *.py~
+example_configs/*
+*.swp
+doc/*/generated
+doc/_*

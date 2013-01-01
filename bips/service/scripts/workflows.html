@@ -138,7 +138,7 @@
                 for(var i=0;i<data.length;i++){
                     var btninfo = "<a id=\"to_modal"+i+"\" href=\"./info?uuid="+data[i].uuid+"\"><i class=\"icon-info-sign\"></i></a>";
                     //btninfo = "<a data-toggle=\"modal\" href=\"#myModal\"><i class=\"icon-info-sign\"></i></a>"
-                    var tdata = "<tr><td>"+btninfo+"</td><td>"+data[i].uuid+"</td><td>"+data[i].desc+"</td></tr>";
+                    var tdata = "<tr><td>"+btninfo+"</td><td><a href=\"./edit_config?uuid="+data[i].uuid+"\">"+data[i].uuid+"</a></td><td>"+data[i].desc+"</td></tr>";
                     $("#wftable").append(tdata);
                     $("#to_modal"+i).click(function(e) {
                         e.preventDefault();

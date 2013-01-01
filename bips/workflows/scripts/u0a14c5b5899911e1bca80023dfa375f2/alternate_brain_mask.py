@@ -13,11 +13,12 @@ def fsl_getmask(name):
     inputspec = pe.Node(niu.IdentityInterface(fields=['functional','structural']),name='inputspec')
     bet = pe.Node(fsl.BET(mask=True,remove_eyes=True),name='bet')
     flirt = pe.Node(fsl.FLIRT(dof=6),name='flirt')
+    flirt_inv = flirt.clone('func2struct')
     applyxfm_mask = pe.Node(fsl.ApplyXfm(interp='nearestneighbour',apply_xfm=True),name='applyxfm_mask')
     applyxfm_seg = pe.MapNode(fsl.ApplyXfm(interp='nearestneighbour',apply_xfm=True),name='applyxfm_seg',iterfield=['in_file'])
     dilate = pe.Node(fsl.DilateImage(operation='mean'),name='dilate')
     fast = pe.Node(fsl.FAST(),name='fast')
-    outputspec= pe.Node(niu.IdentityInterface(fields=['mask','reg_file','segments','warped_struct']),name='outputspec')
+    outputspec= pe.Node(niu.IdentityInterface(fields=['mask','reg_file','segments','warped_struct','bet_struct','inverse_reg']),name='outputspec')
 
     #create brain mask
     wf.connect(inputspec,"structural",bet,"in_file")
@@ -27,6 +28,12 @@ def fsl_getmask(name):
     wf.connect(inputspec,"structural",flirt,"in_file")
     wf.connect(flirt,'out_matrix_file',outputspec,'reg_file')
     wf.connect(flirt,'out_file',outputspec,'warped_struct')
+
+    # Calculate inverse
+
+    wf.connect(inputspec,"functional",flirt_inv,"in_file")
+    wf.connect(inputspec,"structural",flirt_inv,"reference")
+    wf.connect(flirt_inv,"out_matrix_file",outputspec,"inverse_reg")
 
     #dilate brain mask
     wf.connect(bet,"mask_file",dilate,"in_file")
@@ -39,6 +46,7 @@ def fsl_getmask(name):
 
     #segment with FAST
     wf.connect(bet,"out_file", fast,"in_files")
+    wf.connect(bet,"out_file", outputspec,"bet_struct")
 
     #transform segments
     wf.connect(fast,"tissue_class_map",applyxfm_seg,"in_file")
