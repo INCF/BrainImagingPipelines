@@ -376,6 +376,9 @@ def connect_to_config(c):
         wk.connect(cluster,'outputspec.corrected_z',sinkd,'output.corrected.@zthresh')
         wk.connect(cluster,'outputspec.slices',sinkd,'output.corrected.clusters')
         wk.connect(cluster,'outputspec.cuts',sinkd,'output.corrected.slices')
+        wk.connect(cluster,'outputspec.localmax_txt',sinkd,'output.corrected.@localmax_txt')
+        wk.connect(cluster,'outputspec.index_file',sinkd,'output.corrected.@index')
+        wk.connect(cluster,'outputspec.localmax_vol',sinkd,'output.corrected.@localmax_vol')
 
     if c.do_randomize:
         wk.connect(outputspec,'t_corrected_p_files',sinkd,'output.@t_corrected_p_files')

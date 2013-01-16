@@ -1019,7 +1019,10 @@ def cluster_image(name="threshold_cluster_makeimages"):
     workflow.connect(inputspec,'zstat', smoothest, 'zstat_file')
     workflow.connect(inputspec,'mask',smoothest, 'mask_file')
 
-    cluster = pe.MapNode(fsl.Cluster(), name='cluster', iterfield=['in_file','dlh','volume'])
+    cluster = pe.MapNode(fsl.Cluster(out_localmax_txt_file=True,
+                                     out_index_file=True,
+                                     out_localmax_vol_file=True), 
+                         name='cluster', iterfield=['in_file','dlh','volume'])
     workflow.connect(smoothest,'dlh', cluster, 'dlh')
     workflow.connect(smoothest, 'volume', cluster, 'volume')
     workflow.connect(inputspec,"threshold",cluster,"threshold")
@@ -1068,9 +1071,10 @@ def cluster_image(name="threshold_cluster_makeimages"):
     #workflow.connect(dataflow,'func',imgflow, 'inputspec.in_file')
     #workflow.connect(inputspec,'mask',imgflow, 'inputspec.mask_file')
 
-    outputspec = pe.Node(util.IdentityInterface(fields=["corrected_z","slices","cuts","corrected_p"]),name='outputspec')
+    outputspec = pe.Node(util.IdentityInterface(fields=["corrected_z","localmax_txt","index_file","localmax_vol","slices","cuts","corrected_p"]),name='outputspec')
     workflow.connect(cluster,'threshold_file',outputspec,'corrected_z')
     workflow.connect(showslice,"outfiles",outputspec,"slices")
     workflow.connect(overlay,"fnames",outputspec,"cuts")
+    workflow.connect(cluster,'localmax_txt_file',outputspec,'localmax_txt')
     #workflow.connect(logp,'out_file',outputspec,"corrected_p")
     return workflow

@@ -94,7 +94,7 @@ def warp_segments(name="warp_segments"):
                                                   'warped_brain']),
         name="inputspec")
     from nipype.interfaces.ants import ApplyTransforms
-    ap = pe.MapNode(ApplyTransforms(),name="apply_transforms",iterfield=["input_image"])
+    ap = pe.MapNode(ApplyTransforms(interpolation='NearestNeighbor'),name="apply_transforms",iterfield=["input_image"])
     wf.connect(inputspec,"subject_id",seg,"inputspec.subject_id")
     wf.connect(inputspec,"subjects_dir",seg,"inputspec.subjects_dir")
     from nipype.interfaces.utility import Merge
