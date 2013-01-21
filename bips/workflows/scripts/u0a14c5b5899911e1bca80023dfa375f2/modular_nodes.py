@@ -142,17 +142,23 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
                 slicetime = afni.TShift()
                 slicetime.inputs.in_file = file
                 custom_order = open(os.path.abspath('afni_custom_order_file.txt'),'w')
-                tpattern = []
-                for i in xrange(len(sliceorder)):
-                    tpattern.append((i*tr/float(Nz), sliceorder[i]))
+        if type(sliceorder)==list:
+            tpattern = []
+            for i in xrange(len(sliceorder)):
+                tpattern.append((i*tr/float(Nz), sliceorder[i]))
                 tpattern.sort(key=lambda x:x[1])
                 for i,t in enumerate(tpattern):
                     print '%f\n'%(t[0])
                     custom_order.write('%f\n'%(t[0]))
-                custom_order.close()
+            custom_order.close()
+            order_file = 'afni_custom_order_file.txt'
+        elif type(sliceorder)==str:
+            order_file = sliceorder
+        else:
+                    raise TypeError('sliceorder must be filepath or list')
 
-                slicetime.inputs.args ='-tpattern @%s' % os.path.abspath('afni_custom_order_file.txt')
                 slicetime.inputs.tr = str(tr)+'s'
+                slicetime.inputs.args ='-tpattern @%s' % os.path.abspath(order_file)
                 slicetime.inputs.outputtype = 'NIFTI_GZ'
                 res = slicetime.run()
                 file_to_realign = res.outputs.out_file
@@ -185,7 +191,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
                 np.savetxt(os.path.abspath('realignment_parameters_%d.par'%i),boo,delimiter='\t')
                 par_file.append(os.path.abspath('realignment_parameters_%d.par'%i))
 
-            #par_file.append(Realign_res.outputs.oned_file)
+            par_file.append(Realign_res.outputs.oned_file)
 
 
     return out_file, par_file, parameter_source
