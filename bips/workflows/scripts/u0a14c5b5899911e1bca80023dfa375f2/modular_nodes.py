@@ -155,43 +155,43 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
         elif type(sliceorder)==str:
             order_file = sliceorder
         else:
-                    raise TypeError('sliceorder must be filepath or list')
+            raise TypeError('sliceorder must be filepath or list')
 
-                slicetime.inputs.tr = str(tr)+'s'
-                slicetime.inputs.args ='-tpattern @%s' % os.path.abspath(order_file)
-                slicetime.inputs.outputtype = 'NIFTI_GZ'
-                res = slicetime.run()
-                file_to_realign = res.outputs.out_file
+        slicetime.inputs.tr = str(tr)+'s'
+        slicetime.inputs.args ='-tpattern @%s' % os.path.abspath(order_file)
+        slicetime.inputs.outputtype = 'NIFTI_GZ'
+        res = slicetime.run()
+        file_to_realign = res.outputs.out_file
 
-                if not idx:
-                    extract = fsl.ExtractROI()
-                    extract.inputs.t_min = 0
-                    extract.inputs.t_size = 1
-                    extract.inputs.in_file = file_to_realign
-                    ref_vol = extract.run().outputs.roi_file
+        if not idx:
+            extract = fsl.ExtractROI()
+            extract.inputs.t_min = 0
+            extract.inputs.t_size = 1
+            extract.inputs.in_file = file_to_realign
+            ref_vol = extract.run().outputs.roi_file
 
-            else:
-                file_to_realign = file
+        else:
+            file_to_realign = file
 
-            realign = afni.Volreg()
-            realign.inputs.in_file = file_to_realign
-            realign.inputs.out_file = "afni_corr_"+os.path.split(file_to_realign)[1]
-            realign.inputs.oned_file = "afni_realignment_parameters.par"
-            realign.inputs.basefile = ref_vol
-            Realign_res = realign.run()
-            out_file.append(Realign_res.outputs.out_file)
+        realign = afni.Volreg()
+        realign.inputs.in_file = file_to_realign
+        realign.inputs.out_file = "afni_corr_"+os.path.split(file_to_realign)[1]
+        realign.inputs.oned_file = "afni_realignment_parameters.par"
+        realign.inputs.basefile = ref_vol
+        Realign_res = realign.run()
+        out_file.append(Realign_res.outputs.out_file)
 
-            parameters = Realign_res.outputs.oned_file
-            if not isinstance(parameters,list):
-                parameters = [parameters]
-            for i, p in enumerate(parameters):
-                foo = np.genfromtxt(p)
-                boo = foo[:,[1,2,0,4,5,3]]
-                boo[:,:3] = boo[:,:3]*np.pi/180
-                np.savetxt(os.path.abspath('realignment_parameters_%d.par'%i),boo,delimiter='\t')
-                par_file.append(os.path.abspath('realignment_parameters_%d.par'%i))
+        parameters = Realign_res.outputs.oned_file
+        if not isinstance(parameters,list):
+            parameters = [parameters]
+        for i, p in enumerate(parameters):
+            foo = np.genfromtxt(p)
+            boo = foo[:,[1,2,0,4,5,3]]
+            boo[:,:3] = boo[:,:3]*np.pi/180
+            np.savetxt(os.path.abspath('realignment_parameters_%d.par'%i),boo,delimiter='\t')
+            par_file.append(os.path.abspath('realignment_parameters_%d.par'%i))
 
-            par_file.append(Realign_res.outputs.oned_file)
+        #par_file.append(Realign_res.outputs.oned_file)
 
 
     return out_file, par_file, parameter_source
