@@ -157,7 +157,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
                 else:
                     raise TypeError('sliceorder must be filepath or list')
 
-                slicetime.inputs.args ='-tpattern @%s' % os.path.abspath('afni_custom_order_file.txt')
+                slicetime.inputs.args ='-tpattern @%s' % os.path.abspath(order_file)
                 slicetime.inputs.tr = str(tr)+'s'
                 slicetime.inputs.outputtype = 'NIFTI_GZ'
                 res = slicetime.run()
