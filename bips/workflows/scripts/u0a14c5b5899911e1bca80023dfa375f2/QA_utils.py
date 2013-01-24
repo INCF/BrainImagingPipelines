@@ -1008,6 +1008,96 @@ def get_coords2(in_file,img):
                        1)))[:3].tolist())
     return [coords]
 
+def fdr(in_file, mask_file, pthresh):
+    import os
+    import nibabel as nib
+    import numpy as np
+    from nipype.utils.filemanip import fname_presuffix
+ 
+    qstat = os.path.abspath(os.path.split(in_file)[1])
+    qrate = fname_presuffix(os.path.split(qstat)[0],'qrate_',os.path.abspath('.'))
+    p = os.popen('fdr -i %s -m %s -q %s -o %s'%(in_file,mask_file,pthresh,qrate))
+    qthresh = 1 - float(p.readlines()[1])
+    img = nib.load(in_file)
+    data, aff = img.get_data(), img.get_affine()
+    data = np.ones(data.shape) - data
+    ominp = nib.Nifti1Image(data,aff)
+    ominp.to_filename(qstat)
+
+    return qstat, qthresh, qrate
+
+def cluster_image2(name="threshold_cluster_makeimages"):
+    from nipype.interfaces import fsl
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+
+    workflow = pe.Workflow(name=name)
+    inputspec = pe.Node(util.IdentityInterface(fields=["pstat","mask","threshold","min_cluster_size",'anatomical']),name="inputspec")
+
+    do_fdr = pe.MapNode(util.Function(input_names=['in_file','mask_file','pthresh'],
+                                      output_names=['qstat','qthresh','qrate'],
+                                      function=fdr),name='do_fdr',iterfield=['in_file'])
+
+    cluster = pe.MapNode(fsl.Cluster(out_localmax_txt_file=True,
+                                     out_index_file=True,
+                                     out_localmax_vol_file=True), 
+                         name='cluster', iterfield=['in_file','threshold'])
+
+    workflow.connect(inputspec,'pstat',do_fdr,'in_file')
+    workflow.connect(inputspec,'mask',do_fdr,'mask_file')
+    workflow.connect(inputspec,'threshold', do_fdr,'pthresh')
+
+    workflow.connect(do_fdr,"qthresh",cluster,"threshold")
+    #workflow.connect(inputspec,"connectivity",cluster,"connectivity")
+    cluster.inputs.out_threshold_file = True
+    cluster.inputs.out_pval_file = True
+    workflow.connect(do_fdr,'qstat',cluster,'in_file')
+
+    labels = pe.MapNode(util.Function(input_names=['in_file','thr','csize'],
+                                   output_names=['labels'],function=get_labels),
+        name='labels',iterfield=["in_file","thr"])
+
+    workflow.connect(do_fdr,"qthresh",labels,"thr")
+    workflow.connect(inputspec,"min_cluster_size",labels,"csize")
+    workflow.connect(cluster,"threshold_file",labels,"in_file")
+
+    showslice=pe.MapNode(util.Function(input_names=['image_in','anat_file','coordinates','thr'],
+                                    output_names=["outfiles"],function=show_slices),
+              name='showslice',iterfield=["image_in","coordinates",'thr'])
+
+    coords = pe.MapNode(util.Function(input_names=["in_file","img"],
+                                   output_names=["coords"],
+                                   function=get_coords2),
+        name='getcoords', iterfield=["in_file","img"])
+
+    workflow.connect(cluster,'threshold_file',showslice,'image_in')
+    workflow.connect(inputspec,'anatomical',showslice,"anat_file")
+    workflow.connect(do_fdr,'qthresh',showslice,'thr')
+    workflow.connect(labels,'labels',coords,"img")
+    workflow.connect(cluster,"threshold_file",coords,"in_file")
+    workflow.connect(coords,"coords",showslice,"coordinates")
+
+    overlay = pe.MapNode(util.Function(input_names=["stat_image",
+                                                 "background_image",
+                                                 "threshold"],
+                                       output_names=["fnames"],function=overlay_new),
+                         name='overlay', iterfield=["stat_image",'threshold'])
+    workflow.connect(inputspec,"anatomical", overlay,"background_image")
+    workflow.connect(cluster,"threshold_file",overlay,"stat_image")
+    workflow.connect(do_fdr,"qthresh",overlay,"threshold")
+    #workflow.connect(cluster, 'threshold_file',imgflow,'inputspec.in_file')
+    #workflow.connect(dataflow,'func',imgflow, 'inputspec.in_file')
+    #workflow.connect(inputspec,'mask',imgflow, 'inputspec.mask_file')
+
+    outputspec = pe.Node(util.IdentityInterface(fields=["corrected_p","localmax_txt","index_file","localmax_vol","slices","cuts","corrected_p","qrate"]),name='outputspec')
+    workflow.connect(cluster,'threshold_file',outputspec,'corrected_p')
+    workflow.connect(showslice,"outfiles",outputspec,"slices")
+    workflow.connect(overlay,"fnames",outputspec,"cuts")
+    workflow.connect(cluster,'localmax_txt_file',outputspec,'localmax_txt')
+    workflow.connect(do_fdr,"qrate",outputspec,'qrate')
+    #workflow.connect(logp,'out_file',outputspec,"corrected_p")
+    return workflow 
+
 def cluster_image(name="threshold_cluster_makeimages"):
     from nipype.interfaces import fsl
     import nipype.pipeline.engine as pe

@@ -55,12 +55,14 @@
                 <ul class="nav">
                     <li class=""><a href="./index">Overview</a></li>
                     <li class="active"><a href="./workflows">Workflows</a></li>
+<!--
                     <li class=""><a href="./database">Database</a></li>
                     <li class=""><a href="./publications">Publications</a></li>
                     <li class=""><a href="./neuroview">Neuroview</a></li>
                     <li class=""><a href="./links">Links</a></li>
+-->
                     <li class="divider-vertical"></li>
-                    <li class=""><a href="./demo">Demo</a></li>
+                    <li class=""><a href="./demo_convert">DicomConvert</a></li>
                     <li class=""><a href="./status">Status</a></li>
                 </ul>
             </div>
@@ -188,11 +190,33 @@
 
 </div><!-- /container -->
 
-<script src="//ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+<script src="js/jquery.min.js"></script>
+<!-- The jQuery UI widget factory, can be omitted if jQuery UI is already included -->
+<script src="js/vendor/jquery.ui.widget.js"></script>
+<!-- The Templates plugin is included to render the upload/download listings -->
+<script src="js/tmpl.min.js"></script>
+<!-- The Load Image plugin is included for the preview images and image resizing functionality -->
+<script src="js/load-image.min.js"></script>
+<!-- The Canvas to Blob plugin is included for image resizing functionality -->
+<script src="js/canvas-to-blob.min.js"></script>
+<!-- Bootstrap JS and Bootstrap Image Gallery are not required, but included for the demo -->
+<script src="js/bootstrap.min.js"></script>
+<!-- The Iframe Transport is required for browsers without support for XHR file uploads -->
+<script src="js/jquery.iframe-transport.js"></script>
+<!-- The basic File Upload plugin -->
+<script src="js/jquery.fileupload.js"></script>
+<!-- The File Upload file processing plugin -->
+<script src="js/jquery.fileupload-fp.js"></script>
+<!-- The File Upload user interface plugin -->
+<script src="js/jquery.fileupload-ui.js"></script>
+<!-- The localization script -->
+<script src="js/locale.js"></script>
+<!-- The main application script -->
+<script src="js/main.js"></script>
+<!-- The XDomainRequest Transport is included for cross-domain file deletion for IE8+ -->
+<!--[if gte IE 8]><script src="js/cors/jquery.xdr-transport.js"></script><![endif]-->
 <script src="js/bootstrap.js"></script>
 <script src="js/bootstrap-typeahead.js"></script>
 <script src="js/bootstrap-modal.js"></script>
-<!-- The XDomainRequest Transport is included for cross-domain file deletion for IE8+ -->
-    <!--[if gte IE 8]><script src="js/cors/jquery.xdr-transport.js"></script><![endif]-->
 </body>
 </html>

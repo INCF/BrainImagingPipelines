@@ -28,17 +28,17 @@ $(function () {
         )
     );
 
-    if (window.location.hostname === 'bips.incf.org') {
+    if (window.location.hostname === 'blueimp.github.com') {
         // Demo settings:
         $('#fileupload').fileupload('option', {
-            url: '//bips.incf.org:8080/uploadhandler',
-            maxFileSize: 100000000,
-            acceptFileTypes: /(\.|\/)(nii|nii.gz)$/i,
+            url: '//jquery-file-upload.appspot.com/',
+            maxFileSize: 5000000,
+            acceptFileTypes: /(\.|\/)(gif|jpe?g|png)$/i,
             process: [
                 {
                     action: 'load',
-                    fileTypes: /^image\/(nii|nii.gz)$/,
-                    maxFileSize: 100000000 // 20MB
+                    fileTypes: /^image\/(gif|jpeg|png)$/,
+                    maxFileSize: 20000000 // 20MB
                 },
                 {
                     action: 'resize',
@@ -53,7 +53,7 @@ $(function () {
         // Upload server status check for browsers with CORS support:
         if ($.support.cors) {
             $.ajax({
-                url: '//bips.incf.org:8080/',
+                url: '//jquery-file-upload.appspot.com/',
                 type: 'HEAD'
             }).fail(function () {
                 $('<span class="alert alert-error"/>')

@@ -4,6 +4,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
     import nipype.interfaces.fsl as fsl
     import nipype.interfaces.spm as spm
     import nipype.interfaces.nipy as nipy
+    from nipype.utils.filemanip import split_filename
     import os
     parameter_source = "FSL"
     keys=parameters.keys()
@@ -22,6 +23,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
             realign.inputs.time_interp = True
 
         res = realign.run()
+        parameter_source = 'NiPy'
         out_file = res.outputs.out_file
         par_file = res.outputs.par_file
 
@@ -60,6 +62,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
                 file_to_realign = file
             realign = fsl.MCFLIRT(interpolation='spline', ref_file=ref_vol)
             realign.inputs.save_plots = True
+            realign.inputs.save_mats = True
             realign.inputs.mean_vol = True
             realign.inputs.in_file = file_to_realign
             realign.inputs.out_file = 'fsl_corr_' + \
@@ -102,23 +105,28 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
         par_file = []
         realign = spm.Realign()
         realign.inputs.in_files = file_to_realign
+        realign.inputs.register_to_mean = False
         #realign.inputs.out_prefix = 'spm_corr_'
         res = realign.run()
         parameters = res.outputs.realignment_parameters
         if not isinstance(parameters, list):
             parameters = [parameters]
         par_file = parameters
-        parameter_source='SPM'
+        parameter_source = 'SPM'
+        out_file = []
         if isinstance(res.outputs.realigned_files, list):
             for rf in res.outputs.realigned_files:
-                fsl.ImageMaths(in_file=rf,
+                res = fsl.ImageMaths(in_file=rf,
                        out_file=rf,
+                       output_type='NIFTI',
                        op_string='-nan').run()
+                out_file.append(res.outputs.out_file)
         else:
-            fsl.ImageMaths(in_file=res.outputs.realigned_files,
+            res2 = fsl.ImageMaths(in_file=res.outputs.realigned_files,
                        out_file=res.outputs.realigned_files,
+                       output_type='NIFTI',
                        op_string='-nan').run()
-        out_file = res.outputs.realigned_files
+            out_file.append(res2.outputs.out_file)
     elif node == 'afni':
         import nipype.interfaces.afni as afni
         import nibabel as nib
@@ -169,25 +177,16 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
 
             realign = afni.Volreg()
             realign.inputs.in_file = file_to_realign
-            realign.inputs.out_file = "afni_corr_"+os.path.split(file_to_realign)[1]
+            realign.inputs.outputtype = 'NIFTI_GZ'
+            realign.inputs.out_file = os.path.abspath("afni_corr_" + \
+                                      split_filename(file_to_realign)[1] + \
+                                      ".nii.gz")
             realign.inputs.oned_file = "afni_realignment_parameters.par"
             realign.inputs.basefile = ref_vol
             Realign_res = realign.run()
             out_file.append(Realign_res.outputs.out_file)
-
-            parameters = Realign_res.outputs.oned_file
-            if not isinstance(parameters,list):
-                parameters = [parameters]
-            for i, p in enumerate(parameters):
-                foo = np.genfromtxt(p)
-                boo = foo[:,[1,2,0,4,5,3]]
-                boo[:,:3] = boo[:,:3]*np.pi/180
-                np.savetxt(os.path.abspath('realignment_parameters_%d.par'%i),boo,delimiter='\t')
-                par_file.append(os.path.abspath('realignment_parameters_%d.par'%i))
-
-            #par_file.append(Realign_res.outputs.oned_file)
-
-
+            parameter_source = 'AFNI'
+            par_file.append(Realign_res.outputs.oned_file)
     return out_file, par_file, parameter_source
 
 def mod_smooth(in_file,brightness_threshold,usans,fwhm,

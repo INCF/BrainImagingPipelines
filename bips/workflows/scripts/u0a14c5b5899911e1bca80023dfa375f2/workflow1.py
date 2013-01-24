@@ -170,7 +170,6 @@ def create_view():
         Group(Item(name='working_dir'),
             Item(name='sink_dir'),
             Item(name='crash_dir'),
-            Item(name='json_sink'),
             Item(name='surf_dir'),
             label='Directories', show_border=True),
         Group(Item(name='run_using_plugin'),

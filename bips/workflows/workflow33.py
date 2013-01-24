@@ -1,5 +1,5 @@
 # Import Stuff
-from .scripts.u0a14c5b5899911e1bca80023dfa375f2.base import create_first
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.base import create_first_SPM as create_first
 import os
 from .base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool
@@ -11,13 +11,13 @@ Part 1: Define a MetaWorkflow
 """
 
 mwf = MetaWorkflow()
-mwf.uuid = '8efdb2a08f1711e1b160001e4fb1404c'
+mwf.uuid = 'a43f3faa64bc11e2997200259080ab1a'
 mwf.help="""
-First-Level Workflow
-====================
+First-Level Workflow SPM
+=========================
 
  """
-mwf.tags=['fMRI','First Level']
+mwf.tags=['SPM','First Level']
 
 """
 Part 2: Define the config class & create_config function
@@ -30,7 +30,6 @@ class config(HasTraits):
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
     sink_dir = Directory(os.path.abspath('.'), mandatory=True, desc="Location where the BIP will store the results")
     crash_dir = Directory(mandatory=False, desc="Location to store crash files")
-    surf_dir = Directory(mandatory=True, desc= "Freesurfer subjects directory")
 
     # Execution
 
@@ -56,8 +55,8 @@ class config(HasTraits):
 
     subjectinfo = traits.Code()
     contrasts = traits.Code()
+    estimation_method = traits.Enum('Classical','Bayesian','Bayesian2')
     interscan_interval = traits.Float()
-    film_threshold = traits.Float()
     input_units = traits.Enum('scans','secs')
     is_sparse = traits.Bool(False)
     model_hrf = traits.Bool(True)
@@ -90,7 +89,9 @@ def create_datagrabber_config():
     dg = Data(['noise_components',
                'motion_parameters',
                'highpassed_files',
+               'mask',
                'outlier_files'])
+
     foo = DataBase()
     foo.name="subject_id"
     foo.iterable = True
@@ -103,9 +104,11 @@ def create_datagrabber_config():
     dg.field_template = dict(noise_components='%s/preproc/noise_components/*noise_components.txt',
         motion_parameters='%s/preproc/motion/*.par',
         highpassed_files='%s/preproc/output/bandpassed/fwhm_%s/*.nii*',
+        mask='%s/preproc/mask/*.nii*',
         outlier_files='%s/preproc/art/*_outliers.txt')
     dg.template_args = dict(noise_components=[['subject_id']],
         motion_parameters=[['subject_id']],
+        mask = [['subject_id']],
         highpassed_files=[['subject_id','fwhm']],
         outlier_files=[['subject_id']])
     dg.fields = [foo, bar]
@@ -135,13 +138,12 @@ def create_view():
         Group(Item(name='datagrabber'),
             label='Subjects', show_border=True),
         Group(Item(name='interscan_interval'),
-            Item(name='film_threshold'),
             Item(name='input_units'),
             Item(name='subjectinfo'),
             Item(name='contrasts'),Item("is_sparse"),
             Item("ta",enabled_when="is_sparse"),
             Item("tr"),
-            Item("hpcutoff"),
+            Item("hpcutoff"),Item('estimation_method'),
             Item("model_hrf",enabled_when="is_sparse"),
             Item("stimuli_as_impulses",enabled_when="is_sparse"),
             Item("use_temporal_deriv",enabled_when="is_sparse"),
@@ -244,7 +246,7 @@ def combine_wkflw(c,prep_c=foo, name='work_dir'):
     import nipype.interfaces.utility as util    # utility
     import nipype.pipeline.engine as pe         # pypeline engine
     import nipype.interfaces.io as nio          # input/output
-    from nipype.algorithms.modelgen import SpecifyModel, SpecifySparseModel
+    from nipype.algorithms.modelgen import SpecifySPMModel, SpecifySparseModel
     import numpy as np
     modelflow = pe.Workflow(name=name)
     modelflow.base_dir = os.path.join(c.working_dir)
@@ -297,7 +299,10 @@ def combine_wkflw(c,prep_c=foo, name='work_dir'):
             subs.append(('pe%d.'%(i+1), 'others/pe%02d.'%(i+1)))"""
         for i in fwhm:
             subs.append(('_register%d/'%(i),''))
-        
+
+        for j in range(0,20):
+            subs.append(('_convert%d'%j,''))        
+
         return subs
 
     get_substitutions = pe.Node(util.Function(input_names=['subject_id',
@@ -308,7 +313,7 @@ def combine_wkflw(c,prep_c=foo, name='work_dir'):
 
     # create a node to create the subject info
     if not c.is_sparse:
-        s = pe.Node(SpecifyModel(),name='s')
+        s = pe.Node(SpecifySPMModel(),name='s')
     else:
         s = pe.Node(SpecifySparseModel(model_hrf=c.model_hrf,
                                        stimuli_as_impulses=c.stimuli_as_impulses,
@@ -318,10 +323,12 @@ def combine_wkflw(c,prep_c=foo, name='work_dir'):
             name='s')
         s.inputs.time_acquisition = c.ta
     s.inputs.input_units =                              c.input_units
+    s.inputs.output_units = 'secs'
     s.inputs.time_repetition =                          c.tr
     if c.hpcutoff < 0:
         c.hpcutoff = np.inf
     s.inputs.high_pass_filter_cutoff =                  c.hpcutoff
+    #s.inputs.concatenate_runs = False
     #subjinfo =                                          subjectinfo(subj)
     
     
@@ -334,14 +341,6 @@ def combine_wkflw(c,prep_c=foo, name='work_dir'):
                         name='trad_motn')
 
     
-    #subjinfo = pe.Node(interface=util.Function(input_names=['subject_id','get_run_numbers'], output_names=['output'], function = c.subjectinfo), name='subjectinfo')
-    #subjinfo.inputs.get_run_numbers = c.get_run_numbers
-    #modelflow.connect(infosource,'subject_id', 
-    #                  subjinfo,'subject_id' )
-    #modelflow.connect(subjinfo, 'output',
-    #                  trad_motn, 'subinfo')
-    
-    #modelflow.connect(infosource, ('subject_id',subjectinfo), trad_motn, 'subinfo')
     modelflow.connect(infosource,'subject_id', subjectinfo, 'subject_id')
     modelflow.connect(subjectinfo, 'output', trad_motn, 'subinfo')
 
@@ -355,12 +354,11 @@ def combine_wkflw(c,prep_c=foo, name='work_dir'):
                                        output_names=['subinfo'],
                                        function=noise_mot),
                          name='noise_motn')
-    noise_motn.inputs.use_compcor=c.use_compcor
+    noise_motn.inputs.use_compcor = c.use_compcor
     # generate first level analysis workflow
     modelfit =                                          create_first()
     modelfit.inputs.inputspec.interscan_interval =      c.interscan_interval
-    modelfit.inputs.inputspec.film_threshold =          c.film_threshold
-    
+    modelfit.inputs.inputspec.estimation_method = {c.estimation_method:''} 
     
     contrasts = pe.Node(util.Function(input_names=['subject_id'], output_names=['contrasts']), name='getcontrasts')
     contrasts.inputs.function_str = c.contrasts
@@ -370,7 +368,7 @@ def combine_wkflw(c,prep_c=foo, name='work_dir'):
     modelflow.connect(contrasts,'contrasts', modelfit, 'inputspec.contrasts')
     
     modelfit.inputs.inputspec.bases =                   c.bases
-    modelfit.inputs.inputspec.model_serial_correlations = True
+    modelfit.inputs.inputspec.model_serial_correlations = 'AR(1)'
     noise_motn.inputs.num_noise_components =           prep_c.num_noise_components
     
     # make a data sink
@@ -395,22 +393,21 @@ def combine_wkflw(c,prep_c=foo, name='work_dir'):
     modelflow.connect(preproc, 'datagrabber.motion_parameters',      trad_motn,  'files')
     modelflow.connect(preproc, 'datagrabber.noise_components',       noise_motn, 'files')
     modelflow.connect(preproc, 'datagrabber.highpassed_files',       s,          'functional_runs')
-    modelflow.connect(preproc, 'datagrabber.highpassed_files',       modelfit,   'inputspec.functional_data')
     modelflow.connect(preproc, 'datagrabber.outlier_files',          s,          'outlier_files')
     modelflow.connect(trad_motn,'subinfo',                          noise_motn, 'subinfo')
     modelflow.connect(noise_motn,'subinfo',                         s,          'subject_info')
     modelflow.connect(s,'session_info',                             modelfit,   'inputspec.session_info')
-    modelflow.connect(modelfit, 'outputspec.parameter_estimates',   sinkd,      'modelfit.estimates')
-    modelflow.connect(modelfit, 'outputspec.sigmasquareds',   sinkd,      'modelfit.estimates.@sigsq')
-    modelflow.connect(modelfit, 'outputspec.dof_file',              sinkd,      'modelfit.dofs')
-    modelflow.connect(modelfit, 'outputspec.copes',                 sinkd,      'modelfit.contrasts.@copes')
-    modelflow.connect(modelfit, 'outputspec.varcopes',              sinkd,      'modelfit.contrasts.@varcopes')
-    modelflow.connect(modelfit, 'outputspec.zstats',                sinkd,      'modelfit.contrasts.@zstats')
-    modelflow.connect(modelfit, 'outputspec.tstats',                sinkd,      'modelfit.contrasts.@tstats')
-    modelflow.connect(modelfit, 'outputspec.design_image',          sinkd,      'modelfit.design')
-    modelflow.connect(modelfit, 'outputspec.design_cov',            sinkd,      'modelfit.design.@cov')
-    modelflow.connect(modelfit, 'outputspec.design_file',           sinkd,      'modelfit.design.@matrix')
-    modelflow.connect(modelfit, 'outputspec.pfiles',                sinkd,      'modelfit.contrasts.@pstats')
+    modelflow.connect(preproc, 'datagrabber.mask', modelfit, 'inputspec.mask')
+    modelflow.connect(modelfit, 'outputspec.spm_mat_file',   sinkd,      'modelfit_spm.contrasts.@spm_mat')
+    modelflow.connect(modelfit, 'outputspec.residual_image',              sinkd,      'modelfit_spm.design.@residual')
+    modelflow.connect(modelfit, 'outputspec.con_images',                 sinkd,      'modelfit_spm.contrasts.@cons')
+    modelflow.connect(modelfit, 'outputspec.ess_images',              sinkd,      'modelfit_spm.contrasts.@ess')
+    modelflow.connect(modelfit, 'outputspec.spmF_images',                sinkd,      'modelfit_spm.contrasts.@spmF')
+    modelflow.connect(modelfit, 'outputspec.spmT_images',                sinkd,      'modelfit_spm.contrasts.@spmT')
+    modelflow.connect(modelfit, 'outputspec.RPVimage',              sinkd,      'modelfit_spm.design.@rpv')
+    modelflow.connect(modelfit, 'outputspec.beta_images',           sinkd,      'modelfit_spm.design.@beta')
+    modelflow.connect(modelfit, 'outputspec.mask_image',            sinkd,      'modelfit_spm.design.@mask')
+    
     return modelflow
 
 mwf.workflow_function = combine_wkflw

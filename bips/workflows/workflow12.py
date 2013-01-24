@@ -36,7 +36,6 @@ class config(HasTraits):
     field_dir = Directory(desc="Base directory of field-map data (Should be subject-independent) \
                                                  Set this value to None if you don't want fieldmap distortion correction")
     crash_dir = Directory(mandatory=False, desc="Location to store crash files")
-    json_sink = Directory(mandatory=False, desc= "Location to store json_files")
     surf_dir = Directory(mandatory=True, desc= "Freesurfer subjects directory")
 
     # Execution
@@ -132,7 +131,6 @@ def create_view():
         Group(Item(name='working_dir'),
             Item(name='sink_dir'),
             Item(name='crash_dir'),
-            Item(name='json_sink'),
             Item(name='surf_dir'),
             label='Directories', show_border=True),
         Group(Item(name='run_using_plugin'),

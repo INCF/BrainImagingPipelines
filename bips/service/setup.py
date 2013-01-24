@@ -6,6 +6,7 @@ def configuration(parent_package='',top_path=None):
 
     # List all packages to be loaded here
     config.add_subpackage('scripts')
+    config.add_subpackage('demos')
     config.add_data_dir('scripts')
 
     # List all data directories to be loaded here

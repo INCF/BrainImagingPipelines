@@ -2,7 +2,7 @@ import os
 from .base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
-from .scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import cluster_image
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.QA_utils import cluster_image2
 from .flexible_datagrabber import Data, DataBase
 
 """
@@ -65,8 +65,8 @@ class config(HasTraits):
 
     #Correction:
     run_correction = traits.Bool(False)
-    z_threshold = traits.Float(2.3)
-    connectivity = traits.Int(25)
+    p_threshold = traits.Float(2.3)
+    min_cluster_size = traits.Int(25)
     do_randomize = traits.Bool(False)
     # Advanced Options
     use_advanced_options = traits.Bool()
@@ -128,8 +128,8 @@ def create_view():
             Item(name="reg_contrasts"),
             label='Second Level', show_border=True),
         Group(Item("run_correction",enabled_when='not do_randomize'),
-            Item("z_threshold",enabled_when='not do_randomize'),
-            Item("connectivity",enabled_when='not do_randomize'), 
+            Item("p_threshold",enabled_when='not do_randomize'),
+            Item("min_cluster_size",enabled_when='not do_randomize'), 
             Item('do_randomize',enabled_when='not do_correction'),
         label='Correction', show_border=True),
         Group(Item(name='use_advanced_options'),
@@ -168,7 +168,7 @@ def create_2lvl(name="group"):
     mergecopes = pe.Node(fsl.Merge(dimension='t'),name='merge_copes')
     mergevarcopes = pe.Node(fsl.Merge(dimension='t'),name='merge_varcopes')
 
-    flame = pe.Node(fsl.FLAMEO(run_mode='ols'),name='flameo')
+    flame = pe.Node(fsl.FLAMEO(run_mode='flame1'),name='flameo')
     wk.connect(inputspec,'copes',mergecopes,'in_files')
     wk.connect(inputspec,'varcopes',mergevarcopes,'in_files')
     wk.connect(model,'design_mat',flame,'design_file')
@@ -367,18 +367,19 @@ def connect_to_config(c):
         wk.connect(inputspec,'template',sinkd,'output.@template')
 
     if c.run_correction and not c.do_randomize:
-        cluster = cluster_image()
-        wk.connect(outputspec,"zstat",cluster,'inputspec.zstat')
+        cluster = cluster_image2()
+        wk.connect(outputspec,"pstat",cluster,'inputspec.pstat')
         wk.connect(outputspec,"mask",cluster,"inputspec.mask")
         wk.connect(inputspec,"template",cluster,"inputspec.anatomical")
-        cluster.inputs.inputspec.threshold = c.z_threshold
-        cluster.inputs.inputspec.connectivity = c.connectivity
-        wk.connect(cluster,'outputspec.corrected_z',sinkd,'output.corrected.@zthresh')
-        wk.connect(cluster,'outputspec.slices',sinkd,'output.corrected.clusters')
-        wk.connect(cluster,'outputspec.cuts',sinkd,'output.corrected.slices')
-        wk.connect(cluster,'outputspec.localmax_txt',sinkd,'output.corrected.@localmax_txt')
-        wk.connect(cluster,'outputspec.index_file',sinkd,'output.corrected.@index')
-        wk.connect(cluster,'outputspec.localmax_vol',sinkd,'output.corrected.@localmax_vol')
+        cluster.inputs.inputspec.threshold = c.p_threshold
+        cluster.inputs.inputspec.min_cluster_size = c.min_cluster_size
+        wk.connect(cluster,'outputspec.corrected_p',sinkd,'output.fdr_corrected.@zthresh')
+        wk.connect(cluster,'outputspec.slices',sinkd,'output.fdr_corrected.clusters')
+        wk.connect(cluster,'outputspec.cuts',sinkd,'output.fdr_corrected.slices')
+        wk.connect(cluster,'outputspec.localmax_txt',sinkd,'output.fdr_corrected.@localmax_txt')
+        wk.connect(cluster,'outputspec.index_file',sinkd,'output.fdr_corrected.@index')
+        wk.connect(cluster,'outputspec.localmax_vol',sinkd,'output.fdr_corrected.@localmax_vol')
+        wk.connect(cluster,'outputspec.qrate',sinkd,'output.fdr_corrected.@qrate')
 
     if c.do_randomize:
         wk.connect(outputspec,'t_corrected_p_files',sinkd,'output.@t_corrected_p_files')

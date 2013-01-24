@@ -273,8 +273,11 @@ def main(config_file):
         heuristic_func = mod.infotodict
     else:
         heuristic_func=None
+    try:
+        get_dicom_info(c)
+    except:
+        pass
 
-    get_dicom_info(c)
     if not c.info_only:
         wk = convert_wkflw(c,heuristic_func)
         wk.config = {"execution": {"crashdump_dir": c.crash_dir, "job_finished_timeout": c.timeout}}

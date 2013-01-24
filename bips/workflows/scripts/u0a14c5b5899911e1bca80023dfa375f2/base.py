@@ -957,6 +957,108 @@ def create_first(name='modelfit'):
                      outputspec, 'design_cov')
     return modelfit
     
-#def smri(name = "smri"):
+def create_first_SPM(name='modelfit'):
+    """First level task-fMRI modelling workflow
+    
+    Parameters
+    ----------
+    name : name of workflow. Default = 'modelfit'
+    
+    Inputs
+    ------
+    inputspec.session_info :
+    inputspec.interscan_interval :
+    inputspec.contrasts :
+    inputspec.functional_data :
+    inputspec.bases :
+    inputspec.model_serial_correlations :
+    
+    Outputs
+    -------
+    outputspec.copes :
+    outputspec.varcopes :
+    outputspec.dof_file :
+    outputspec.pfiles :
+    outputspec.parameter_estimates :
+    outputspec.zstats :
+    outputspec.tstats :
+    outputspec.design_image :
+    outputspec.design_file :
+    outputspec.design_cov :
+    
+    Returns
+    -------
+    workflow : first-level workflow
+    """
+    import nipype.interfaces.spm as spm        # fsl
+    import nipype.interfaces.freesurfer as fs
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    modelfit = pe.Workflow(name=name)
+
+    inputspec = pe.Node(util.IdentityInterface(fields=['session_info',
+                                                       'interscan_interval',
+                                                       'contrasts',
+                                                       'estimation_method',
+                                                       'bases',
+                                                       'mask',
+                                                       'model_serial_correlations']),
+                        name='inputspec')
+    
+    
+    
+    level1design = pe.Node(interface=spm.Level1Design(timing_units='secs'), 
+                           name="create_level1_design")
+
+    modelestimate = pe.Node(interface=spm.EstimateModel(),
+                               name='estimate_model')
+
+    conestimate = pe.Node(interface=spm.EstimateContrast(), 
+                             name='estimate_contrast')
+
+    convert = pe.MapNode(interface=fs.MRIConvert(out_type='nii'),name='convert',iterfield=['in_file'])
+
+    outputspec = pe.Node(util.IdentityInterface(fields=['RPVimage',
+                                                        'beta_images',
+                                                        'mask_image',
+                                                        'residual_image',
+                                                        'con_images',
+                                                        'ess_images',
+                                                        'spmF_images',
+                                                        'spmT_images',
+                                                        'spm_mat_file']),
+                         name='outputspec')
+
+    # Utility function
+
+    pop_lambda = lambda x : x[0]
+
+    # Setup the connections
+
+    modelfit.connect([
+        (inputspec, level1design, [('interscan_interval', 'interscan_interval'),
+                                   ('session_info', 'session_info'),
+                                   ('bases', 'bases'),('mask','mask_image'),
+                                   ('model_serial_correlations',
+                                    'model_serial_correlations')]),
+        (inputspec, conestimate, [('contrasts', 'contrasts')]),
+        (inputspec, modelestimate,[('estimation_method','estimation_method')]),
+        (level1design, modelestimate, [('spm_mat_file', 'spm_mat_file')]),
+        (modelestimate, conestimate,[('beta_images',        'beta_images'),
+                                     ('residual_image',          'residual_image'),
+                                     ('spm_mat_file',            'spm_mat_file')]),
+        (modelestimate, outputspec, [('RPVimage', 'RPVimage'),
+                                     ('beta_images', 'beta_images'),
+                                     ('mask_image', 'mask_image'),
+                                     ('residual_image', 'residual_image')]),
+        (conestimate, convert, [('con_images','in_file')]),
+        (convert, outputspec, [('out_file','con_images')]),
+        (conestimate, outputspec,   [('ess_images', 'ess_images'),
+                                     ('spmF_images', 'spmF_images'),
+                                     ('spmT_images','spmT_images'),
+                                     ('spm_mat_file', 'spm_mat_file')])])
+
+    return modelfit
+ #def smri(name = "smri"):
     
     

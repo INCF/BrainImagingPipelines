@@ -1,0 +1,20 @@
+mriFunctionalData:
+	msFileName=/mindhive/xnat/surfaces/sad/qdec/new_LH_10_SPAI_pre_social_nage/lh-Diff-Control-Patient-Cor-long.thickness-spc-SPAIs1_PRE_social/sig.mgh
+	msRegistrationFileName=
+	msSubjectName=
+	mpData->ps=1.000000
+	mpData->thick=1.000000
+	mpData->width=163842
+	mpData->height=1
+	mpData->depth=1
+	mConvMethod=0
+	mNumTimePoints=1
+	mNumConditions=1
+	mbNullConditionPresent=0
+	mMaxValue=-10000.000000
+	mMinValue=10000.000000
+	mTimeResolution=1.000000
+	mNumPreStimTimePoints=0
+	mbErrorDataPresent=0
+	mNumBins=0
+

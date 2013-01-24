@@ -147,7 +147,7 @@ def get_post_struct_norm_workflow(name='normalize_post_struct'):
     warp_images = pe.MapNode(
         ants.WarpTimeSeriesImageMultiTransform(),
         name='warp_images',
-        iterfield=['moving_image', 'dimension'])
+        iterfield=['input_image', 'dimension'])
 
     #collects workflow outputs
     outputspec = pe.Node(
@@ -164,7 +164,7 @@ def get_post_struct_norm_workflow(name='normalize_post_struct'):
         (fsl_reg_2_itk, collect_transforms, [('fsl2antsAffine', 'in3')]),
         (inputspec, collect_transforms, [('warp_field', 'in1'),
             ('affine_transformation', 'in2')]),
-        (inputspec, warp_images, [('moving_image', 'moving_image')]),
+        (inputspec, warp_images, [('moving_image', 'input_image')]),
         (inputspec, warp_images, [(('moving_image', get_image_dimensions),
                                     'dimension')]),
         (inputspec, warp_images, [('template_file', 'reference_image')]),

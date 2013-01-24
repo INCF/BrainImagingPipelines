@@ -46,12 +46,14 @@
                 <ul class="nav">
                     <li class="active"><a href="./index">Overview</a></li>
                     <li class=""><a href="./workflows">Workflows</a></li>
+<!--
                     <li class=""><a href="./database">Database</a></li>
                     <li class=""><a href="./publications">Publications</a></li>
                     <li class=""><a href="./neuroview">Neuroview</a></li>
                     <li class=""><a href="./links">Links</a></li>
+-->
                     <li class="divider-vertical"></li>
-                    <li class=""><a href="./demo">Demo</a></li>
+                    <li class=""><a href="./demo_convert">DicomConvert</a></li>
                     <li class=""><a href="./status">Status</a></li>
                 </ul>
             </div>
@@ -79,10 +81,10 @@
         </ul>
         <ul class="quick-links">
             <li>
-                <iframe class="github-btn" src="http://markdotto.github.com/github-buttons/github-btn.html?user=INCF&repo=BrainImagingPipelines&type=watch&count=true" allowtransparency="true" frameborder="0" scrolling="0" width="112px" height="20px"></iframe>
+                <iframe class="github-btn" src="http://ghbtns.com/github-btn.html?user=INCF&repo=BrainImagingPipelines&type=watch&count=true" allowtransparency="true" frameborder="0" scrolling="0" width="112px" height="20px"></iframe>
             </li>
             <li>
-                <iframe class="github-btn" src="http://markdotto.github.com/github-buttons/github-btn.html?user=INCF&repo=BrainImagingPipelines&type=fork&count=true" allowtransparency="true" frameborder="0" scrolling="0" width="98px" height="20px"></iframe>
+                <iframe class="github-btn" src="http://ghbtns.com/github-btn.html?user=INCF&repo=BrainImagingPipelines&type=fork&count=true" allowtransparency="true" frameborder="0" scrolling="0" width="98px" height="20px"></iframe>
             </li>
         </ul>
     </div>
@@ -102,12 +104,29 @@
         <div class="span4">
             <img class="bs-icon" src="img/glyphicons_041_charts.png">
             <h2>Live results</h2>
-            <p>BIPS collects provenance and results into a database. You can compare across sites and studies and provide dynamic views of results.</p>
+            <p>When integrated with databases, you will be able to compare across sites and studies and provide dynamic views of results.</p>
         </div>
         <div class="span4">
             <img class="bs-icon" src="img/glyphicons_066_tags.png">
             <h2>Tagged and searchable</h2>
             <p>How do you find the workflow you need? Every workflow is tagged with keywords. This makes them easily searchable.</p>
+        </div>
+    </div><!--/row-->
+    <div class="row">
+        <div class="span4">
+            <img class="bs-icon" src="img/glyphicons_280_settings.png">
+            <h2>Integrated provenance</h2>
+            <p>Tools accepted into the framework will provide standardized provenance using the W3C PROV model.</p>
+        </div>
+        <div class="span4">
+            <img class="bs-icon" src="img/glyphicons_041_charts.png">
+            <h2>Expanding services</h2>
+            <p>BIPS will provide an increasing collection of services ranging from annotation, to metadata query to actually running workflows.</p>
+        </div>
+        <div class="span4">
+            <img class="bs-icon" src="img/glyphicons_066_tags.png">
+            <h2>Standardization</h2>
+            <p>The goal of BIPS is to conform to evolving standards (e.g., XCEDE-DM, XCEDE-O) and support integration with many brain imaging databases and other resources</p>
         </div>
     </div><!--/row-->
     <hr class="soften">
@@ -117,7 +136,7 @@
         <div class="span2"><h2>CherryPy</h2></div>
         <div class="span2"><h2>NeuroDebian</h2></div>
         <div class="span2"><h2>Nipype</h2></div>
-        <div class="span2"><h2>MongoDB</h2></div>
+        <div class="span2"><h2>OrientDB</h2></div>
         <div class="span2"><h2>XTK</h2></div>
     </div><!--/row-->
 </div><!-- /.marketing -->
@@ -132,16 +151,15 @@
 </footer>
 
 </div><!-- /container -->
-
-<script src="//ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+<script src="js/jquery.min.js"></script>
 <!-- The jQuery UI widget factory, can be omitted if jQuery UI is already included -->
 <script src="js/vendor/jquery.ui.widget.js"></script>
 <!-- The Templates plugin is included to render the upload/download listings -->
-<script src="http://blueimp.github.com/JavaScript-Templates/tmpl.min.js"></script>
+<script src="js/tmpl.min.js"></script>
 <!-- The Load Image plugin is included for the preview images and image resizing functionality -->
-<script src="http://blueimp.github.com/JavaScript-Load-Image/load-image.min.js"></script>
+<script src="js/load-image.min.js"></script>
 <!-- The Canvas to Blob plugin is included for image resizing functionality -->
-<script src="http://blueimp.github.com/JavaScript-Canvas-to-Blob/canvas-to-blob.min.js"></script>
+<script src="js/canvas-to-blob.min.js"></script>
 <!-- Bootstrap JS and Bootstrap Image Gallery are not required, but included for the demo -->
 <script src="js/bootstrap.min.js"></script>
 <!-- The Iframe Transport is required for browsers without support for XHR file uploads -->
