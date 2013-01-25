@@ -141,17 +141,23 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
             if do_slicetime:
                 slicetime = afni.TShift()
                 slicetime.inputs.in_file = file
-                custom_order = open(os.path.abspath('afni_custom_order_file.txt'),'w')
-                tpattern = []
-                for i in xrange(len(sliceorder)):
-                    tpattern.append((i*tr/float(Nz), sliceorder[i]))
-                tpattern.sort(key=lambda x:x[1])
-                for i,t in enumerate(tpattern):
-                    print '%f\n'%(t[0])
-                    custom_order.write('%f\n'%(t[0]))
-                custom_order.close()
+                if type(sliceorder)==list:
+                    custom_order = open(os.path.abspath('afni_custom_order_file.txt'),'w')
+                    tpattern = []
+                    for i in xrange(len(sliceorder)):
+                        tpattern.append((i*tr/float(Nz), sliceorder[i]))
+                        tpattern.sort(key=lambda x:x[1])
+                        for i,t in enumerate(tpattern):
+                            print '%f\n'%(t[0])
+                            custom_order.write('%f\n'%(t[0]))
+                    custom_order.close()
+                    order_file = 'afni_custom_order_file.txt'
+                elif type(sliceorder)==str:
+                    order_file = sliceorder
+                else:
+                    raise TypeError('sliceorder must be filepath or list')
 
-                slicetime.inputs.args ='-tpattern @%s' % os.path.abspath('afni_custom_order_file.txt')
+                slicetime.inputs.args ='-tpattern @%s' % os.path.abspath(order_file)
                 slicetime.inputs.tr = str(tr)+'s'
                 slicetime.inputs.outputtype = 'NIFTI_GZ'
                 res = slicetime.run()
@@ -460,3 +466,4 @@ def mod_despike(in_file, do_despike):
         ds = Despike(in_file=in_file)
         out_file = ds.run().outputs.out_file
     return out_file
+
