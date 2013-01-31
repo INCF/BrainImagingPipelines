@@ -191,11 +191,19 @@ def convert_dicoms(sid, dicom_dir_template, outputdir, queue=None, heuristic_fun
                 os.mkdir(os.path.join(tdir,key))
             for idx, ext in enumerate(info[key]):
                 src = glob(os.path.join(sdir,'*-%d-*'%ext))
+                print key
                 dcm = dcmstack.DicomStack()
+                added_success = True
                 for f in src:
-                    dcm.add_dcm(dicom.read_file(f,force=True))
-                a = dcm.to_nifti(embed_meta = embed)
-                a.to_filename(os.path.join(tdir,key,key+'%03d'%(idx+1)))
+                    try:
+                        dcm.add_dcm(dicom.read_file(f,force=True))
+                        
+                    except:
+                        added_success = False
+                        print "error adding %s to stack"%f
+                if added_success:
+                    a = dcm.to_nifti(embed_meta = embed)
+                    a.to_filename(os.path.join(tdir,key,key+'%03d'%(idx+1)))
                 #convertcmd = ['dcmstack', sdir,'--dest-dir', os.path.join(tdir,key),
                 #              '--file-ext', '*-%d-*'%ext, '--force-read', '-v', '--output-name', key+'%03d'%(idx+1)]
                 #if embed:
@@ -271,12 +279,14 @@ def main(config_file):
         sys.path.append(path)
         mod = __import__(fname.split('.')[0])
         heuristic_func = mod.infotodict
+        print "USING HEURISTIC: ", heuristic_func
     else:
         heuristic_func=None
-    try:
-        get_dicom_info(c)
-    except:
-        pass
+    if c.info_only:
+        try:
+            get_dicom_info(c)
+        except:
+            pass
 
     if not c.info_only:
         wk = convert_wkflw(c,heuristic_func)

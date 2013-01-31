@@ -61,13 +61,15 @@ class config(HasTraits):
     reg_contrasts = traits.Code(desc="function named reg_contrasts which takes in 0 args and returns contrasts")
 
     #Normalization
-    norm_template = traits.File(mandatory=True,desc='Template of files')
-
+    norm_template = traits.File(desc='Template of files')
+    use_mask = traits.Bool(False)
+    mask_file = traits.File()
     #Correction:
     run_correction = traits.Bool(False)
     p_threshold = traits.Float(2.3)
     min_cluster_size = traits.Int(25)
     do_randomize = traits.Bool(False)
+    num_iterations = traits.Int(5000)
     # Advanced Options
     use_advanced_options = traits.Bool()
     advanced_script = traits.Code()
@@ -123,7 +125,7 @@ def create_view():
             label='Execution Options', show_border=True),
         Group(Item(name='datagrabber'),
             label='Datagrabber', show_border=True),
-        Group(Item(name='norm_template'),
+        Group(Item(name='norm_template',enabled_when='not use_mask'),Item('use_mask'),Item('mask_file',enabled_when='use_mask'),
             Item(name='design_csv'),
             Item(name="reg_contrasts"),
             label='Second Level', show_border=True),
@@ -131,6 +133,7 @@ def create_view():
             Item("p_threshold",enabled_when='not do_randomize'),
             Item("min_cluster_size",enabled_when='not do_randomize'), 
             Item('do_randomize',enabled_when='not do_correction'),
+            Item('num_iterations'),
         label='Correction', show_border=True),
         Group(Item(name='use_advanced_options'),
             Item(name='advanced_script',enabled_when='use_advanced_options'),
@@ -148,7 +151,7 @@ Construct Workflow
 
 get_len = lambda x: len(x)
 
-def create_2lvl(name="group"):
+def create_2lvl(name="group",mask=None):
     import nipype.interfaces.fsl as fsl
     import nipype.pipeline.engine as pe
     import nipype.interfaces.utility as niu
@@ -177,9 +180,13 @@ def create_2lvl(name="group"):
     wk.connect(mergevarcopes,'merged_file',flame,'var_cope_file')
     wk.connect(model,'design_grp',flame,'cov_split_file')
 
-    bet = pe.Node(fsl.BET(mask=True,frac=0.3),name="template_brainmask")
-    wk.connect(inputspec,'template',bet,'in_file')
-    wk.connect(bet,'mask_file',flame,'mask_file')
+    if mask ==None:
+        bet = pe.Node(fsl.BET(mask=True,frac=0.3),name="template_brainmask")
+        wk.connect(inputspec,'template',bet,'in_file')
+        wk.connect(bet,'mask_file',flame,'mask_file')
+
+    else: 
+        wk.connect(inputspec,'template',flame,'mask_file')
 
     outputspec = pe.Node(niu.IdentityInterface(fields=['zstat','tstat','cope',
                                                        'varcope','mrefvars',
@@ -196,7 +203,10 @@ def create_2lvl(name="group"):
     wk.connect(flame,'zstats',outputspec,'zstat')
     wk.connect(flame,'tstats',outputspec,'tstat')
     wk.connect(flame,'tdof',outputspec,'tdof')
-    wk.connect(bet,'mask_file',outputspec,'mask')
+    if mask ==None:
+        wk.connect(bet,'mask_file',outputspec,'mask')
+    else:
+        wk.connect(inputspec,'template',outputspec,'mask')
 
     ztopval = pe.MapNode(interface=fsl.ImageMaths(op_string='-ztop',
         suffix='_pval'),
@@ -208,7 +218,7 @@ def create_2lvl(name="group"):
 
     return wk
 
-def create_2lvl_rand(name="group_randomize"):
+def create_2lvl_rand(name="group_randomize",mask=None,iters=5000):
     import nipype.interfaces.fsl as fsl
     import nipype.pipeline.engine as pe
     import nipype.interfaces.utility as niu
@@ -226,7 +236,7 @@ def create_2lvl_rand(name="group_randomize"):
 
     mergecopes = pe.Node(fsl.Merge(dimension='t'),name='merge_copes')
     
-    rand = pe.Node(fsl.Randomise(base_name='TwoSampleT', raw_stats_imgs=True, tfce=True),name='randomize')
+    rand = pe.Node(fsl.Randomise(base_name='TwoSampleT', raw_stats_imgs=True, tfce=True,num_perm=iters),name='randomize')
 
     wk.connect(inputspec,'copes',mergecopes,'in_files')
     wk.connect(model,'design_mat',rand,'design_mat')
@@ -234,9 +244,13 @@ def create_2lvl_rand(name="group_randomize"):
     wk.connect(mergecopes, 'merged_file', rand, 'in_file')
     wk.connect(model,'design_grp',rand,'x_block_labels')
     
-    bet = pe.Node(fsl.BET(mask=True,frac=0.3),name="template_brainmask")
-    wk.connect(inputspec,'template',bet,'in_file')
-    wk.connect(bet,'mask_file',rand,'mask')
+    if mask == None:
+        bet = pe.Node(fsl.BET(mask=True,frac=0.3),name="template_brainmask")
+        wk.connect(inputspec,'template',bet,'in_file')
+        wk.connect(bet,'mask_file',rand,'mask')
+
+    else:
+        wk.connect(inputspec,'template',rand,'mask')
 
     outputspec = pe.Node(niu.IdentityInterface(fields=['f_corrected_p_files',
                                                        'f_p_files',
@@ -252,8 +266,10 @@ def create_2lvl_rand(name="group_randomize"):
     wk.connect(rand,'t_corrected_p_files',outputspec,'t_corrected_p_files')
     wk.connect(rand,'t_p_files',outputspec,'t_p_files')
     wk.connect(rand,'tstat_files',outputspec,'tstat_file')
-    wk.connect(bet,'mask_file',outputspec,'mask')
-
+    if mask==None:
+        wk.connect(bet,'mask_file',outputspec,'mask')
+    else:
+        wk.connect(inputspec,'template',outputspec,'mask')
     return wk
 
 
@@ -307,9 +323,15 @@ def connect_to_config(c):
     import nipype.interfaces.io as nio
     
     if not c.do_randomize:
-        wk = create_2lvl()
+        if c.use_mask:
+            wk = create_2lvl(mask=c.mask_file)
+        else:
+            wk = create_2lvl()
     else:
-        wk  =create_2lvl_rand()
+        if c.use_mask:
+            wk  =create_2lvl_rand(mask=c.mask_file,iters=c.num_iterations)
+        else:
+            wk = create_2lvl_rand(iters=c.num_iterations)
         
     wk.base_dir = c.working_dir
     datagrabber = c.datagrabber.create_dataflow()  #get_datagrabber(c)
@@ -336,7 +358,11 @@ def connect_to_config(c):
     wk.connect(datagrabber,'datagrabber.copes', inputspec, 'copes')
     if not c.do_randomize:
         wk.connect(datagrabber,'datagrabber.varcopes', inputspec, 'varcopes')
-    wk.inputs.inputspec.template = c.norm_template
+    if not c.use_mask:
+        wk.inputs.inputspec.template = c.norm_template
+
+    else:
+        wk.inputs.inputspec.template = c.mask_file
 
     cons = pe.Node(niu.Function(input_names=[],output_names=["contrasts"]),name="get_contrasts")
     cons.inputs.function_str = c.reg_contrasts

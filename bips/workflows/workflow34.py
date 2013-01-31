@@ -56,8 +56,10 @@ class config(HasTraits):
 
     #Normalization
 
-    norm_template = traits.File(mandatory=True,desc='Template of files')
-
+    norm_template = traits.File(desc='Template of files')
+    use_mask = traits.Bool(False)
+    mask_file = traits.File(desc='already binarized mask file to use')
+    
     #Correction:
     p_threshold = traits.Float(0.05)
     height_threshold = traits.Float(0.05)
@@ -115,7 +117,7 @@ def create_view():
             label='Execution Options', show_border=True),
         Group(Item(name='datagrabber'),
             label='Datagrabber', show_border=True),
-        Group(Item(name='norm_template'),
+        Group(Item(name='norm_template',enabled_when='not use_mask'),Item(name='use_mask'),Item('mask_file',enabled_when='use_mask'),
             Item(name='run_one_sample_T_test'),
             Item('run_regression'),
             Item('estimation_method'),
@@ -141,7 +143,7 @@ Construct Workflow
 
 get_len = lambda x: len(x)
 
-def create_2lvl(do_one_sample,name="group"):
+def create_2lvl(do_one_sample,name="group",mask=None):
     import nipype.interfaces.fsl as fsl
     import nipype.interfaces.spm as spm
     import nipype.pipeline.engine as pe
@@ -164,11 +166,14 @@ def create_2lvl(do_one_sample,name="group"):
     wk.connect(inputspec,'estimation_method',est_model,'estimation_method')
     wk.connect(model,'spm_mat_file',est_model,'spm_mat_file')
 
+    if mask==None:
+        bet = pe.Node(fsl.BET(mask=True,frac=0.3,output_type='NIFTI'),name="template_brainmask")
+        wk.connect(inputspec,'template',bet,'in_file')
+        wk.connect(bet,'mask_file',model,'explicit_mask_file')
 
-    bet = pe.Node(fsl.BET(mask=True,frac=0.3,output_type='NIFTI'),name="template_brainmask")
-    wk.connect(inputspec,'template',bet,'in_file')
-    wk.connect(bet,'mask_file',model,'explicit_mask_file')
-    
+    else:
+        wk.connect(inputspec,'template',model,'explicit_mask_file')    
+
     est_cont = pe.Node(spm.EstimateContrast(group_contrast=True),name='estimate_contrast')
 
     wk.connect(inputspec, 'contrasts', est_cont, "contrasts")
@@ -176,7 +181,7 @@ def create_2lvl(do_one_sample,name="group"):
     wk.connect(est_model,'residual_image',est_cont,"residual_image")
     wk.connect(est_model,'beta_images', est_cont,"beta_images")
 
-    thresh = pe.MapNode(spm.Threshold(),name='fdr',iterfield=['stat_image','contrast_index'])
+    thresh = pe.MapNode(spm.Threshold(use_fwe_correction=False,use_topo_fdr=True,height_threshold_type='p-value'),name='fdr',iterfield=['stat_image','contrast_index'])
     wk.connect(est_cont,'spm_mat_file',thresh,'spm_mat_file')
     wk.connect(est_cont,'spmT_images',thresh,'stat_image')
     wk.connect(inputspec,'min_cluster_size',thresh,'extent_threshold')
@@ -264,8 +269,10 @@ def connect_to_config(c):
     import nipype.pipeline.engine as pe
     import nipype.interfaces.utility as niu
     import nipype.interfaces.io as nio
-    
-    wk = create_2lvl(c.run_one_sample_T_test)
+    if c.use_mask: 
+        wk = create_2lvl(c.run_one_sample_T_test,mask=c.mask_file)
+    else:
+        wk = create_2lvl(c.run_one_sample_T_test)
         
     wk.base_dir = c.working_dir
     datagrabber = c.datagrabber.create_dataflow()  #get_datagrabber(c)
@@ -290,7 +297,10 @@ def connect_to_config(c):
 
     #wk.connect(infosource,'fwhm',datagrabber,'fwhm')
     wk.connect(datagrabber,'datagrabber.con_images', inputspec, 'copes')
-    wk.inputs.inputspec.template = c.norm_template
+    if not c.use_mask:
+        wk.inputs.inputspec.template = c.norm_template
+    else: 
+        wk.inputs.inputspec.template = c.mask_file
     wk.inputs.inputspec.p_thresh = c.p_threshold
     wk.inputs.inputspec.min_cluster_size = c.min_cluster_size
     wk.inputs.inputspec.height_thresh = c.height_threshold

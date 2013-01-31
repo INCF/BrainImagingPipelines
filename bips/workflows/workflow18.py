@@ -50,6 +50,7 @@ class config(HasTraits):
     norm_template = traits.File(mandatory=True,desc='Template to warp to')
     name_of_project = traits.String("group_analysis",usedefault=True)
     do_randomize = traits.Bool(True)
+    num_iterations = traits.Int(5000)
 
     #Correction:
     run_correction = traits.Bool(True)
@@ -110,7 +111,7 @@ def create_view():
                 Group(Item(name='datagrabber'),
                       label='Datagrabber', show_border=True),
                 Group(Item(name='norm_template'),
-                      Item(name='do_randomize'),
+                      Item(name='do_randomize'),Item('num_iterations',enabled_when='do_randomize'),
                       label='Second Level', show_border=True),
                 Group(Item("run_correction"),Item("z_threshold"),Item("connectivity"),
                     label='Correction', show_border=True),
@@ -187,7 +188,7 @@ def create_2lvl(name="group"):
     return wk
 
 
-def create_2lvl_rand(name="group_randomize"):
+def create_2lvl_rand(name="group_randomize",iters=5000):
     import nipype.interfaces.fsl as fsl
     import nipype.pipeline.engine as pe
     import nipype.interfaces.utility as niu
@@ -203,7 +204,7 @@ def create_2lvl_rand(name="group_randomize"):
     mergecopes = pe.Node(fsl.Merge(dimension='t'),name='merge_copes')
     mergevarcopes = pe.Node(fsl.Merge(dimension='t'),name='merge_varcopes')
     
-    rand = pe.Node(fsl.Randomise(base_name='OneSampleT', raw_stats_imgs=True, tfce=True),name='randomize')
+    rand = pe.Node(fsl.Randomise(base_name='OneSampleT', raw_stats_imgs=True, tfce=True, num_perm=iters),name='randomize')
 
     wk.connect(inputspec,'copes',mergecopes,'in_files')
     wk.connect(inputspec,'varcopes',mergevarcopes,'in_files')
@@ -274,7 +275,7 @@ def connect_to_config(c):
     if not c.do_randomize:
         wk = create_2lvl()
     else:
-        wk  =create_2lvl_rand()
+        wk  =create_2lvl_rand(iters=c.num_iterations)
 
     wk.base_dir = c.working_dir
     datagrabber = c.datagrabber.create_dataflow()  #get_datagrabber(c)

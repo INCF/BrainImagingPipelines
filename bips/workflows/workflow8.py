@@ -258,8 +258,8 @@ def create_workflow(c):
     datasink.inputs.base_directory = c.sink_dir
     datasink.inputs.regexp_substitutions = [('_subject_id.*smooth_surf', 'surffwhm')]
     workflow.connect(inputnode, 'subject_id', datasink, 'container')
-    workflow.connect(corrmat, 'corrmatfile', datasink, 'correlations.@corrmat')
-    workflow.connect(vol2surf,'out_file',datasink,'correlations.@timeseries')
+    workflow.connect(corrmat, 'corrmatfile', datasink, 'correlations.%s.@corrmat'%c.target_surf)
+    workflow.connect(vol2surf,'out_file',datasink,'correlations.%s.@timeseries'%c.target_surf)
     return workflow
 
 

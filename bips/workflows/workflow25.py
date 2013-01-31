@@ -99,7 +99,9 @@ tolist = lambda x: [x]
 def run_kelly(in_file):
     import os
     outfile = os.path.abspath('kellyk_cortical_thickness.nii.gz')
-    cmd = 'KellyKapowski -d 3 -s [%s,2,3] -o %s'%(infile,outfile)
+    cmd = 'KellyKapowski -d 3 -s [%s,2,3] -o %s'%(in_file,outfile)
+    print cmd
+    os.system(cmd)
     return outfile
 
 def kellyk(c):
@@ -122,10 +124,19 @@ def kellyk(c):
     wf.connect(seg,'outputspec.wm', combine,'in_file')
     wf.connect(seg,('outputspec.gm',tolist), combine, 'operand_files')
 
+    #kelly = pe.Node(niu.Function(input_names=['in_file'],output_names=['outfile'],function=run_kelly),name='kellyk')
+
     sink = pe.Node(nio.DataSink(),name="sinker")
+    def get_subs(subject_id):
+        subs = []
+        subs.append(('_subject_id_%s/'%subject_id,'%s_'%subject_id))
+        return subs
+
     wf.connect(infosource,"subject_id",sink,"container")
     sink.inputs.base_directory = c.sink_dir
+    wf.connect(infosource,("subject_id",get_subs),sink,'substitutions')
     wf.connect(combine,"out_file",sink,"kellykapowski.segment")
+    #wf.connect(kelly,'outfile',sink,'kellykapowski')
 
     return wf
 
