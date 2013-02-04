@@ -128,7 +128,7 @@ def getsubs(subject_id, cons):
 
 
 
-from .gablab.labs.workflow10 import create_config as first_config
+from first_level import create_config as first_config
 
 foo0 = first_config()
 

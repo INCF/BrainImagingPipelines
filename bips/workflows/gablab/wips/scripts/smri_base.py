@@ -1,4 +1,4 @@
-from bips.workflows.scripts.ua780b1988e1c11e1baf80019b9f22493.utils import (convert_affine, get_image_dimensions)
+from smri_utils import (convert_affine, get_image_dimensions)
 
 
 def get_struct_norm_workflow(name='normalize_struct'):

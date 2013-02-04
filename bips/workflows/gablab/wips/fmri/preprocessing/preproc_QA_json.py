@@ -200,7 +200,7 @@ def QA_workflow(c, prep_c,name='QA'):
     """
     import nipype.pipeline.engine as pe
     import nipype.interfaces.utility as util
-    from gablab.wips.scripts.QA_utils import (tsnr_roi,
+    from ...scripts.QA_utils import (tsnr_roi,
                                                                     art_output)
     from ......utils.reportsink.io import JSONSink
     # Define Workflow

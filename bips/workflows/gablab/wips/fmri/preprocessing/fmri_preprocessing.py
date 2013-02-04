@@ -202,8 +202,8 @@ Part 4: Workflow Construction
 
 # create_workflow
 
-from gablab.wips.scripts.base import create_rest_prep
-from gablab.wips.scripts.utils import get_datasink, get_substitutions, get_regexp_substitutions
+from ...scripts.base import create_rest_prep
+from ...scripts.utils import get_datasink, get_substitutions, get_regexp_substitutions
 
 def extract_meta(func):
     """Extracts meta-data from niftis that were created from dcmstack_

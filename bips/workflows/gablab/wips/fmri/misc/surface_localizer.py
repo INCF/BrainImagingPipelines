@@ -314,7 +314,7 @@ def localizer(name='localizer'):
     wf.connect(verts,'vertex',surf_label,'vertex')
     wf.connect(inputspec,'thresh',surf_label,'thresh')
 
-    from gablab.wips.smri.freesurfer_brain_masks import pickaparc
+    from ...smri.freesurfer_brain_masks import pickaparc
 
     fssource = pe.Node(nio.FreeSurferSource(),name='fssource')
     wf.connect(inputspec,"subjects_dir",fssource,"subjects_dir")

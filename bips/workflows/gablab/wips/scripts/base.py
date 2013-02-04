@@ -1,4 +1,4 @@
-from gablab.wips.scripts.utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
+from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
                    getmeanscale, highpass_operand, pickfirst, whiten)
 
 
@@ -155,7 +155,7 @@ def create_prep(name='preproc'):
     import nipype.interfaces.fsl as fsl         # fsl
     import nipype.algorithms.rapidart as ra     # rapid artifact detection
     from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
-    from .gablab.scripts.u0a14c5b5899911e1bca80023dfa375f2.modular_nodes import create_mod_smooth, mod_realign, mod_despike
+    from modular_nodes import create_mod_smooth, mod_realign, mod_despike
     import nipype.pipeline.engine as pe
     import nipype.interfaces.utility as util
 
@@ -609,7 +609,7 @@ def create_rest_prep(name='preproc',fieldmap=False):
     -------
     workflow : resting state preprocessing workflow
     """
-    from .gablab.scripts.u0a14c5b5899911e1bca80023dfa375f2.modular_nodes import mod_filter, mod_regressor
+    from modular_nodes import mod_filter, mod_regressor
     import nipype.pipeline.engine as pe
     import nipype.interfaces.utility as util
     if fieldmap:
@@ -746,8 +746,8 @@ def create_rest_prep(name='preproc',fieldmap=False):
 
 
 def create_rest_NoFS(name='preproc',use_fieldmap=False,segmentation_type='FAST'):
-    from gablab.wips.scripts.alternate_brain_mask import new_getmask
-    from gablab.wips.scripts.utils import create_no_FS_compcor
+    from alternate_brain_mask import new_getmask
+    from utils import create_no_FS_compcor
     wf = create_rest_prep(name,use_fieldmap)
     getmask = wf.get_node('getmask')
     compcor = wf.get_node('CompCor')

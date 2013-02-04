@@ -235,10 +235,8 @@ Part 4: Workflow Construction
 
 # create workflow
 
-from .gablab.scripts.u0a14c5b5899911e1bca80023dfa375f2.base import (create_prep,
-                                                            create_prep_fieldmap)
-from .gablab.scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import (get_datasink,
-                                                             get_substitutions)
+from base import (create_prep,create_prep_fieldmap)
+from utils import (get_datasink,get_substitutions)
 
 def get_dataflow(c):
     import nipype.pipeline.engine as pe

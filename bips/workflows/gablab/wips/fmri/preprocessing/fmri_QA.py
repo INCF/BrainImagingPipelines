@@ -319,7 +319,7 @@ def QA_workflow(QAc,c=foo, name='QA'):
     from nipype.interfaces import freesurfer as fs
     from nipype.interfaces.io import FreeSurferSource
 
-    from gablab.wips.scripts.QA_utils import (plot_ADnorm,
+    from ...scripts.QA_utils import (plot_ADnorm,
                                                                     tsdiffana,
                                                                     tsnr_roi,
                                                                     combine_table,

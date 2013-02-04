@@ -1,4 +1,4 @@
-from .gablab.scripts.u0a14c5b5899911e1bca80023dfa375f2.utils import art_mean_workflow
+from utils import art_mean_workflow
 
 def get_b0(bvals):
     import numpy as np
