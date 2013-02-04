@@ -29,6 +29,7 @@ def get_struct_norm_workflow(name='normalize_struct'):
     #inputs to workflow
     import nipype.interfaces.freesurfer as fs
     import nipype.interfaces.ants as ants
+    from nipype.interfaces.ants.legacy import GenWarpFields
     import nipype.pipeline.engine as pe
     import nipype.interfaces.utility as util
     inputspec = pe.Node(
@@ -64,7 +65,7 @@ def get_struct_norm_workflow(name='normalize_struct'):
 
     #use ANTS to warp the masked anatomical image to a template image
     warp_brain = pe.Node(
-        ants.GenWarpFields(),
+        GenWarpFields(),
         name='warp_brain')
 
     #collects workflow outputs
