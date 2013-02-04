@@ -60,7 +60,8 @@ class config(HasTraits):
     do_slicetiming = Bool(True, usedefault=True, desc="Perform slice timing correction")
     SliceOrder = traits.List(traits.Int)
     TR = traits.Float(mandatory=True, desc = "TR of functional")
-
+    save_script_only = traits.Bool(False)
+    
     # Buttons
     check_func_datagrabber = Button("Check")
     def _check_func_datagrabber_fired(self):
@@ -96,7 +97,7 @@ def create_view():
             Item(name='crash_dir'),
             Item(name='json_sink'),
             label='Directories', show_border=True),
-        Group(Item(name='run_using_plugin'),
+        Group(Item(name='run_using_plugin',enabled_when='not save_script_only'),Item('save_script_only'),
             Item(name='plugin', enabled_when="run_using_plugin"),
             Item(name='plugin_args', enabled_when="run_using_plugin"),
             Item(name='test_mode'),

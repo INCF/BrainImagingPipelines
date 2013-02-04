@@ -66,7 +66,7 @@ class config(HasTraits):
     # Advanced Options
     use_advanced_options = traits.Bool()
     advanced_script = traits.Code()
-
+    save_script_only = traits.Bool(False)
     # Buttons
     check_func_datagrabber = Button("Check")
 

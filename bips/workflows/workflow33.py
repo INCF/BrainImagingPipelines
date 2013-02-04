@@ -30,7 +30,7 @@ class config(HasTraits):
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
     sink_dir = Directory(os.path.abspath('.'), mandatory=True, desc="Location where the BIP will store the results")
     crash_dir = Directory(mandatory=False, desc="Location to store crash files")
-
+    save_script_only = traits.Bool(False)
     # Execution
 
     run_using_plugin = Bool(False, usedefault=True, desc="True to run pipeline with plugin, False to run serially")

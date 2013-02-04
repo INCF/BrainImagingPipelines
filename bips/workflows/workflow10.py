@@ -78,6 +78,7 @@ class config(HasTraits):
     #advanced_options
     use_advanced_options = Bool(False)
     advanced_options = traits.Code()
+    save_script_only = traits.Bool(False)
 
 def create_config():
     c = config()
@@ -127,7 +128,7 @@ def create_view():
             Item(name='sink_dir'),
             Item(name='crash_dir'),
             label='Directories', show_border=True),
-        Group(Item(name='run_using_plugin'),
+        Group(Item(name='run_using_plugin',enabled_when='not save_script_only'),Item('save_script_only'),
             Item(name='plugin', enabled_when="run_using_plugin"),
             Item(name='plugin_args', enabled_when="run_using_plugin"),
             Item(name='test_mode'), Item(name="timeout"),

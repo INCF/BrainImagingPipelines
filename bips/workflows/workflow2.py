@@ -84,6 +84,7 @@ class config(baseconfig):
     do_whitening = traits.Bool(False, usedefault=True)
     use_metadata = traits.Bool(True)
     update_hash = traits.Bool(False)
+    save_script_only = traits.Bool(False)
 
 def create_config():
     c = config()
@@ -110,10 +111,10 @@ def create_view():
             Item(name='crash_dir'),
             Item(name='surf_dir'),
             label='Directories', show_border=True),
-        Group(Item(name='run_using_plugin'),
+        Group(Item(name='run_using_plugin',enabled_when='not save_script_only'),Item('save_script_only'),
             Item(name='plugin', enabled_when="run_using_plugin"),
             Item(name='plugin_args', enabled_when="run_using_plugin"),
-            Item(name='test_mode'),Item('update_hash'),
+            Item(name='test_mode'),
             label='Execution Options', show_border=True),
         Group(Item(name='subjects', editor=CSVListEditor()),
             Item(name='base_dir', ),
@@ -459,6 +460,11 @@ config_file : JSON file with configuration parameters
 
     if c.use_advanced_options:
         exec c.advanced_script
+    
+    preprocess.export(c.sink_dir)
+
+    if c.save_script_only:
+        return 0
 
     if c.run_using_plugin:
         preprocess.run(plugin=c.plugin, plugin_args = c.plugin_args, updatehash=c.update_hash)

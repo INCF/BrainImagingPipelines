@@ -51,6 +51,7 @@ class config(HasTraits):
     #Advanced
     use_advanced_options = traits.Bool()
     advanced_script = traits.Code()
+    save_script_only = traits.Bool(False)
 
 def create_config():
     c = config()

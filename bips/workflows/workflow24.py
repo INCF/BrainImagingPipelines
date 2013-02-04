@@ -21,7 +21,7 @@ class config(HasTraits):
     working_dir = traits.Directory(mandatory=True, desc="Location of the Nipype working directory")
     sink_dir = traits.Directory(mandatory=True, desc="Location where the BIP will store the results")
     crash_dir = traits.Directory(mandatory=False, desc="Location to store crash files")
-
+    save_script_only = traits.Bool(False)
     # Execution
     run_using_plugin = traits.Bool(False, usedefault=True, desc="True to run pipeline with plugin, False to run serially")
     plugin = traits.Enum("PBS", "MultiProc", "SGE", "Condor",

@@ -74,7 +74,7 @@ class config(HasTraits):
 
     # Smoothing
     fwhm = traits.Float(6.0,usedefault=True)
-
+    save_script_only = traits.Bool(False)
     check_func_datagrabber = Button("Check")
 
     def _check_func_datagrabber_fired(self):
@@ -110,7 +110,7 @@ def create_view():
             Item(name='crash_dir'),
             Item(name='surf_dir'),
             label='Directories', show_border=True),
-        Group(Item(name='run_using_plugin'),
+        Group(Item(name='run_using_plugin',enabled_when='not save_script_only'),Item('save_script_only'),
             Item(name='plugin', enabled_when="run_using_plugin"),
             Item(name='plugin_args', enabled_when="run_using_plugin"),
             Item(name='test_mode'),

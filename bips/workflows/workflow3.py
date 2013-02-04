@@ -81,6 +81,7 @@ class config(HasTraits):
     # Advanced Options
     use_advanced_options = traits.Bool()
     advanced_script = traits.Code()
+    save_script_only = traits.Bool(False)
 
 def create_config():
     c = config()
@@ -105,7 +106,7 @@ def create_view():
             Item(name='crash_dir'),
             Item(name='json_sink'),
             label='Directories', show_border=True),
-        Group(Item(name='run_using_plugin'),
+        Group(Item(name='run_using_plugin',enabled_when='not save_script_only'),Item('save_script_only'),
             Item(name='plugin', enabled_when="run_using_plugin"),
             Item(name='plugin_args', enabled_when="run_using_plugin"),
             Item(name='test_mode'), Item(name='debug'),

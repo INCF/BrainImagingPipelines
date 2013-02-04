@@ -45,7 +45,7 @@ class config(HasTraits):
                             intermediary files. True to keep intermediary files. ')
     timeout = traits.Float(14.0)
     datagrabber = traits.Instance(Data, ())
-
+    save_script_only = traits.Bool(False)
     #Normalization
     norm_template = traits.File(mandatory=True,desc='Template to warp to')
     name_of_project = traits.String("group_analysis",usedefault=True)

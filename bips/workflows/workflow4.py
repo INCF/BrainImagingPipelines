@@ -38,7 +38,7 @@ Part 2: Define the config class & create_config function
         - The config_ui attribute of MetaWorkflow is defined as the create_config function
 """
 # Define Config
-from .scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow1 import config
+from .scripts.u0a14c5b5899911e1bca80023dfa375f2.workflow2 import config
 
 def create_config():
     c = config()
@@ -65,7 +65,7 @@ def create_view():
                     Item(name='crash_dir'),
                     Item(name='surf_dir'),
                     label='Directories',show_border=True),
-                Group(Item(name='run_using_plugin'),
+                Group(Item(name='run_using_plugin',enabled_when='not save_script_only'),Item('save_script_only'),
                     Item(name='plugin',enabled_when="run_on_grid"),
                     Item(name='plugin_args',enabled_when="run_on_grid"),
                     Item(name='test_mode'),

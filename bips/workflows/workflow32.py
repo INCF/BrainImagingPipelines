@@ -32,7 +32,7 @@ class config(HasTraits):
     crash_dir = Directory(mandatory=False, desc="Location to store crash files")
     json_sink = Directory(mandatory=False, desc= "Location to store json_files")
     surf_dir = Directory(mandatory=True, desc= "Freesurfer subjects directory")
-
+    save_script_only = traits.Bool(False)
     # Execution
 
     run_using_plugin = Bool(False, usedefault=True, desc="True to run pipeline with plugin, False to run serially")

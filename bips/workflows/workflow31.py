@@ -45,6 +45,7 @@ class config(baseconfig):
     update_hash = traits.Bool(False)
     datagrabber = traits.Instance(Data, ())
     segmentation_type = traits.Enum('FAST','Atropos')
+    save_script_only = traits.Bool(False)
 
 def create_config():
     c = config()
