@@ -1,34 +1,11 @@
-import workflow2
-import workflow3
-import workflow4
-import workflow5
-import workflow6
-import workflow7
-import workflow8
-import workflow9
-import workflow10
-import workflow11
-import workflow12
-import workflow13
-import synced_corr_display_h5
-import workflow14
-import workflow15
-import workflow16
-import workflow17
-import workflow18
-import workflow19
-import workflow20
-import workflow21
-import workflow22
-import workflow23
-import workflow999
-import workflow24
-import workflow25
-import workflow26
-import workflow27
-import workflow28
-import workflow29
-import workflow31
-import workflow32
 from .base import (get_workflow, get_workflows, list_workflows,
                    configure_workflow, run_workflow, display_workflow_info)
+from gablab.wips.dicom import dicom_conversion
+from gablab.wips.dmri import wip_diffusion_tracking
+from gablab.wips.fmri.first_level import first_level_QA, first_level, fixed_effects, first_level_ev, spm_first_level
+from gablab.wips.fmri.group_analysis import fsl_one_sample_t_test, fsl_multiple_regression, one_sample_t_surface, spm_group_analysis
+from gablab.wips.fmri.misc import compare_realignment_nodes, seg_stats_individual, surface_localizer, group_segstats
+from gablab.wips.fmri.preprocessing import fmri_preprocessing, fmri_QA, spm_preprocessing, preproc_QA_json, FIR_filter, preproc_no_freesurfer
+from gablab.wips.fmri.resting import wip_resting_correlation_QA, map_correlations, seed_based_connectivity
+from gablab.wips.fmri.viz import synced_corr_display_h5
+from gablab.wips.smri import test_freesurfer, normalize_structural, normalize_functionals, kelly_kapowski, freesurfer_brain_masks, wip_divide_parcellations

@@ -5,7 +5,7 @@ def configuration(parent_package='',top_path=None):
     config = Configuration('workflows', parent_package, top_path)
 
     # List all packages to be loaded here
-    config.add_subpackage('scripts')
+    config.add_subpackage('gablab')
 
     # List all data directories to be loaded here
     return config

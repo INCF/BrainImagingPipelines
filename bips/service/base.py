@@ -10,7 +10,11 @@ from cherrypy.lib.static import serve_file
 from cherrypy import expose
 import numpy as np
 
+import lg_authority
+
 from ..workflows import get_workflows, get_workflow
+from scripts.form_scripts import get_form
+from .demos.dicomconvert import unzip_and_extract
 
 MEDIA_DIR = os.path.join(os.path.dirname(__file__), 'scripts')
 FILE_DIR = os.path.join(os.getcwd(), 'files')
@@ -43,7 +47,10 @@ class MyEncoder(json.JSONEncoder):
         except TypeError:
             return ""
 
+@lg_authority.groups('auth')
 class BIPS(object):
+    auth = lg_authority.AuthRoot()
+
     def __init__(self, *args, **kwargs):
         tags = []
         mapper = {}
@@ -71,6 +78,17 @@ class BIPS(object):
         with open(os.path.join(MEDIA_DIR, 'workflows.html')) as fp:
             msg = fp.readlines()
         return msg
+
+    @expose
+    def edit_config(self,uuid='7757e3168af611e1b9d5001e4fb1404c'):
+        conf = get_workflow(uuid).config_ui()
+        with open(os.path.join(MEDIA_DIR, 'edit_config.html')) as fp:
+            m = fp.readlines()
+            form = get_form(conf)
+            
+            msg = '\n'.join(m).replace('**TEMPLATE**',form)
+        return msg
+
 
     @expose
     def queryworkflows(self, tags=None):
@@ -101,17 +119,6 @@ class BIPS(object):
         cherrypy.response.headers['Content-Type'] = 'application/json'
         return json.dumps(tags)
 
-    """
-        msg = ["<h2>Welcome to BIPS</h2>"]
-        msg.append('<ul>')
-        for wf, value in get_workflows():
-            msg += [('<li><a href="info?uuid=%s">%s</a> <a href="configure'
-                     '?uuid=%s">Configure</a> %s</li>') % (wf, wf, wf,
-                                        value['object'].help.split('\n')[1])]
-        msg.append('</li>')
-        return '\n'.join(msg)
-    """
-
     @expose
     def info(self, uuid):
         wf = get_workflow(uuid)
@@ -122,24 +129,7 @@ class BIPS(object):
         cherrypy.response.headers['Content-Type'] = 'application/json'
         return json.dumps({'jsonconfig': json_str, 'workflowconfig': config_str},
                           cls=MyEncoder)
-    '''
-            msg = """
 
-    var str = JSON.stringify(%s, null, 2);
-    $(this).append('<h3>Workflow info</h3>');
-    console.log($(this));
-    /*
-    document.write('<pre>' + syntaxHighlight(str) +'</pre>');
-    var str2 = JSON.stringify(%s, null, 2);
-    document.write('<h3>Workflow config</h3>')
-    document.write('<pre>' + syntaxHighlight(str2) +'</pre>');
-    document.write('<h3>Workflow graph</h3>')
-    document.write('<img src="%s" />')
-    */
-    </script>
-    """ % (json_str, config_str, img_file)
-            return msg
-    '''
     @expose
     def configure(self, uuid):
         wf = get_workflow(uuid)
@@ -148,6 +138,12 @@ class BIPS(object):
     @expose
     def demo(self):
         with open(os.path.join(MEDIA_DIR, 'demo.html')) as fp:
+            msg = fp.readlines()
+        return msg
+
+    @expose
+    def demo_convert(self):
+        with open(os.path.join(MEDIA_DIR, 'demo_convert.html')) as fp:
             msg = fp.readlines()
         return msg
 
@@ -185,7 +181,42 @@ class BIPS(object):
         else:
             out = {}
         cherrypy.response.headers['Content-Type'] = 'application/json'
-        return json.dumps([out])
+        return json.dumps([[out]])
+
+    @expose
+    def dicomuploadhandler(self, **kwargs):
+        cherrypy.log('dcmhandler: %s' % str(kwargs))
+        if 'files[]' not in kwargs:
+            return
+        myFile = kwargs['files[]']
+        outfile = os.path.join(FILE_DIR, myFile.filename)
+        with open(outfile, 'wb') as fp:
+            shutil.copyfileobj(myFile.file, fp)
+        cherrypy.log('Saved file: %s' % outfile)
+        if os.path.isfile(outfile):
+            print "getting info: %s" % outfile
+            info = unzip_and_extract(outfile, FILE_DIR)
+            os.unlink(outfile)
+            print info
+            out = []
+            for key, value in sorted(info.items()):
+                info = value
+                out.append({"index": info['idx'],
+                            "name": info['name'],
+                            "metaname": info['metapath'],
+                            'error': info['err_status'] == 'err',
+                            "size": ' x '.join([str(val) for val in info['size']]),
+                            "url": "%sfiles\/%s" % (url_prefix, info['filepath']),
+                            "metaurl": "%sfiles\/%s" % (url_prefix, info['metapath']),
+                            "delete_url": "%sdeletehandler?file=%s" % (url_prefix, info['filepath']),
+                            "delete_type": "DELETE"
+                })
+            out = [out]
+        else:
+            out = {}
+        print 'out', out
+        cherrypy.response.headers['Content-Type'] = 'application/json'
+        return json.dumps(out)
 
     @expose
     def deletehandler(self, file):
@@ -193,7 +224,10 @@ class BIPS(object):
         if os.path.isfile(outfile):
             cherrypy.log('Deleting file: %s' % outfile)
             os.unlink(outfile)
-            os.unlink(outfile+'.png')
+            if os.path.exists(outfile + '.png'):
+                os.unlink(outfile+'.png')
+            if os.path.exists(outfile + '.json'):
+                os.unlink(outfile+'.json')
 
 def open_page():
     #pass
@@ -204,7 +238,12 @@ def start_service():
     if not os.path.exists(FILE_DIR):
         os.mkdir(FILE_DIR)
     config = {'/': {'tools.staticdir.on': True,
-                    'tools.staticdir.dir': os.getcwd()},
+                    'tools.staticdir.dir': os.getcwd(),
+                    'tools.lg_authority.on': False,
+                    'tools.lg_authority.site_storage': 'sqlite3',
+                    'tools.lg_authority.site_storage_conf':
+                            { 'file': os.path.abspath('test.db') }
+                    },
               '/css': {'tools.staticdir.on': True,
                        'tools.staticdir.dir': os.path.join(MEDIA_DIR, 'css')},
               '/js': {'tools.staticdir.on': True,
@@ -218,7 +257,7 @@ def start_service():
               '/files': {'tools.staticdir.on': True,
                          'tools.staticdir.dir': FILE_DIR},
               }
-    #start webservice
+    #    #start webservice
     certfile = os.path.join(os.environ['HOME'], 'certinfo')
     if os.path.exists(certfile):
         cherrypy.log('Loading cert info: %s' % certfile)
