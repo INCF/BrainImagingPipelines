@@ -588,6 +588,10 @@ config_file : String
     if QA_config.use_advanced_options:
         exec QA_config.advanced_script
 
+    a.export(os.path.join(c.sink_dir,'bips_'))
+    if c.save_script_only:
+        return 0
+
     if QA_config.run_using_plugin:
         a.run(plugin=QA_config.plugin,plugin_args=QA_config.plugin_args)
     else:

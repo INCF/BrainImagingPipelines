@@ -241,6 +241,11 @@ def main(config_file):
     if c.test_mode:
         fixedfxflow.write_graph()
 
+
+    fixedfxflow.export(os.path.join(c.sink_dir,'bips_'))
+    if c.save_script_only:
+        return 0
+
     if c.run_using_plugin:
         fixedfxflow.run(plugin=c.plugin, plugin_args=c.plugin_args)
     else:

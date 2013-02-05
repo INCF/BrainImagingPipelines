@@ -1,7 +1,6 @@
 from .base import (get_workflow, get_workflows, list_workflows,
                    configure_workflow, run_workflow, display_workflow_info)
 from gablab.wips.dicom import dicom_conversion
-from gablab.wips.dmri import wip_diffusion_tracking
 from gablab.wips.fmri.first_level import first_level_QA, first_level, fixed_effects, first_level_ev, spm_first_level
 from gablab.wips.fmri.group_analysis import fsl_one_sample_t_test, fsl_multiple_regression, one_sample_t_surface, spm_group_analysis
 from gablab.wips.fmri.misc import compare_realignment_nodes, seg_stats_individual, surface_localizer, group_segstats

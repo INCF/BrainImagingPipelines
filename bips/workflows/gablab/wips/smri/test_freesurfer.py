@@ -176,6 +176,10 @@ config : String
     c = load_config(config,create_config)
     wk = test_fs(c)
 
+    wk.export(os.path.join(c.sink_dir,'bips_'))
+    if c.save_script_only:
+        return 0
+
     if c.run_using_plugin:
         wk.run(plugin=c.plugin,plugin_args=c.plugin_args)
     else:

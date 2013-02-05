@@ -110,7 +110,7 @@ def create_view():
         Item(name='sink_dir'),
         Item(name='crash_dir'),
         label='Directories', show_border=True),
-        Group(Item(name='run_using_plugin'),
+        Group(Item(name='run_using_plugin',enabled_when='save_script_only'),Item('save_script_only'),
             Item(name='plugin', enabled_when="run_using_plugin"),
             Item(name='plugin_args', enabled_when="run_using_plugin"),
             Item(name='test_mode'),Item("timeout"),
@@ -349,6 +349,11 @@ def main(config_file):
         wk.write_graph()
     if c.use_advanced_options:
         exec c.advanced_script
+
+    wk.export(os.path.join(c.sink_dir,'bips_'))
+    if c.save_script_only:
+        return 0
+
     if c.run_using_plugin:
         wk.run(plugin=c.plugin,plugin_args=c.plugin_args)
     else:

@@ -29,32 +29,6 @@ Click_ for more documentation.
 
 .. _Click: ../../interfaces/generated/bips.workflows.workflow2.html
 
-Outputs
-^^^^^^^
-
-* art : Results of artiface detection
-
-* bbreg : Output of BBRegister
-
-* compcor : A and T compcor regions (both are computed even if only 1 is selected)
- 
-* fieldmap : If use_fieldmap is true, this folder contains the fieldmap unwarped epi
-
-* mask : The mask created from the anatomical in functional space
-
-* mean : mean image after motion correction 
-
-* motion : contains motion parameters
-
-* noise_components : compcor components (from A and/or T compcor)
-
-* output : the bandpassed and full spectrum output from preprocessing
-
-* regressors : components regressed from timeseries (if none were selected, a blank text file)
-
-* tsnr : signal-to-noise image, detrended timeseries image, mean and standard deviation image (useful for QA)
-
-
 """
 
 mwf.uuid = '7757e3168af611e1b9d5001e4fb1404c'
@@ -461,7 +435,7 @@ config_file : JSON file with configuration parameters
     if c.use_advanced_options:
         exec c.advanced_script
     
-    preprocess.export(c.sink_dir)
+    preprocess.export(os.path.join(c.sink_dir,'bips_'))
 
     if c.save_script_only:
         return 0

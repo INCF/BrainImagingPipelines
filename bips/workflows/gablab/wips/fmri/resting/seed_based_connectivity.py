@@ -102,7 +102,7 @@ def create_view():
             Item(name='crash_dir'),
             Item(name='surf_dir'),
             label='Directories', show_border=True),
-        Group(Item(name='run_using_plugin'),
+        Group(Item(name='run_using_plugin',enabled_when='not save_script_only'),Item('save_script_only'),
             Item(name='plugin', enabled_when="run_using_plugin"),
             Item(name='plugin_args', enabled_when="run_using_plugin"),
             Item(name='test_mode'), Item(name="timeout"),
@@ -241,6 +241,11 @@ def main(config_file):
     workflow.config = {'execution': {'crashdump_dir': c.crash_dir, "job_finished_timout":14}}
     if c.use_advanced_options:
         exec c.advanced_script
+
+    workflow.export(os.path.join(c.sink_dir,'bips_'))
+    if c.save_script_only:
+        return 0
+
     if c.run_using_plugin:
         workflow.run(plugin=c.plugin, plugin_args=c.plugin_args)
     else:

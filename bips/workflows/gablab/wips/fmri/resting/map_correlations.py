@@ -278,6 +278,11 @@ def main(config_file):
     workflow.config = {'execution': {'crashdump_dir': c.crash_dir, "job_finished_timout":14}}
     if c.use_advanced_options:
         exec c.advanced_script
+
+    workflow.export(os.path.join(c.sink_dir,'bips_'))
+    if c.save_script_only:
+        return 0
+
     if c.run_using_plugin:
         workflow.run(plugin=c.plugin, plugin_args=c.plugin_args)
     else:

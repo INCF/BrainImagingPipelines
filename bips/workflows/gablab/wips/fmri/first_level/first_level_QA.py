@@ -468,6 +468,11 @@ def main(config_file):
         os.environ['SUBJECTS_DIR'] = prep_c.surf_dir
         
     #else:
+
+    workflow.export(os.path.join(c.sink_dir,'bips_'))
+    if c.save_script_only:
+        return 0
+
     if c.run_using_plugin:
         workflow.run(plugin=c.plugin, plugin_args=c.plugin_args)
     else:

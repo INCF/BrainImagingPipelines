@@ -89,7 +89,7 @@ def create_view():
             Item(name='crash_dir'),
             Item(name='surf_dir'),
             label='Directories', show_border=True),
-        Group(Item(name='run_using_plugin'),
+        Group(Item(name='run_using_plugin',enabled_when='save_script_only'),Item('save_script_only'),
             Item(name='plugin', enabled_when="run_using_plugin"),
             Item(name='plugin_args', enabled_when="run_using_plugin"),
             Item(name='test_mode'), Item(name="timeout"),
@@ -213,6 +213,11 @@ def main(config_file):
     wf = connect_wf(c)
     wf.base_dir = c.working_dir
     wf.config = {"execution":{"crashdump_dir": c.crash_dir, "job_finished_timeout": c.timeout}}
+
+    wf.export(os.path.join(c.sink_dir,'bips_'))
+    if c.save_script_only:
+        return 0
+
     if c.run_using_plugin:
         wf.run(plugin=c.plugin, plugin_args=c.plugin_args)
     else:

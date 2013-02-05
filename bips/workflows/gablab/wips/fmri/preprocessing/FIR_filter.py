@@ -22,6 +22,7 @@ class config(HasTraits):
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
     sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
     crash_dir = Directory(mandatory=False, desc="Location to store crash files")
+    save_script_only = traits.Bool(False)
 
     # Execution
     run_using_plugin = Bool(False, usedefault=True, desc="True to run pipeline with plugin, False to run serially")
@@ -73,7 +74,7 @@ def create_view():
         Item(name='sink_dir'),
         Item(name='crash_dir'),
         label='Directories', show_border=True),
-        Group(Item(name='run_using_plugin'),
+        Group(Item(name='run_using_plugin',enabled_when='not save_script_only'),Item('save_script_only'),
             Item(name='plugin', enabled_when="run_using_plugin"),
             Item(name='plugin_args', enabled_when="run_using_plugin"),
             Item(name='test_mode'),
@@ -131,6 +132,11 @@ config_file : JSON file with configuration parameters
     c = load_config(config_file, create_config)
     wf = run_filt(c)
     wf.config = {'execution': {'crashdump_dir': c.crash_dir, 'job_finished_timeout' : 14}}
+
+    wf.export(os.path.join(c.sink_dir,'bips_'))
+    if c.save_script_only:
+        return 0
+
 
     if c.run_using_plugin:
         wf.run(plugin=c.plugin, plugin_args = c.plugin_args)

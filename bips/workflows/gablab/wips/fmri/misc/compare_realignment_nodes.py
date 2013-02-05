@@ -267,6 +267,11 @@ def main(config_file):
     
     compare = compare_workflow(c)
     compare.base_dir = c.working_dir
+
+    compare.export(os.path.join(c.sink_dir,'bips_'))
+    if c.save_script_only:
+        return 0
+
     if c.run_using_plugin:
         compare.run(plugin=c.plugin, plugin_args=c.plugin_args)
     else:
