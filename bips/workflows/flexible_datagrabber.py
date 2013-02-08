@@ -25,6 +25,26 @@ def get_view():
         resizable=True,
         width=1050)
     return view
+    
+def create_datagrabber_html_view():
+    import colander
+    class Input(colander.MappingSchema):
+        name = colander.SchemaNode(colander.String())
+        value = colander.SchemaNode(colander.String())
+        iterable = colander.SchemaNode(colander.Boolean(),name='iterable')
+
+    class Inputs(colander.SequenceSchema):
+        inputs = Input()
+
+    class DataGrabber(colander.MappingSchema):
+        base_directory = colander.SchemaNode(colander.String())
+        template = colander.SchemaNode(colander.String())
+        field_template = colander.SchemaNode(colander.String())
+        template_args = colander.SchemaNode(colander.String())
+        fields = Inputs()
+
+    view = DataGrabber()
+    return view    
 
 class DataBase(HasTraits):
     name = traits.Str('name')
