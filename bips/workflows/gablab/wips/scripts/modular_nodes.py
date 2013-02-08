@@ -462,7 +462,8 @@ def mod_despike(in_file, do_despike):
     out_file=in_file
     if do_despike:
         from nipype.interfaces.afni import Despike
-        ds = Despike(in_file=in_file)
+        from nipype.utils.filemanip import fname_presuffix
+        ds = Despike(in_file=in_file,out_file=fname_presuffix(in_file,'','_despike'))
         out_file = ds.run().outputs.out_file
     return out_file
 

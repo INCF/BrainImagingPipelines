@@ -32,7 +32,6 @@ class config(HasTraits):
     field_dir = Directory(exists=True, desc="Base directory of field-map data (Should be subject-independent) \
                                                  Set this value to None if you don't want fieldmap distortion correction")
     crash_dir = Directory(mandatory=False, desc="Location to store crash files")
-    json_sink = Directory(mandatory=False, desc= "Location to store json_files")
     surf_dir = Directory(mandatory=True, desc= "Freesurfer subjects directory")
     save_script_only = traits.Bool(False)
     # Execution
@@ -51,7 +50,7 @@ class config(HasTraits):
     datagrabber = traits.Instance(Data, ())
     TR = traits.Float(6.0)
     preproc_config = traits.File(desc="preproc config file")
-    debug = traits.Bool(True)
+    json_name=traits.String('preproc_metrics')
     # Advanced Options
     use_advanced_options = traits.Bool()
     advanced_script = traits.Code()
@@ -113,16 +112,15 @@ def create_view():
         Group(Item(name='working_dir'),
             Item(name='sink_dir'),
             Item(name='crash_dir'),
-            Item(name='json_sink'), Item('surf_dir'),
+            Item('surf_dir'),
             label='Directories', show_border=True),
         Group(Item(name='run_using_plugin',enabled_when='not save_script_only'),Item('save_script_only'),
             Item(name='plugin', enabled_when="run_using_plugin"),
             Item(name='plugin_args', enabled_when="run_using_plugin"),
-            Item(name='test_mode'), Item(name='debug'),
             label='Execution Options', show_border=True),
         Group(Item(name='datagrabber'),
             label='Subjects', show_border=True),
-        Group(Item(name='preproc_config'),
+        Group(Item(name='preproc_config'),Item('json_name'),
             label = 'Preprocessing Info'),
         Group(Item(name='use_advanced_options'),
             Item(name='advanced_script',enabled_when='use_advanced_options'),
@@ -253,7 +251,10 @@ def QA_workflow(c, prep_c,name='QA'):
     workflow.connect(datagrabber,'datagrabber.tsnr',roisnrplot,'inputspec.tsnr_file')
     workflow.connect(roisnrplot,'outputspec.roi_table',tablecombine,'roisnr')
    
-    js = pe.Node(interface=JSONSink(),name="jsoner")
+    js = pe.Node(interface=JSONSink(json_name=c.json_name),name="jsoner")
+    js.inputs.base_directory = c.sink_dir
+    workflow.connect(infosource,'subject_id',js,'container')
+    workflow.connect(infosource,'subject_id',js,'subject_id')
     workflow.connect(tablecombine,"combined_table",js,"SNR_table")
     workflow.connect(art_info,"table",js,"art")
     workflow.connect(art_info,"out",js,"outliers")

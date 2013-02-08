@@ -221,6 +221,17 @@ class JSONSinkInputSpec(DynamicTraitedSpec, BaseInterfaceInputSpec):
         desc='Path to the base directory for writing report.')
     json_name = traits.Str('QA',usedefault=True) 
     container = traits.Str(desc = 'Folder within base directory in which to store output')
+    parameterization = traits.Bool(True, usedefault=True,
+                                   desc='store output in parametrized structure')
+    substitutions = InputMultiPath(traits.Tuple(traits.Str, traits.Str),
+                                   desc=('List of 2-tuples reflecting string '
+                                         'to substitute and string to replace '
+                                         'it with'))
+    regexp_substitutions = InputMultiPath(traits.Tuple(traits.Str, traits.Str),
+                                          desc=('List of 2-tuples reflecting a pair '
+                                                'of a Python regexp pattern and a '
+                                                'replacement string. Invoked after '
+                                                'string `substitutions`'))
     _outputs = traits.Dict(traits.Str, value={}, usedefault=True)
     _outputs_order = []
     remove_dest_dir = traits.Bool(False, usedefault=True,
@@ -293,6 +304,26 @@ Indicates the input fields to be dynamically created
             
         self.inputs.trait_set(trait_change_notify=False, **undefined_traits)
 
+    def _substitute(self, pathstr):
+        pathstr_ = pathstr
+        if isdefined(self.inputs.substitutions):
+            for key, val in self.inputs.substitutions:
+                oldpathstr = pathstr
+                pathstr = pathstr.replace(key, val)
+                if pathstr != oldpathstr:
+                    iflogger.debug('sub.str: %s -> %s using %r -> %r'
+                                   % (oldpathstr, pathstr, key, val))
+        if isdefined(self.inputs.regexp_substitutions):
+            for key, val in self.inputs.regexp_substitutions:
+                oldpathstr = pathstr
+                pathstr, _ = re.subn(key, val, pathstr)
+                if pathstr != oldpathstr:
+                    iflogger.debug('sub.regexp: %s -> %s using %r -> %r'
+                                   % (oldpathstr, pathstr, key, val))
+        if pathstr_ != pathstr:
+            iflogger.info('sub: %s -> %s' % (pathstr_, pathstr))
+        return pathstr
+
     def _get_dst(self, src):
         path, fname = os.path.split(src)
         if self.inputs.parameterization:
@@ -308,7 +339,6 @@ Indicates the input fields to be dynamically created
                            (folder.startswith('_') and not self.inputs.container in folder)]
 
             dst = os.path.sep.join(folders).replace('_','')
-
 
         else:
             if fname:
@@ -327,16 +357,20 @@ Indicates the input fields to be dynamically created
 """
         outdir = self.inputs.base_directory
         if not isdefined(outdir):
-            outdir = '.'
-        outdir = os.path.abspath(outdir)
+            outdir = os.path.abspath('.')
         
         if isdefined(self.inputs.container):
+            print "container defined", self.inputs.container
             outdir = os.path.join(outdir, self.inputs.container)
+            print outdir
 
         cwd = os.getcwd()
-        dst = self._get_dst(cwd)
-
+        dst = self._get_dst(os.path.join(cwd,self.inputs.json_name+'.json'))
+        print "dst = ", dst
         outdir = os.path.join(outdir,dst)
+        print "new outdir = ", outdir
+        outdir = self._substitute(outdir)
+        print "substituted outdir = ", outdir
 
         if not os.path.exists(outdir):
             try:
@@ -366,39 +400,10 @@ Indicates the input fields to be dynamically created
             files = filename_to_list(files)
             tempoutdir = outdir
             
-            # Add name of input as a title
-            #rep.add_text('<b>%s</b>' % key.replace('_',' '))
             
-            # flattening list
-            """ if isinstance(files, list):
-                if isinstance(files[0], list):
-                    files = [item for sublist in files for item in sublist]
-            for i, thing in enumerate(files):
-                # Add a table, image or text
-                if isinstance(thing,list):
-                    rep.add_table(thing,para=self.inputs.table_as_para)
-                else:
-                    if thing.endswith('.png') or thing.endswith('.jpg'):
-                        rep.add_text(os.path.split(thing)[1])
-                        rep.add_image(thing)
-                    else:
-                        rep.add_text(thing)
-        
-        # write the report
-        rep.write()"""
         # save json
-        
+        outfile = os.path.join(outdir,self.inputs.json_name+'.json')
         #try:
-        save_json(os.path.join(outdir, self.inputs.json_name+'.json'), self.inputs._outputs)
-        """
-            if isdefined(self.inputs.json_sink):
-                if not isdefined(self.inputs.container):
-                    save_json(os.path.join(self.inputs.json_sink, self.inputs.report_name+'.json'), self.inputs._outputs)
-                else:
-                    if not os.path.exists(os.path.join(self.inputs.json_sink,self.inputs.container)):
-                        os.mkdir(os.path.join(self.inputs.json_sink,self.inputs.container))
-                    save_json(os.path.join(self.inputs.json_sink,self.inputs.container, self.inputs.report_name+'.json'), self.inputs._outputs)"""
-        print "json file " , os.path.join(outdir, self.inputs.json_name+'.json')
-        #except:
-        #    print "json could not be saved!"
+        save_json(outfile, self.inputs._outputs)
+        print "json file " , outfile
         return None
