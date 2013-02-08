@@ -38,7 +38,7 @@ def getNode(_type,tr,config):
         col_type = colander.SchemaNode(colander.String(),name=tr)
     return col_type
 
-def get_form(config):
+def get_form(config,mwf=None):
     schema = colander.Schema()    
     all_traits = config.trait_names()  
     all_traits.remove('trait_added')
