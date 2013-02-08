@@ -1,7 +1,71 @@
 <!DOCTYPE HTML>
 <%inherit file="base.html" />
-    <div class="row">
-    ${form}
+<div class="row" style="margin-bottom:40px">
+    <div class="span16">
+    <h2 style="text-align:center">
+    <img class="bs-icon" src="img/glyphicons_280_settings.png" style="margin:7px 10px 0 0">${WorkflowName}
+    </h2>
+    
     </div>
+</div>
+
+ 
+<div class="row">
+    <div class="span3">
+    <h3><i class="icon-folder-close" style="margin:7px 10px 0 0"></i>File</h3>
+    <div class="well">
+      <button type="submit" class="btn btn-primary start">
+          <i class="icon-file icon-white"></i>
+          <span>New</span>
+      </button>
+
+      <button type="submit" class="btn btn-danger start">
+          <i class="icon-folder-open icon-white"></i>
+          <span>Load</span>
+      </button>
+
+      <button type="submit" class="btn btn-success start">
+          <i class="icon-download icon-white"></i>
+          <span>Save</span>
+      </button>
+
+      </div>
+    <br>  
+    
+    <h3><i class="icon-search" style="margin:7px 10px 0 0"></i>Navigation</h3>
+ 
+            <ul class="nav nav-list bs-docs-sidenav affix" id="navigation">
+              <li  class="active"><a href="#Directories" data-toggle="tab">Directories
+              <i class="icon-chevron-right" style="opacity:.25"></i></a></li>
+              
+              <li><a href="#profile" data-toggle="tab">Execution Options</a></li>
+              
+              <li><a href="#messages" data-toggle="tab">Subjects</a></li>
+              
+              <li><a href="#settings" data-toggle="tab">Options</a></li>
+            
+            </ul>
+
+    </div>
+    
+    <div class="span4"> 
+        <h3><i class="icon-pencil" style="margin:7px 10px 0 0"></i>Configuration</h3>
+        ${form}
+    </div>
+    
+    <div class="span4">
+    <h3><i class="icon-info-sign" style="margin:7px 10px 0 0"></i>Description</h3>
+    ${WorkflowDesc}
+ 
+    </div>
+    
+
+</div>
+
+<script type="text/javascript">
+$('#navigation').affix()
+</script>
+    
+   
 
 
