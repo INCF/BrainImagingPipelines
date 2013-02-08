@@ -16,8 +16,17 @@ from ..workflows import get_workflows, get_workflow
 from scripts.form_scripts import get_form
 from .demos.dicomconvert import unzip_and_extract
 
+from mako.lookup import TemplateLookup, Template
+from mako import exceptions
+
+
 MEDIA_DIR = os.path.join(os.path.dirname(__file__), 'scripts')
 FILE_DIR = os.path.join(os.getcwd(), 'files')
+
+lookup = TemplateLookup(directories=[MEDIA_DIR], 
+                        filesystem_checks=True, encoding_errors='replace',
+                        strict_undefined=True)
+
 if 'bips' in gethostname():
     url_prefix = '\/\/bips.incf.org:8080\/'
 else:
@@ -69,25 +78,29 @@ class BIPS(object):
 
     @expose
     def index(self):
-        with open(os.path.join(MEDIA_DIR, 'index.html')) as fp:
-            msg = fp.readlines()
-        return msg
+        #with open(os.path.join(MEDIA_DIR, 'index.html')) as fp:
+        #    msg = fp.readlines()
+        indexTmpl = lookup.get_template("index.html")
+        return indexTmpl.render()
 
     @expose
     def workflows(self, tags=None):
-        with open(os.path.join(MEDIA_DIR, 'workflows.html')) as fp:
-            msg = fp.readlines()
-        return msg
+        #with open(os.path.join(MEDIA_DIR, 'workflows.html')) as fp:
+        #    msg = fp.readlines()
+        workflowTmpl = lookup.get_template("workflows.html")
+        return workflowTmpl.render()
 
     @expose
     def edit_config(self,uuid='7757e3168af611e1b9d5001e4fb1404c'):
         conf = get_workflow(uuid).config_ui()
-        with open(os.path.join(MEDIA_DIR, 'edit_config.html')) as fp:
-            m = fp.readlines()
-            form = get_form(conf)
+        configTmpl = lookup.get_template("edit_config.html")
+        return configTmpl.render(**{'form':get_form(conf)})
+        #with open(os.path.join(MEDIA_DIR, 'edit_config.html')) as fp:
+        #    m = fp.readlines()
+        #    form = get_form(conf)
             
-            msg = '\n'.join(m).replace('**TEMPLATE**',form)
-        return msg
+        #    msg = '\n'.join(m).replace('**TEMPLATE**',form)
+        #return msg
 
 
     @expose
@@ -137,15 +150,15 @@ class BIPS(object):
 
     @expose
     def demo(self):
-        with open(os.path.join(MEDIA_DIR, 'demo.html')) as fp:
-            msg = fp.readlines()
-        return msg
+        #with open(os.path.join(MEDIA_DIR, 'demo.html')) as fp:
+        #    msg = fp.readlines()
+        demoTmpl = lookup.get_template("demo_convert.html")
+        return demoTmpl.render()
 
     @expose
     def demo_convert(self):
-        with open(os.path.join(MEDIA_DIR, 'demo_convert.html')) as fp:
-            msg = fp.readlines()
-        return msg
+        demoTmpl = lookup.get_template("demo_convert.html")
+        return demoTmpl.render()
 
     @expose
     def uploadhandler(self, **kwargs):
@@ -256,6 +269,8 @@ def start_service():
                        'tools.staticdir.dir': FILE_DIR},
               '/files': {'tools.staticdir.on': True,
                          'tools.staticdir.dir': FILE_DIR},
+              '/scripts': {'tools.staticdir.on': True,
+                         'tools.staticdir.dir': MEDIA_DIR},
               }
     #    #start webservice
     certfile = os.path.join(os.environ['HOME'], 'certinfo')
