@@ -36,13 +36,16 @@ def create_datagrabber_html_view():
     class Inputs(colander.SequenceSchema):
         inputs = Input()
 
-    class DataGrabber(colander.MappingSchema):
+    class Grabber(colander.MappingSchema):
         base_directory = colander.SchemaNode(colander.String())
         template = colander.SchemaNode(colander.String())
         field_template = colander.SchemaNode(colander.String())
         template_args = colander.SchemaNode(colander.String())
         fields = Inputs()
 
+    class DataGrabber(colander.Schema):
+        datagrabber = Grabber()
+        
     view = DataGrabber()
     return view    
 
