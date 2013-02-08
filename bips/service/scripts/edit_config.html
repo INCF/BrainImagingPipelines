@@ -1,5 +1,6 @@
 <!DOCTYPE HTML>
 <%inherit file="base.html" />
+
 <div class="row" style="margin-bottom:40px">
     <div class="span16">
     <h2 style="text-align:center">
@@ -33,19 +34,19 @@
     <br>  
     
     <h3><i class="icon-search" style="margin:7px 10px 0 0"></i>Navigation</h3>
- 
-            <ul class="nav nav-list bs-docs-sidenav affix" id="navigation">
-              <li  class="active"><a href="#Directories" data-toggle="tab">Directories
-              <i class="icon-chevron-right" style="opacity:.25"></i></a></li>
+        <div data-spy="affix" data-offset-top="200" id="navigation">
+                <ul class="nav bs-docs-sidenav affix">
+                  <li  class="active"><a href="#Directories" data-toggle="tab">Directories
+                  <i class="icon-chevron-right" style="opacity:.25"></i></a></li>
               
-              <li><a href="#profile" data-toggle="tab">Execution Options</a></li>
+                  <li><a href="#profile" data-toggle="tab">Execution Options</a></li>
               
-              <li><a href="#messages" data-toggle="tab">Subjects</a></li>
+                  <li><a href="#messages" data-toggle="tab">Subjects</a></li>
               
-              <li><a href="#settings" data-toggle="tab">Options</a></li>
+                  <li><a href="#settings" data-toggle="tab">Options</a></li>
             
-            </ul>
-
+                </ul>
+        </div>
     </div>
     
     <div class="span4"> 
@@ -63,9 +64,11 @@
 </div>
 
 <script type="text/javascript">
-$('#navigation').affix()
+$(document).ready(function () {
+
+});
 </script>
-    
+ 
    
 
 

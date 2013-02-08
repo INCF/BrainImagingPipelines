@@ -97,13 +97,7 @@ class BIPS(object):
         title=mwf.help.split('\n')[1]
         desc = '\n'.join(mwf.help.split('\n')[3:])
         configTmpl = lookup.get_template("edit_config.html")
-        return configTmpl.render(**{'form':get_form(conf),'WorkflowName':title,'WorkflowDesc':desc})
-        #with open(os.path.join(MEDIA_DIR, 'edit_config.html')) as fp:
-        #    m = fp.readlines()
-        #    form = get_form(conf)
-            
-        #    msg = '\n'.join(m).replace('**TEMPLATE**',form)
-        #return msg
+        return configTmpl.render(**{'form':get_form(conf,mwf),'WorkflowName':title,'WorkflowDesc':desc})
 
 
     @expose
