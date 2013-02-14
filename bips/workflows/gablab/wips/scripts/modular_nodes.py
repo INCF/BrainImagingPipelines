@@ -147,7 +147,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
 
         for idx, file in enumerate(in_file):
             if do_slicetime:
-                slicetime = afni.TShift()
+                slicetime = afni.TShift(outputtype='NIFTI_GZ')
                 slicetime.inputs.in_file = file
                 if type(sliceorder)==list:
                     custom_order = open(os.path.abspath('afni_custom_order_file.txt'),'w')
@@ -168,6 +168,9 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
                 slicetime.inputs.args ='-tpattern @%s' % os.path.abspath(order_file)
                 slicetime.inputs.tr = str(tr)+'s'
                 slicetime.inputs.outputtype = 'NIFTI_GZ'
+                slicetime.inputs.out_file = os.path.abspath(split_filename(file)[1] + \
+                                      "_tshift.nii.gz")
+
                 res = slicetime.run()
                 file_to_realign = res.outputs.out_file
 

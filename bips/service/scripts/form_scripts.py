@@ -67,9 +67,10 @@ def validator(form,value):
     pass
 
 def get_list(thetype,tr,config):
-    col_type = colander.SchemaNode(colander.String(),
+    col_type = colander.SchemaNode(colander.Sequence(),
                                    name=tr,
                                    description=config.trait(tr).desc,
                                    widget=deform.widget.TextInputCSVWidget(cols=100,rows=1))
+    col_type.add(colander.SchemaNode(colander.String()))
     return col_type
     

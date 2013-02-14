@@ -349,8 +349,10 @@ def main(config_file):
         wk.write_graph()
     if c.use_advanced_options:
         exec c.advanced_script
-
-    wk.export(os.path.join(c.sink_dir,'bips_'))
+    try:
+        wk.export(os.path.join(c.sink_dir,'bips_'))
+    except:
+        print "ERROR in exporting workflow"
     if c.save_script_only:
         return 0
 

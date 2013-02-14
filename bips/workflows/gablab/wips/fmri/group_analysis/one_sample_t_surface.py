@@ -44,7 +44,8 @@ class config(HasTraits):
                             intermediary files. True to keep intermediary files. ')
     timeout = traits.Float(14.0)
     datagrabber = traits.Instance(Data, ())
-    surface_template = traits.Enum("fsaverage","fsaverage5","fsaverage6","fsaverage4")
+    surface_template = traits.Enum("fsaverage","fsaverage5","fsaverage6","fsaverage4","subject")
+    test_name = traits.String('FS_one_sample_t_test')
     # First Level
     #advanced_options
     use_advanced_options = Bool(False)
@@ -94,7 +95,7 @@ def create_view():
             Item(name='plugin_args', enabled_when="run_using_plugin"),
             Item(name='test_mode'), Item(name="timeout"),
             label='Execution Options', show_border=True),
-        Group(Item(name='datagrabber'),Item(name="surface_template"),
+        Group(Item(name='datagrabber'),Item(name="surface_template"),Item('test_name'),
             label='Subjects', show_border=True),
         Group(Item(name='use_advanced_options'),
             Item(name="advanced_options", enabled_when="use_advanced_options"),
@@ -110,12 +111,15 @@ mwf.config_view = create_view
 Part 4: Workflow Construction
 """
 
-def do_format(copes,regfiles):
+def do_format(copes,regfiles,template):
     out = []
-    if not len(copes) == len(regfiles):
-        raise Exception("mismatch in number of copes and regfiles")
-    for i, c in enumerate(copes):
-        out.append((c,regfiles[i]))
+    if not template=='subject':
+        if not len(copes) == len(regfiles):
+            raise Exception("mismatch in number of copes and regfiles")
+        for i, c in enumerate(copes):
+            out.append((c,regfiles[i]))
+    else:
+        out = [(c,regfiles) for c in copes]
     return out
     
 
@@ -126,8 +130,9 @@ def get_surface_workflow(name='surface_1sample'):
     import nipype.interfaces.utility as niu
 
     wf = pe.Workflow(name=name)
-    inputspec = pe.Node(niu.IdentityInterface(fields=["copes","regfiles","surf_template","subjects_dir"]),name='inputspec')
-    formatter = pe.Node(niu.Function(input_names=['copes','regfiles'],output_names=['out'],function=do_format),name='formatter')    
+    inputspec = pe.Node(niu.IdentityInterface(fields=["copes","regfiles","surf_template","subjects_dir","subject_id"]),name='inputspec')
+    formatter = pe.Node(niu.Function(input_names=['copes','regfiles','template'],output_names=['out'],function=do_format),name='formatter')    
+    wf.connect(inputspec,'surf_template',formatter,'template')
     preproc = pe.MapNode(fs.MRISPreproc(),name='preproc',iterfield=['hemi'])
     preproc.inputs.hemi = ['lh','rh']
     glmfit = pe.MapNode(fs.GLMFit(one_sample=True,surf=True),name='glmfit',iterfield=['hemi','in_file'])
@@ -148,8 +153,29 @@ def get_surface_workflow(name='surface_1sample'):
     #connections
     wf.connect(inputspec,'copes',formatter,'copes')
     wf.connect(inputspec,'regfiles',formatter,'regfiles')
-    wf.connect(inputspec,'surf_template',preproc,'target')
-    wf.connect(inputspec,'surf_template',glmfit,'subject_id')
+
+    def template_chooser(template,subject_id=None):
+        if not template == "subject":
+            return template
+        else:
+            template = subject_id
+            return template
+
+
+    chooser = pe.Node(niu.Function(input_names=['template','subject_id'],
+                                   output_names=['template'],
+                                   function=template_chooser),name='template_chooser')
+
+
+
+    #wf.connect(inputspec,'surf_template',glmfit,'subject_id')
+    #wf.connect(inputspec,'surf_template',preproc,'target')
+    
+    wf.connect(inputspec,'surf_template',chooser,'template')
+    wf.connect(inputspec,'subject_id',chooser,'subject_id')
+    wf.connect(chooser,'template',glmfit,'subject_id')
+    wf.connect(chooser,'template',preproc,'target')
+
     wf.connect(inputspec,'subjects_dir',preproc,'subjects_dir')
     wf.connect(inputspec,'subjects_dir',glmfit,'subjects_dir')
 
@@ -179,6 +205,7 @@ def connect_wf(c):
 
     wf = get_surface_workflow()
     dg = c.datagrabber.create_dataflow()
+    subject_names = dg.get_node('subject_id_iterable')
     sink = pe.Node(nio.DataSink(),name='sinker')
     sink.inputs.base_directory = c.sink_dir
     inputspec = wf.get_node('inputspec')
@@ -189,20 +216,23 @@ def connect_wf(c):
 
     wf.connect(dg,'datagrabber.copes',inputspec,'copes')
     wf.connect(dg,'datagrabber.reg_files',inputspec,'regfiles')
+    if subject_names:
+        wf.connect(subject_names,'subject_id',inputspec,'subject_id')
+        wf.connect(subject_names,'subject_id',sink,'container')
 
-    wf.connect([(outputspec,sink,[('beta_file','beta_file'),
-                                    ('dof_file','dof_file'),
-                                    ('error_file','error_file'),
-                                    ('error_stddev_file','error_stddev_file'),
-                                    ('error_var_file','error_var_file'),
-                                    ('estimate_file','estimate_file'),
-                                    ('frame_eigenvectors','frame_eigenvectors'),
-                                    ('ftest_file','ftest_file'),
-                                    ('fwhm_file','fwhm_file'),
-                                    ('gamma_file','gamma_file'),
-                                    ('gamma_var_file','gamma_var_file'),
-                                    ('mask_file','mask_file'),
-                                    ('sig_file','sig_file')])])
+    wf.connect([(outputspec,sink,[('beta_file','%s.beta_file'%c.test_name),
+                                    ('dof_file','%s.dof_file'%c.test_name),
+                                    ('error_file','%s.error_file'%c.test_name),
+                                    ('error_stddev_file','%s.error_stddev_file'%c.test_name),
+                                    ('error_var_file','%s.error_var_file'%c.test_name),
+                                    ('estimate_file','%s.estimate_file'%c.test_name),
+                                    ('frame_eigenvectors','%s.frame_eigenvectors'%c.test_name),
+                                    ('ftest_file','%s.ftest_file'%c.test_name),
+                                    ('fwhm_file','%s.fwhm_file'%c.test_name),
+                                    ('gamma_file','%s.gamma_file'%c.test_name),
+                                    ('gamma_var_file','%s.gamma_var_file'%c.test_name),
+                                    ('mask_file','%s.mask_file'%c.test_name),
+                                    ('sig_file','%s.sig_file'%c.test_name)])])
     return wf
 
 mwf.workflow_function = connect_wf

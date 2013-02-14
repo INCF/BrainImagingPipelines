@@ -149,8 +149,33 @@ mwf.config_view = create_view
 
 def create_html_view():
     from bips.workflows.flexible_datagrabber import create_datagrabber_html_view
-    view = create_datagrabber_html_view()
-    return view
+    import colander
+    import deform
+    from colander import SchemaNode as sn
+    conf = colander.SchemaNode(colander.Mapping())
+
+    dirs = colander.SchemaNode(colander.Mapping(),name='Directories')
+    dirs.add(colander.SchemaNode(colander.String(),name='working_dir'))
+    dirs.add(colander.SchemaNode(colander.String(),name='sink_dir'))
+    dirs.add(colander.SchemaNode(colander.String(),name='surf_dir'))
+    dirs.add(colander.SchemaNode(colander.String(),name='crash_dir'))
+
+    x_opts = colander.SchemaNode(colander.Mapping(),name='Execution Options')
+    x_opts.add(colander.SchemaNode(colander.Bool(),name='run_using_plugin',default=True))
+    x_opts.add(colander.SchemaNode(deform.Set(),
+                                   widget=deform.widget.SelectWidget(values=[('PBS','PBS'),
+                                    ('PBSGraph','PBSGraph'),
+                                    ('Condor','Condor'),
+                                    ('MultiProc','MultiProc')]),
+                                    name='plugin'))
+    x_opts.add(sn(colander.String(),name='plugin_args',default='{\'qsub_args\':\'-q many\'}'))
+    x_opts.add(sn(colander.Bool(),name='test_mode')) 
+    x_opts.add(sn(colander.Bool(),name='save_script_only'))
+
+    conf.add(dirs)
+    conf.add(x_opts)
+
+    return conf
     
 mwf.html_view = create_html_view
 
