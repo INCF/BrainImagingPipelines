@@ -444,8 +444,8 @@ def get_substitutions(subject_id, use_fieldmap):
     subs = [('_subject_id_%s/' % subject_id, ''),
             ('_fwhm', 'fwhm'),
             ('_register0/', ''),
-            ('_threshold20/aparc+aseg_thresh_warped_dil_thresh',
-             '%s_brainmask' % subject_id),
+            ('_threshold20/aparc+aseg_thresh_warped_thresh',
+             '%s_brainmask' % subject_id), 
             ('st.','.'),
             ]
     if use_fieldmap:
@@ -461,6 +461,7 @@ def get_substitutions(subject_id, use_fieldmap):
         subs.append(('_threshold%d/'%i,'%s_r%02d_'%(subject_id, i)))
         subs.append(('_compcor_components%d/'%i, '%s_r%02d_'%(subject_id, i)))
     return subs
+    
 
 def get_regexp_substitutions(subject_id, use_fieldmap):
     subs = [('corr.*_filt', 'bandpassed'),
