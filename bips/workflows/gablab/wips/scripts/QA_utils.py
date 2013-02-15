@@ -374,7 +374,7 @@ def plot_timeseries(roi,statsfile,TR,plot,onsets,units):
     import matplotlib.pyplot as plt
     stats = np.recfromcsv(statsfile)     
     
-    LUT = np.genfromtxt('/software/Freesurfer/current/FreeSurferColorLUT.txt',dtype = str)
+    LUT = np.genfromtxt(os.path.join(os.environ["FREESURFER_HOME"],'FreeSurferColorLUT.txt'),dtype = str)
     roinum = LUT[:,0]
     roiname = LUT[:,1]
     Fname = []
@@ -664,7 +664,8 @@ def corr_image(resting_image,fwhm):
     br = Brain('fsaverage5', 'lh', 'smoothwm')
 
     #br.add_overlay(corrmat[0,:], min=0.2, name=0, visible=True)
-    values = nb.freesurfer.read_annot('/software/Freesurfer/5.1.0/subjects/fsaverage5/label/lh.aparc.annot')
+    lh_aparc_annot_file = os.path.join(os.environ["FREESURFER_HOME"],'/subjects/label/lh.aparc.annot')
+    values = nb.freesurfer.read_annot(lh_aparc_annot_file)
 
     #br.add_overlay(np.mean(corrmat[values[0]==5,:], axis=0), min=0.8, name='mean', visible=True)
 
@@ -726,7 +727,7 @@ def get_coords(labels, in_file, subsess, fsdir):
     cs = []
 
     brain_dir = os.path.join(fsdir,subsess,'mri')
-    lut_file='/software/Freesurfer/5.1.0/FreeSurferColorLUT.txt'
+    lut_file=os.path.join(os.environ["FREESURFER_HOME"],'FreeSurferColorLUT.txt')
     colorfile = np.genfromtxt(lut_file,dtype='string')
     seg_file = os.path.join(brain_dir,'aparc+aseg.mgz')
     data_seg,aff_seg = load(seg_file).get_data(), load(seg_file).get_affine()
