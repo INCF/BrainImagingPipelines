@@ -59,6 +59,7 @@ class config(baseconfig):
     use_metadata = traits.Bool(True)
     update_hash = traits.Bool(False)
     save_script_only = traits.Bool(False)
+    order = traits.Enum('motion_slicetime','slicetime_motion',use_default=True)
 
 def create_config():
     c = config()
@@ -114,6 +115,7 @@ def create_view():
             Item(name='do_slicetiming'),
             Item(name="use_metadata"),
             Item(name='SliceOrder',editor=CSVListEditor(),enabled_when="not use_metadata or not do_slicetiming"),
+            Item(name='order', enabled_when="SliceOrder and not motion_correct_node=='nipy'"),
             Item(name='loops',enabled_when="motion_correct_node=='nipy' ", editor=CSVListEditor()),
             Item(name='speedup',enabled_when="motion_correct_node=='nipy' ", editor=CSVListEditor()),
             label='Motion Correction', show_border=True),
@@ -324,7 +326,8 @@ Preprocessing nipype workflow
     # inputs
     preproc.inputs.inputspec.motion_correct_node = c.motion_correct_node
     preproc.inputs.inputspec.realign_parameters = {"loops":c.loops,
-                                                   "speedup":c.speedup}
+                                                   "speedup":c.speedup,
+                                                   "order": c.order}
     preproc.inputs.inputspec.do_whitening = c.do_whitening
     preproc.inputs.inputspec.timepoints_to_remove = c.timepoints_to_remove
     preproc.inputs.inputspec.smooth_type = c.smooth_type
