@@ -313,7 +313,8 @@ config : String
         print "export SUBJECTS_DIR=%s"%c.surf_dir
     else:
 
-        a.export(os.path.join(c.sink_dir,'bips_'))
+        from nipype.utils.filemanip import fname_presuffix
+        a.export(fname_presuffix(config,'','_script_').replace('.json',''))
         if c.save_script_only:
             return 0
 

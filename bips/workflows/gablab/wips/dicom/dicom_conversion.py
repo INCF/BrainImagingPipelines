@@ -292,7 +292,8 @@ def main(config_file):
         wk = convert_wkflw(c,heuristic_func)
         wk.config = {"execution": {"crashdump_dir": c.crash_dir, "job_finished_timeout": c.timeout}}
 
-        wk.export(os.path.join(c.sink_dir,'bips_'))
+        from nipype.utils.filemanip import fname_presuffix
+        wk.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
         if c.save_script_only:
             return 0
 

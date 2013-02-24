@@ -244,7 +244,8 @@ def main(config_file):
     wf.base_dir = c.working_dir
     wf.config = {"execution":{"crashdump_dir": c.crash_dir, "job_finished_timeout": c.timeout}}
 
-    wf.export(os.path.join(c.sink_dir,'bips_'))
+    from nipype.utils.filemanip import fname_presuffix
+    wf.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
     if c.save_script_only:
         return 0
 

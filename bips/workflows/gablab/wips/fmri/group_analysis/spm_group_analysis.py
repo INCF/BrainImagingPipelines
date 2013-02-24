@@ -350,7 +350,8 @@ def main(config_file):
     if c.use_advanced_options:
         exec c.advanced_script
     try:
-        wk.export(os.path.join(c.sink_dir,'bips_'))
+        from nipype.utils.filemanip import fname_presuffix
+        wk.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
     except:
         print "ERROR in exporting workflow"
     if c.save_script_only:

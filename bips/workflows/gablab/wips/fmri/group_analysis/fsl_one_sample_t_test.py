@@ -350,6 +350,10 @@ def main(config_file):
         wk.write_graph()
     if c.use_advanced_options:
         exec c.advanced_script
+
+    from nipype.utils.filemanip import fname_presuffix
+    wk.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
+
     if c.run_using_plugin:
         wk.run(plugin=c.plugin,plugin_args=c.plugin_args)
     else:

@@ -470,7 +470,7 @@ def main(config_file):
         workflow.write_graph()
 
     from nipype.utils.filemanip import fname_presuffix
-    a.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
+    workflow.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
 
     if c.save_script_only:
         return 0

@@ -176,7 +176,8 @@ config : String
     c = load_config(config,create_config)
     wk = test_fs(c)
 
-    wk.export(os.path.join(c.sink_dir,'bips_'))
+    from nipype.utils.filemanip import fname_presuffix
+    wk.export(fname_presuffix(config,'','_script_').replace('.json',''))
     if c.save_script_only:
         return 0
 
