@@ -469,7 +469,8 @@ def main(config_file):
     if c.test_mode:
         workflow.write_graph()
 
-    workflow.export(os.path.join(c.sink_dir,'bips_'))
+    from nipype.utils.filemanip import fname_presuffix
+    a.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
 
     if c.save_script_only:
         return 0

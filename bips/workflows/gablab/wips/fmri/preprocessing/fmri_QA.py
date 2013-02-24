@@ -587,8 +587,10 @@ config_file : String
 
     if QA_config.use_advanced_options:
         exec QA_config.advanced_script
+    
+    from nipype.utils.filemanip import fname_presuffix
+    a.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
 
-    a.export(os.path.join(c.sink_dir,'bips_'))
     if c.save_script_only:
         return 0
 

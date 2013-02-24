@@ -364,7 +364,8 @@ config_file : JSON file with configuration parameters
     if c.use_advanced_options:
         exec c.advanced_script
 
-    preprocess.export(os.path.join(c.base_dir,'bips_'))
+    from nipype.utils.filemanip import fname_presuffix
+    a.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
     if c.save_script_only:
         return 0
 

@@ -293,6 +293,9 @@ config_file : String
     if QA_config.use_advanced_options:
         exec QA_config.advanced_script
 
+    from nipype.utils.filemanip import fname_presuffix
+    a.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
+
     if QA_config.run_using_plugin:
         a.run(plugin=QA_config.plugin,plugin_args=QA_config.plugin_args)
     else:
