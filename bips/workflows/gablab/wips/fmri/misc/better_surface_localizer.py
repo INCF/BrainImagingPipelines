@@ -212,11 +212,12 @@ def get_vertices(sub,sd,overlay,reg,mean,hemi,roi=['superiortemporal'],thresh=1.
             foo = (np.asarray(values[0]) == names_idx).astype(int)
         else:
             foo += (np.asarray(values[0]) == names_idx).astype(int) #foo has all the vertices in the ROI
-  
-    valid_idxs = np.nonzero((datax + foo) ==len(roi)+1)[0] #valid idxs are the indices where data > threshold and data in rois
+    
+    valid_idxs = np.nonzero((datax + foo) == 2)[0] #valid idxs are the indices where data > threshold and data in rois
     print "number of valid indices:", len(valid_idxs)
     if not len(valid_idxs):
         maxz = np.max(data[foo])
+        print "max score:", maxz, "threshold: ", thresh
         return None 
         #raise Exception('Your threshold is too high! Thresh = %2.2f, Max Z = %2.2f'%(thresh,maxz))
     print "max score:", np.max(data[valid_idxs])
