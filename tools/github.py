@@ -37,7 +37,7 @@ def get_remote_branch():
     pass
 
 
-def create_hash_map():
+def create_hash_map_old():
     """Create a hash map for all objects
     """
 
@@ -57,6 +57,30 @@ def create_hash_map():
                 hashmap[infodict['sha']] = infodict['path']
     return hashmap
 
+def create_hash_map():
+    """Create a hash map for all objects
+    """
+
+    hashmap = {}
+    from base64 import encodestring as base64
+    import pwd
+    login_name = pwd.getpwuid(os.geteuid())[0]
+    conn = httplib.HTTPSConnection("api.github.com")
+    conn.request("GET", "/repos/akeshavan/BrainImagingPipelines",
+                 headers={'Authorization': 'Basic %s' % base64(login_name)})
+    try:
+        conn.request("GET", "/repos/akeshavan/BrainImagingPipelines/git/trees/master?recursive=1")
+    except:
+        pass
+    else:
+        r1 = conn.getresponse()
+        if r1.reason != 'OK':
+            raise Exception('HTTP Response  %s:%s' % (r1.status, r1.reason))
+        payload = json.loads(r1.read())
+        for infodict in payload['tree']:
+            if infodict['type'] == "blob":
+                hashmap[infodict['sha']] = infodict['path']
+    return hashmap
 
 def get_repo_url(force_github=False):
     """Returns github url or local url
@@ -76,7 +100,7 @@ def get_repo_url(force_github=False):
     return uri
 
 
-def get_file_url(object, hashmap):
+def get_file_url_old(object, hashmap):
     """Returns local or remote url for an object
     """
     filename = inspect.getsourcefile(object)
@@ -89,4 +113,19 @@ def get_file_url(object, hashmap):
         if key in hashmap:
             uri = 'http://github.com/akeshavan/BrainImagingPipelines/blob/master/' + \
                   hashmap[key] + '#L%d' % lines[1]
+    return uri
+
+
+def get_file_url(object):
+    """Returns local or remote url for an object
+    """
+    filename = inspect.getsourcefile(object)
+    lines = inspect.getsourcelines(object)
+    uri = 'file://%s#L%d' % (filename, lines[1])
+    if is_git_repo():
+        info = bips.get_info()
+        shortfile = os.path.join('bips', filename.split('bips/')[-1])
+        uri = 'http://github.com/akeshavan/BrainImagingPipelines/tree/%s/%s#L%d' % \
+                                                           (info['commit_hash'],
+                                                            shortfile, lines[1])
     return uri

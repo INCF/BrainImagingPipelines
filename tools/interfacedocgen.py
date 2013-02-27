@@ -309,7 +309,7 @@ class InterfaceHelpWriter(object):
             ad += '\n.. _%s\n\n' % label
             ad += '\n.. index:: %s\n\n' % c
             ad += c + '\n' + self.rst_section_levels[2] * len(c) + '\n\n'
-            ad += "Code: %s\n\n" % get_file_url(classinst, hashmap)
+            ad += "Code: %s\n\n" % get_file_url(classinst)#, hashmap)
             ad += trim(help(classinst,returnhelp=True),
                        self.rst_section_levels[3]) + '\n'
 
@@ -320,7 +320,7 @@ class InterfaceHelpWriter(object):
             label = ':func:`' + name + '`'
             ad += '\n.. _%s:\n\n' % (uri + '.' + name)
             ad += '\n'.join((label, self.rst_section_levels[2] * len(label)))
-            ad += "\n\nCode: %s\n\n" % get_file_url(finst, hashmap)
+            ad += "\n\nCode: %s\n\n" % get_file_url(finst)#, hashmap)
             helpstr = trim(finst.__doc__, self.rst_section_levels[3])
             ad += '\n\n' + helpstr + '\n\n'
 
@@ -339,7 +339,7 @@ class InterfaceHelpWriter(object):
             label = ':func:`' + name + '`'
             ad += '\n.. _%s:\n\n' % (uri + '.' + name)
             ad += '\n'.join((label, self.rst_section_levels[2] * len(label)))
-            ad += "\n\nCode: %s\n\n" % get_file_url(finst, hashmap)
+            ad += "\n\nCode: %s\n\n" % get_file_url(finst)#, hashmap)
             helpstr = trim(finst.__doc__, self.rst_section_levels[3])
             ad += '\n\n' + helpstr + '\n\n'
 

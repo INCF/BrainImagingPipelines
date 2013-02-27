@@ -8,4 +8,4 @@ from gablab.wips.fmri.preprocessing import fmri_preprocessing, fmri_QA, spm_prep
 from gablab.wips.fmri.resting import wip_resting_correlation_QA, map_correlations, seed_based_connectivity
 from gablab.wips.fmri.viz import synced_corr_display_h5
 from gablab.wips.smri import test_freesurfer, normalize_structural, normalize_functionals, kelly_kapowski, freesurfer_brain_masks, wip_divide_parcellations
-from gablab.wips.utils import take_mean_image
+from gablab.wips.utils import take_mean_image, plot_contours
