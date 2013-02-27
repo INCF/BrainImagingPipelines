@@ -198,7 +198,10 @@ def gen_info(run_event_files):
                 name, _ = name.split('.txt')
             runinfo.conditions.append(name)
             event_info = np.loadtxt(event_file)
+            if len(event_info.shape) == 1:
+                event_info = event_info[:,None].T
             runinfo.onsets.append(event_info[:, 0].tolist())
+            
             if event_info.shape[1] > 1:
                 runinfo.durations.append(event_info[:, 1].tolist())
             else:

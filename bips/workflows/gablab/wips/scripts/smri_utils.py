@@ -107,7 +107,7 @@ def warp_segments(name="warp_segments"):
     merge1 = pe.Node(Merge(2),name="get_transformations")
     wf.connect(inputspec,"warp_file",merge1,"in1")
     wf.connect(inputspec,"ants_affine",merge1,"in2")
-    wf.connect(merge1,"out",ap,"transformation_files")
+    wf.connect(merge1,"out",ap,"transforms")
     outputspec=pe.Node(IdentityInterface(fields=["out_files"]),name='outputspec')
     wf.connect(ap,"output_image",outputspec,"out_files")
     return wf

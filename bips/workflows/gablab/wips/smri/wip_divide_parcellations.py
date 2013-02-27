@@ -182,9 +182,10 @@ def divide_wf(c):
         return subs
 
     wf.connect(inputnode,("subject_id",get_subs),sinker,"substitutions")
-
-    wf.connect(divide_n,"out_annot",sinker,"divided_annotations")
-
+    try:
+        wf.connect(divide_n,"out_annot",sinker,"divided_annotations")
+    except:
+        print "Need some files!"
     return wf
 
 mwf.workflow_function = divide_wf

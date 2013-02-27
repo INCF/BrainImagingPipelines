@@ -116,14 +116,14 @@ def getsubs(subject_id, cons):
             ('_runs', '/runs'),
             ('_fwhm', 'fwhm')]
     for i, con in enumerate(cons):
-        subs.append(('_flameo%d/cope1' % i, 'cope_%s' % con[0]))
-        subs.append(('_flameo%d/varcope1' % i, 'varcope_%s' % con[0]))
-        subs.append(('_flameo%d/tstat1' % i, 'tstat_%s' % con[0]))
-        subs.append(('_flameo%d/zstat1' % i, 'zstat_%s' % con[0]))
-        subs.append(('_flameo%d/res4d' % i, 'res4d_%s' % con[0]))
-        subs.append(('_ztop%d/zstat1_pval' % i, 'pval_%s' % con[0]))
+        subs.append(('_flameo%d/cope1' % i, 'cope_%s' % con))
+        subs.append(('_flameo%d/varcope1' % i, 'varcope_%s' % con))
+        subs.append(('_flameo%d/tstat1' % i, 'tstat_%s' % con))
+        subs.append(('_flameo%d/zstat1' % i, 'zstat_%s' % con))
+        subs.append(('_flameo%d/res4d' % i, 'res4d_%s' % con))
+        subs.append(('_ztop%d/zstat1_pval' % i, 'pval_%s' % con))
         subs.append(('_slicestats%d/zstat1_overlay.png' % i,
-                     'zstat_overlay%d_%s.png' % (i, con[0])))
+                     'zstat_overlay%d_%s.png' % (i, con)))
     return subs
 
 
@@ -166,11 +166,26 @@ def create_fixedfx(c, first_c=foo0, name='fixedfx'):
 
     #overlay = create_overlay_workflow(c,name='overlay')
 
-    subjectinfo = pe.Node(util.Function(input_names=['subject_id'], output_names=['output']), name='subjectinfo')
-    subjectinfo.inputs.function_str = first_c.subjectinfo
+    #subjectinfo = pe.Node(util.Function(input_names=['subject_id'], output_names=['output']), name='subjectinfo')
+    #subjectinfo.inputs.function_str = first_c.subjectinfo
+    
+    def getcontrasts(data_inputs):
+        import os
+        infiles = [os.path.split(d[0])[1] for d in data_inputs]
+        contrasts = [inf[7:].split('.nii')[0] for inf in infiles]
+        print contrasts
+        return contrasts
+        
 
-    contrasts = pe.Node(util.Function(input_names=['subject_id'], output_names=['contrasts']), name='getcontrasts')
-    contrasts.inputs.function_str = first_c.contrasts
+    #if first_c.uuid.startswith('8e'):
+    #    print "Using 8e contrasts!!"
+    #    contrasts = pe.Node(util.Function(input_names=['subject_id'], output_names=['contrasts']), name='getcontrasts')
+    #    contrasts.inputs.function_str = first_c.contrasts
+    #    fixedfxflow.connect(infosource, 'subject_id', contrasts, 'subject_id')
+    #else:
+    contrasts = pe.Node(util.Function(input_names=['data_inputs'], output_names=['contrasts'],function=getcontrasts), name='getcontrasts')
+    fixedfxflow.connect(datasource,('datagrabber.copes',doublelist), contrasts,'data_inputs')
+ 
 
     #get_info = pe.Node(util.Function(input_names=['cons','info'], output_names=['info'], function=getinfo), name='getinfo')
     get_subs = pe.Node(util.Function(input_names=['subject_id','cons'], output_names=['subs'], function=getsubs), name='getsubs')
@@ -179,8 +194,7 @@ def create_fixedfx(c, first_c=foo0, name='fixedfx'):
 
     #fixedfxflow.connect(infosource, ('subject_id',getinfo, c.getcontrasts, c.subjectinfo), datasource, 'template_args')
 
-    fixedfxflow.connect(infosource, 'subject_id', contrasts, 'subject_id')
-    fixedfxflow.connect(infosource, 'subject_id', subjectinfo, 'subject_id')
+    #fixedfxflow.connect(infosource, 'subject_id', subjectinfo, 'subject_id')
     #fixedfxflow.connect(contrasts, 'contrasts', get_info, 'cons')
     #fixedfxflow.connect(subjectinfo, 'output', get_info, 'info')
     #fixedfxflow.connect(get_info,'info',datasource,'template_args')
@@ -243,7 +257,10 @@ def main(config_file):
 
 
     from nipype.utils.filemanip import fname_presuffix
-    fixedfxflow.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
+    try:
+        fixedfxflow.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
+    except:
+        print "Sorry! Workflow couldn't export TODO: fix this"
     if c.save_script_only:
         return 0
 
