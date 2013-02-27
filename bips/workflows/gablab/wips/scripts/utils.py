@@ -444,7 +444,7 @@ def get_substitutions(subject_id, use_fieldmap):
     subs = [('_subject_id_%s/' % subject_id, ''),
             ('_fwhm', 'fwhm'),
             ('_register0/', ''),
-            ('_threshold20/aparc+aseg_thresh_warped_dil_thresh',
+            ('_threshold20/aparc+aseg_thresh_warped_thresh',
              '%s_brainmask' % subject_id),
             ('st.','.'),
             ]
@@ -470,6 +470,7 @@ def get_regexp_substitutions(subject_id, use_fieldmap):
             #('motion/.*dtype', 'motion/%s' % subject_id),
             ('mean/corr.*nii', 'mean/%s_mean.nii' % subject_id),
             ('corr', ''),
+            ('_roi_dtype_out.txt', '.par'),
             ('_roi_dtype_',''),
             ('__','_')
             ]

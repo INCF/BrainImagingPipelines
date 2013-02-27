@@ -436,6 +436,12 @@ def main(config_file):
     if c.test_mode:
         first_level.write_graph()
 
+
+    from nipype.utils.filemanip import fname_presuffix
+    first_level.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
+    if c.save_script_only:
+        return 0
+
     if c.run_using_plugin:
         first_level.run(plugin=c.plugin, plugin_args = c.plugin_args)
     else:

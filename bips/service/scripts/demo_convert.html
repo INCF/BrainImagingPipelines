@@ -1,59 +1,5 @@
 <!DOCTYPE HTML>
-<!--
-/*
- * jQuery File Upload Plugin Demo 6.9
- * https://github.com/blueimp/jQuery-File-Upload
- *
- * Copyright 2010, Sebastian Tschan
- * https://blueimp.net
- *
- * Licensed under the MIT license:
- * http://www.opensource.org/licenses/MIT
- */
--->
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Demo | BIPS</title>
-<meta name="description" content="">
-<meta name="viewport" content="width=device-width">
-<!-- Bootstrap CSS Toolkit styles -->
-<link rel="stylesheet" href="css/bootstrap.min.css">
-<!-- Generic page styles -->
-<link rel="stylesheet" href="css/style.css">
-<link href="css/docs.css" rel="stylesheet">
-<!-- CSS to style the file input field as button and adjust the Bootstrap progress bars -->
-<link rel="stylesheet" href="css/jquery.fileupload-ui.css">
-<!-- Shim to make HTML5 elements usable in older Internet Explorer versions -->
-<!--[if lt IE 9]><script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
-</head>
-
-<body data-spy="scroll" data-target=".subnav" data-offset="50">
-
-<!-- Navbar
-================================================== -->
-<div class="navbar navbar-fixed-top">
-<div class="navbar-inner">
-    <div class="container">
-        <button type="button"class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-        </button>
-        <a class="brand" href="./">BIPS</a>
-        <div class="nav-collapse">
-            <ul class="nav">
-                <li class=""><a href="./index">Overview</a></li>
-                <li class=""><a href="./workflows">Workflows</a></li>
-                <li class="divider-vertical"></li>
-                <li class="active"><a href="./demo_convert">DicomConvert</a></li>
-                <li class=""><a href="./status">Status</a></li>
-            </ul>
-        </div>
-    </div>
-</div>
-
-<div class="container">
+<%inherit file="base.html" />
     <div class="page-header">
         <h1>Dicom convert</h1>
     </div>
@@ -201,30 +147,4 @@
     </tr>
 {% } %}
 </script>
-<script src="js/jquery.min.js"></script>
-<!-- The jQuery UI widget factory, can be omitted if jQuery UI is already included -->
-<script src="js/vendor/jquery.ui.widget.js"></script>
-<!-- The Templates plugin is included to render the upload/download listings -->
-<script src="js/tmpl.min.js"></script>
-<!-- The Load Image plugin is included for the preview images and image resizing functionality -->
-<script src="js/load-image.min.js"></script>
-<!-- The Canvas to Blob plugin is included for image resizing functionality -->
-<script src="js/canvas-to-blob.min.js"></script>
-<!-- Bootstrap JS and Bootstrap Image Gallery are not required, but included for the demo -->
-<script src="js/bootstrap.min.js"></script>
-<!-- The Iframe Transport is required for browsers without support for XHR file uploads -->
-<script src="js/jquery.iframe-transport.js"></script>
-<!-- The basic File Upload plugin -->
-<script src="js/jquery.fileupload.js"></script>
-<!-- The File Upload file processing plugin -->
-<script src="js/jquery.fileupload-fp.js"></script>
-<!-- The File Upload user interface plugin -->
-<script src="js/jquery.fileupload-ui.js"></script>
-<!-- The localization script -->
-<script src="js/locale.js"></script>
-<!-- The main application script -->
-<script src="js/main.js"></script>
-<!-- The XDomainRequest Transport is included for cross-domain file deletion for IE8+ -->
-<!--[if gte IE 8]><script src="js/cors/jquery.xdr-transport.js"></script><![endif]-->
-</body> 
-</html>
+

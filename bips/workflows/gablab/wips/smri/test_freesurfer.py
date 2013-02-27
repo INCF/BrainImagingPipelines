@@ -176,6 +176,11 @@ config : String
     c = load_config(config,create_config)
     wk = test_fs(c)
 
+    from nipype.utils.filemanip import fname_presuffix
+    wk.export(fname_presuffix(config,'','_script_').replace('.json',''))
+    if c.save_script_only:
+        return 0
+
     if c.run_using_plugin:
         wk.run(plugin=c.plugin,plugin_args=c.plugin_args)
     else:
