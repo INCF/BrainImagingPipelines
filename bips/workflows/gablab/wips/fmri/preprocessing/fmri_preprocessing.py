@@ -236,6 +236,14 @@ tr : Float
     else:
         return so, trs[0]/1000.
 
+def save_metadata(so, tr):
+    import os
+    from nipype.utils.filemanip import save_json
+    metadata_dict = {"so" : so, "tr" : tr}
+    metadata_file = os.path.join(os.getcwd(), 'metadata.json')
+    save_json(metadata_file, metadata_dict)
+    return metadata_file
+
 def prep_workflow(c=create_config()):
     """Creates a project-specific fMRI preprocessing workflow
 
@@ -319,6 +327,11 @@ Preprocessing nipype workflow
         modelflow.connect(dataflow,'func',get_meta, 'func')
         modelflow.connect(get_meta,'so',preproc,"inputspec.sliceorder")
         modelflow.connect(get_meta,'tr',preproc,"inputspec.tr")
+        savemeta = pe.Node(util.Function(input_names=['so','tr'],output_names=['metadata_file'],
+                                            function=save_metadata), name="savemetadata")
+        modelflow.connect(get_meta,'so',savemeta,'so')
+        modelflow.connect(get_meta,'tr',savemeta,'tr')
+        modelflow.connect(savemeta,'metadata_file',sinkd,'preproc.metadata')
     else:
         preproc.inputs.inputspec.sliceorder = c.SliceOrder
         preproc.inputs.inputspec.tr = c.TR
