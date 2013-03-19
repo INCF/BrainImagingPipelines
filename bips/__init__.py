@@ -49,7 +49,7 @@ _test_local_install()
 def get_info():
     from pkg_info import get_pkg_info
     print "calling get info"
-    get_pkg_info(os.path.dirname(__file__))
+    return get_pkg_info(os.path.dirname(__file__))
 
 # Cleanup namespace
 del _test_local_install

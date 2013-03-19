@@ -312,6 +312,12 @@ config : String
         print "Your SUBJECTS_DIR is incorrect!"
         print "export SUBJECTS_DIR=%s"%c.surf_dir
     else:
+
+        from nipype.utils.filemanip import fname_presuffix
+        a.export(fname_presuffix(config,'','_script_').replace('.json',''))
+        if c.save_script_only:
+            return 0
+
         if QA_config.run_using_plugin:
             a.run(plugin=QA_config.plugin,plugin_args=QA_config.plugin_args)
         else:

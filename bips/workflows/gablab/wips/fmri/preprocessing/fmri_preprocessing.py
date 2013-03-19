@@ -29,32 +29,6 @@ Click_ for more documentation.
 
 .. _Click: ../../interfaces/generated/bips.workflows.workflow2.html
 
-Outputs
-^^^^^^^
-
-* art : Results of artiface detection
-
-* bbreg : Output of BBRegister
-
-* compcor : A and T compcor regions (both are computed even if only 1 is selected)
- 
-* fieldmap : If use_fieldmap is true, this folder contains the fieldmap unwarped epi
-
-* mask : The mask created from the anatomical in functional space
-
-* mean : mean image after motion correction 
-
-* motion : contains motion parameters
-
-* noise_components : compcor components (from A and/or T compcor)
-
-* output : the bandpassed and full spectrum output from preprocessing
-
-* regressors : components regressed from timeseries (if none were selected, a blank text file)
-
-* tsnr : signal-to-noise image, detrended timeseries image, mean and standard deviation image (useful for QA)
-
-
 """
 
 mwf.uuid = '7757e3168af611e1b9d5001e4fb1404c'
@@ -85,6 +59,7 @@ class config(baseconfig):
     use_metadata = traits.Bool(True)
     update_hash = traits.Bool(False)
     save_script_only = traits.Bool(False)
+    order = traits.Enum('motion_slicetime','slicetime_motion',use_default=True)
 
 def create_config():
     c = config()
@@ -140,6 +115,7 @@ def create_view():
             Item(name='do_slicetiming'),
             Item(name="use_metadata"),
             Item(name='SliceOrder',editor=CSVListEditor(),enabled_when="not use_metadata or not do_slicetiming"),
+            Item(name='order', enabled_when="SliceOrder and not motion_correct_node=='nipy'"),
             Item(name='loops',enabled_when="motion_correct_node=='nipy' ", editor=CSVListEditor()),
             Item(name='speedup',enabled_when="motion_correct_node=='nipy' ", editor=CSVListEditor()),
             label='Motion Correction', show_border=True),
@@ -174,22 +150,34 @@ def create_view():
 mwf.config_view = create_view
 
 def create_html_view():
-    view = {'Description':[{'name':'uuid', 'style':'readonly'},
-                           {'name':'desc', 'style':'readonly'}],
-            'Directories':[{'name':'working_dir'},
-                           {'name':'sink_dir'},
-                           {'name':'crash_dir'},
-                           {'name':'surf_dir'}],
-            'Execution Options':[{'name':'run_using_plugin'},
-                                 {'name':'plugin'},
-                                 {'name':'plugin_args'},
-                                 {'name':'test_mode'}],                   
-            'Subjects':[{'name':'subjects'},
-                         {'name':'base_dir'},
-                         {'name':'func_template'},
-                         {'name':'run_datagrabber_without_submitting'},
-                         {'name':'timepoints_to_remove'}]}
-    return view
+    from bips.workflows.flexible_datagrabber import create_datagrabber_html_view
+    import colander
+    import deform
+    from colander import SchemaNode as sn
+    conf = colander.SchemaNode(colander.Mapping())
+
+    dirs = colander.SchemaNode(colander.Mapping(),name='Directories')
+    dirs.add(colander.SchemaNode(colander.String(),name='working_dir'))
+    dirs.add(colander.SchemaNode(colander.String(),name='sink_dir'))
+    dirs.add(colander.SchemaNode(colander.String(),name='surf_dir'))
+    dirs.add(colander.SchemaNode(colander.String(),name='crash_dir'))
+
+    x_opts = colander.SchemaNode(colander.Mapping(),name='Execution Options')
+    x_opts.add(colander.SchemaNode(colander.Bool(),name='run_using_plugin',default=True))
+    x_opts.add(colander.SchemaNode(deform.Set(),
+                                   widget=deform.widget.SelectWidget(values=[('PBS','PBS'),
+                                    ('PBSGraph','PBSGraph'),
+                                    ('Condor','Condor'),
+                                    ('MultiProc','MultiProc')]),
+                                    name='plugin'))
+    x_opts.add(sn(colander.String(),name='plugin_args',default='{\'qsub_args\':\'-q many\'}'))
+    x_opts.add(sn(colander.Bool(),name='test_mode')) 
+    x_opts.add(sn(colander.Bool(),name='save_script_only'))
+
+    conf.add(dirs)
+    conf.add(x_opts)
+
+    return conf
     
 mwf.html_view = create_html_view
 
@@ -338,7 +326,8 @@ Preprocessing nipype workflow
     # inputs
     preproc.inputs.inputspec.motion_correct_node = c.motion_correct_node
     preproc.inputs.inputspec.realign_parameters = {"loops":c.loops,
-                                                   "speedup":c.speedup}
+                                                   "speedup":c.speedup,
+                                                   "order": c.order}
     preproc.inputs.inputspec.do_whitening = c.do_whitening
     preproc.inputs.inputspec.timepoints_to_remove = c.timepoints_to_remove
     preproc.inputs.inputspec.smooth_type = c.smooth_type
@@ -461,7 +450,9 @@ config_file : JSON file with configuration parameters
     if c.use_advanced_options:
         exec c.advanced_script
     
-    preprocess.export(c.sink_dir)
+    from nipype.utils.filemanip import fname_presuffix
+    preprocess.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
+ 
 
     if c.save_script_only:
         return 0

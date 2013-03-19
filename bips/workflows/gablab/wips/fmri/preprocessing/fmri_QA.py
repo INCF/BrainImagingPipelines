@@ -232,7 +232,7 @@ def preproc_datagrabber(c,name='preproc_datagrabber'):
                                             mean_image='%s/preproc/mean*/*.nii*',
                                             mask='%s/preproc/mask/*.nii*',
                                             acompcor='%s/preproc/compcor/aseg*.mgz',
-                                            tcompcor='%s/preproc/compcor/*tsnr*.nii')
+                                            tcompcor='%s/preproc/compcor/*tsnr*.nii*')
     datasource.inputs.template_args = dict(motion_parameters=[['subject_id']],
                                            outlier_files=[['subject_id']],
                                            art_norm=[['subject_id']],
@@ -518,7 +518,7 @@ def QA_workflow(QAc,c=foo, name='QA'):
     workflow.connect(inputspec,'sd',fssource,'subjects_dir')
     workflow.connect(inputspec,'in_file',write_rep,'in_file')
     workflow.connect(datagrabber,'art_intensity',art_info,'intensity_file')
-    workflow.connect(datagrabber,'art_stats',art_info,'stats_file')
+    workflow.connect(datagrabber,('art_stats',sort),art_info,'stats_file')
     workflow.connect(inputspec,'art_file',art_info,'art_file')
     workflow.connect(art_info,('table',to1table), write_rep,'Art_Detect')
     workflow.connect(ts_and_spectra,'outputspec.imagetable',tablecombine, 'imagetable')
@@ -587,6 +587,12 @@ config_file : String
 
     if QA_config.use_advanced_options:
         exec QA_config.advanced_script
+    
+    from nipype.utils.filemanip import fname_presuffix
+    a.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
+
+    if c.save_script_only:
+        return 0
 
     if QA_config.run_using_plugin:
         a.run(plugin=QA_config.plugin,plugin_args=QA_config.plugin_args)

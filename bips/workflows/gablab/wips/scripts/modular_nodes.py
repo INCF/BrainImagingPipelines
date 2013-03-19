@@ -1,12 +1,252 @@
+def afni_realign(in_file,tr,do_slicetime,sliceorder,order='motion_slicetime'):
+    import nipype.interfaces.afni as afni
+    import nipype.interfaces.fsl as fsl
+    from nipype.utils.filemanip import split_filename
+    import os
+    import nibabel as nib
+
+    if not isinstance(in_file, list):
+        in_file = [in_file]
+    img = nib.load(in_file[0])
+    Nz = img.shape[2]
+
+    out_file = []
+    par_file = []
+    parameter_source = 'AFNI'
+
+    def slicetime(file, sliceorder):
+        print "running slicetiming"
+        slicetime = afni.TShift(outputtype='NIFTI_GZ')
+        slicetime.inputs.in_file = file
+        if type(sliceorder)==list:
+            custom_order = open(os.path.abspath('afni_custom_order_file.txt'),'w')
+            tpattern = []
+            for i in xrange(len(sliceorder)):
+                tpattern.append((i*tr/float(Nz), sliceorder[i]))
+                tpattern.sort(key=lambda x:x[1])
+                for i,t in enumerate(tpattern):
+                    print '%f\n'%(t[0])
+                    custom_order.write('%f\n'%(t[0]))
+            custom_order.close()
+            order_file = 'afni_custom_order_file.txt'
+        elif type(sliceorder)==str:
+            order_file = sliceorder
+        else:
+            raise TypeError('sliceorder must be filepath or list')
+
+        slicetime.inputs.args ='-tpattern @%s' % os.path.abspath(order_file)
+        slicetime.inputs.tr = str(tr)+'s'
+        slicetime.inputs.outputtype = 'NIFTI_GZ'
+        slicetime.inputs.out_file = os.path.abspath(split_filename(file)[1] +\
+                                                    "_tshift.nii.gz")
+
+        res = slicetime.run()
+        file_to_realign = res.outputs.out_file
+        return file_to_realign
+
+    def motion(file_to_realign, ref_vol):
+        print "running realignment"
+        realign = afni.Volreg()
+        realign.inputs.in_file = file_to_realign
+        realign.inputs.outputtype = 'NIFTI_GZ'
+        realign.inputs.out_file = os.path.abspath("afni_corr_" +\
+                                                  split_filename(file_to_realign)[1] +\
+                                                  ".nii.gz")
+        realign.inputs.oned_file = "afni_realignment_parameters.par"
+        realign.inputs.basefile = ref_vol
+        Realign_res = realign.run()
+        out_file = Realign_res.outputs.out_file
+        par_file = Realign_res.outputs.oned_file
+        return out_file, par_file
+
+    # get the first volume of first run as ref file
+    extract = fsl.ExtractROI()
+    extract.inputs.t_min = 0
+    extract.inputs.t_size = 1
+    extract.inputs.in_file = in_file[0]
+    ref_vol = extract.run().outputs.roi_file
+
+    for idx, file in enumerate(in_file):
+        if do_slicetime:
+
+            if order == "motion_slicetime":
+                out, par = motion(file,ref_vol)
+                out = slicetime(out,sliceorder)
+            elif order == "slicetime_motion":
+                file_to_realign = slicetime(file,sliceorder)
+                if not idx:
+                    extract = fsl.ExtractROI()
+                    extract.inputs.t_min = 0
+                    extract.inputs.t_size = 1
+                    extract.inputs.in_file = file_to_realign
+                    ref_vol = extract.run().outputs.roi_file
+                out, par = motion(file_to_realign,ref_vol)
+
+        else:
+            file_to_realign = file
+            out, par = motion(file_to_realign,ref_vol)
+
+        out_file.append(out)
+        par_file.append(par)
+
+        return out_file, par_file, parameter_source
+
+def fsl_realign(in_file,tr,do_slicetime,sliceorder,order="motion_slicetime"):
+    import nipype.interfaces.fsl as fsl
+    import os
+    if not isinstance(in_file, list):
+        in_file = [in_file]
+    out_file = []
+    par_file = []
+    parameter_source = 'FSL'
+
+    def slicetime(file,sliceorder):
+        print "running slicetiming"
+        slicetime = fsl.SliceTimer()
+        slicetime.inputs.in_file = file
+        sliceorder_file = os.path.abspath('FSL_custom_order.txt')
+        with open(sliceorder_file, 'w') as custom_order_fp:
+            for t in sliceorder:
+                custom_order_fp.write('%d\n' % (t + 1))
+        slicetime.inputs.custom_order = sliceorder_file
+        slicetime.inputs.time_repetition = tr
+        res = slicetime.run()
+        file_to_realign = res.outputs.slice_time_corrected_file
+        extract = fsl.ExtractROI()
+        extract.inputs.t_min = 0
+        extract.inputs.t_size = 1
+        extract.inputs.in_file = file_to_realign
+        ref_vol = extract.run().outputs.roi_file
+        return file_to_realign, ref_vol
+
+    def motion(file_to_realign,ref_vol):
+        print "running realignment"
+        realign = fsl.MCFLIRT(interpolation='spline', ref_file=ref_vol)
+        realign.inputs.save_plots = True
+        realign.inputs.save_mats = True
+        realign.inputs.mean_vol = True
+        realign.inputs.in_file = file_to_realign
+        realign.inputs.out_file = 'fsl_corr_' +\
+                                  os.path.split(file_to_realign)[1]
+        Realign_res = realign.run()
+        out_file = Realign_res.outputs.out_file
+        par_file = Realign_res.outputs.par_file
+        return out_file, par_file
+
+    # get the first volume of first run as ref file
+
+    extract = fsl.ExtractROI()
+    extract.inputs.t_min = 0
+    extract.inputs.t_size = 1
+    extract.inputs.in_file = in_file[0]
+    ref_vol = extract.run().outputs.roi_file
+
+    for idx, file in enumerate(in_file):
+        if do_slicetime:
+            if order == 'motion_slicetime':
+                out, par = motion(file,ref_vol)
+                out, _ = slicetime(out,sliceorder)
+            elif order == 'slicetime_motion':
+                out, ref = slicetime(file,sliceorder)
+                if not idx:
+                    ref_vol = ref
+                out, par = motion(out,ref_vol)
+        else:
+            file_to_realign = file
+            out, par = motion(file_to_realign, ref_vol)
+
+        out_file.append(out)
+        par_file.append(par)
+
+
+    return out_file, par_file, parameter_source
+
+
+def spm_realign(in_file,tr,do_slicetime,sliceorder,order="motion_slicetime"):
+    import numpy as np
+    import nibabel as nib
+    import nipype.interfaces.freesurfer as fs
+    import nipype.interfaces.spm as spm
+    import nipype.interfaces.fsl as fsl
+
+    parameter_source = 'SPM'
+
+    if not isinstance(in_file, list):
+        in_file = [in_file]
+
+    new_in_file = []
+    for f in in_file:
+        if f.endswith('.nii.gz'):
+            convert = fs.MRIConvert()
+            convert.inputs.in_file = f
+            convert.inputs.out_type = 'nii'
+            convert.inputs.in_type = 'niigz'
+            f = convert.run().outputs.out_file
+            new_in_file.append(f)
+        else:
+            new_in_file.append(f)
+
+    def slicetime(new_in_file,sliceorder):
+        print "running slice time correction"
+        img = nib.load(new_in_file[0])
+        num_slices = img.shape[2]
+        st = spm.SliceTiming()
+        st.inputs.in_files = new_in_file
+        st.inputs.num_slices = num_slices
+        st.inputs.time_repetition = tr
+        st.inputs.time_acquisition = tr - tr / num_slices
+        st.inputs.slice_order = (np.asarray(sliceorder) + 1).astype(int).tolist()
+        st.inputs.ref_slice = 1
+        res_st = st.run()
+        file_to_realign = res_st.outputs.timecorrected_files
+        return file_to_realign
+
+    def realign(file_to_realign):
+        print "running motion correction"
+        realign = spm.Realign()
+        realign.inputs.in_files = file_to_realign
+        realign.inputs.register_to_mean = False
+        #realign.inputs.out_prefix = 'spm_corr_'
+        res = realign.run()
+        parameters = res.outputs.realignment_parameters
+        if not isinstance(parameters, list):
+            parameters = [parameters]
+        par_file = parameters
+        out_file = []
+        if isinstance(res.outputs.realigned_files, list):
+            for rf in res.outputs.realigned_files:
+                res = fsl.ImageMaths(in_file=rf,
+                    out_file=rf,
+                    output_type='NIFTI',
+                    op_string='-nan').run()
+                out_file.append(res.outputs.out_file)
+        else:
+            res2 = fsl.ImageMaths(in_file=res.outputs.realigned_files,
+                out_file=res.outputs.realigned_files,
+                output_type='NIFTI',
+                op_string='-nan').run()
+            out_file.append(res2.outputs.out_file)
+        return out_file, par_file
+
+    if do_slicetime:
+        if order == 'motion_slicetime':
+            file_to_realign = new_in_file
+            out_file, par_file = realign(file_to_realign)
+            out_file = slicetime(out_file,sliceorder)
+        elif order=='slicetime_motion':
+            out_file = slicetime(new_in_file,sliceorder)
+            out_file, par_file = realign(out_file)
+    else:
+        file_to_realign = new_in_file
+        out_file, par_file = realign(file_to_realign)
+
+    return out_file, par_file, parameter_source
 
 def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
                 parameters={}):
-    import nipype.interfaces.fsl as fsl
-    import nipype.interfaces.spm as spm
+    from bips.workflows.gablab.wips.scripts.modular_nodes import spm_realign, fsl_realign, afni_realign
     import nipype.interfaces.nipy as nipy
-    from nipype.utils.filemanip import split_filename
-    import os
-    parameter_source = "FSL"
+
     keys=parameters.keys()
     if node=="nipy":
         realign = nipy.FmriRealign4d()
@@ -28,171 +268,14 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
         par_file = res.outputs.par_file
 
     elif node == "fsl":
-        if not isinstance(in_file, list):
-            in_file = [in_file]
-        out_file = []
-        par_file = []
-        # get the first volume of first run as ref file
-        if not do_slicetime:
-            extract = fsl.ExtractROI()
-            extract.inputs.t_min = 0
-            extract.inputs.t_size = 1
-            extract.inputs.in_file = in_file[0]
-            ref_vol = extract.run().outputs.roi_file
-
-        for idx, file in enumerate(in_file):
-            if do_slicetime:
-                slicetime = fsl.SliceTimer()
-                slicetime.inputs.in_file = file
-                sliceorder_file = os.path.abspath('FSL_custom_order.txt')
-                with open(sliceorder_file, 'w') as custom_order_fp:
-                    for t in sliceorder:
-                        custom_order_fp.write('%d\n' % (t + 1))
-                slicetime.inputs.custom_order = sliceorder_file
-                slicetime.inputs.time_repetition = tr
-                res = slicetime.run()
-                file_to_realign = res.outputs.slice_time_corrected_file
-                if not idx:
-                    extract = fsl.ExtractROI()
-                    extract.inputs.t_min = 0
-                    extract.inputs.t_size = 1
-                    extract.inputs.in_file = file_to_realign
-                    ref_vol = extract.run().outputs.roi_file
-            else:
-                file_to_realign = file
-            realign = fsl.MCFLIRT(interpolation='spline', ref_file=ref_vol)
-            realign.inputs.save_plots = True
-            realign.inputs.save_mats = True
-            realign.inputs.mean_vol = True
-            realign.inputs.in_file = file_to_realign
-            realign.inputs.out_file = 'fsl_corr_' + \
-                                      os.path.split(file_to_realign)[1]
-            Realign_res = realign.run()
-            out_file.append(Realign_res.outputs.out_file)
-            par_file.append(Realign_res.outputs.par_file)
+        out_file, par_file, parameter_source = fsl_realign(in_file,tr,do_slicetime, sliceorder,parameters['order'])
 
     elif node == 'spm':
-        import numpy as np
-        import nibabel as nib
-        import nipype.interfaces.freesurfer as fs
-        if not isinstance(in_file, list):
-            in_file = [in_file]
-        new_in_file = []
-        for f in in_file:
-            if f.endswith('.nii.gz'):
-                convert = fs.MRIConvert()
-                convert.inputs.in_file = f
-                convert.inputs.out_type = 'nii'
-                convert.inputs.in_type = 'niigz'
-                f = convert.run().outputs.out_file
-                new_in_file.append(f)
-            else:
-                new_in_file.append(f)
-        if do_slicetime:
-            img = nib.load(new_in_file[0])
-            num_slices = img.shape[2]
-            st = spm.SliceTiming()
-            st.inputs.in_files = new_in_file
-            st.inputs.num_slices = num_slices
-            st.inputs.time_repetition = tr
-            st.inputs.time_acquisition = tr - tr / num_slices
-            st.inputs.slice_order = (np.asarray(sliceorder) + 1).astype(int).tolist()
-            st.inputs.ref_slice = 1
-            res_st = st.run()
-            file_to_realign = res_st.outputs.timecorrected_files
-        else:
-            file_to_realign = new_in_file
-        par_file = []
-        realign = spm.Realign()
-        realign.inputs.in_files = file_to_realign
-        realign.inputs.register_to_mean = False
-        #realign.inputs.out_prefix = 'spm_corr_'
-        res = realign.run()
-        parameters = res.outputs.realignment_parameters
-        if not isinstance(parameters, list):
-            parameters = [parameters]
-        par_file = parameters
-        parameter_source = 'SPM'
-        out_file = []
-        if isinstance(res.outputs.realigned_files, list):
-            for rf in res.outputs.realigned_files:
-                res = fsl.ImageMaths(in_file=rf,
-                       out_file=rf,
-                       output_type='NIFTI',
-                       op_string='-nan').run()
-                out_file.append(res.outputs.out_file)
-        else:
-            res2 = fsl.ImageMaths(in_file=res.outputs.realigned_files,
-                       out_file=res.outputs.realigned_files,
-                       output_type='NIFTI',
-                       op_string='-nan').run()
-            out_file.append(res2.outputs.out_file)
+        out_file, par_file, parameter_source = spm_realign(in_file,tr,do_slicetime, sliceorder,parameters['order'])
+
     elif node == 'afni':
-        import nipype.interfaces.afni as afni
-        import nibabel as nib
-        import numpy as np
-        if not isinstance(in_file, list):
-            in_file = [in_file]
-        img = nib.load(in_file[0])
-        Nz = img.shape[2]
-        out_file = []
-        par_file = []
-        # get the first volume of first run as ref file
-        if not do_slicetime:
-            extract = fsl.ExtractROI()
-            extract.inputs.t_min = 0
-            extract.inputs.t_size = 1
-            extract.inputs.in_file = in_file[0]
-            ref_vol = extract.run().outputs.roi_file
+        out_file, par_file, parameter_source = afni_realign(in_file,tr,do_slicetime, sliceorder,parameters['order'])
 
-        for idx, file in enumerate(in_file):
-            if do_slicetime:
-                slicetime = afni.TShift()
-                slicetime.inputs.in_file = file
-                if type(sliceorder)==list:
-                    custom_order = open(os.path.abspath('afni_custom_order_file.txt'),'w')
-                    tpattern = []
-                    for i in xrange(len(sliceorder)):
-                        tpattern.append((i*tr/float(Nz), sliceorder[i]))
-                        tpattern.sort(key=lambda x:x[1])
-                        for i,t in enumerate(tpattern):
-                            print '%f\n'%(t[0])
-                            custom_order.write('%f\n'%(t[0]))
-                    custom_order.close()
-                    order_file = 'afni_custom_order_file.txt'
-                elif type(sliceorder)==str:
-                    order_file = sliceorder
-                else:
-                    raise TypeError('sliceorder must be filepath or list')
-
-                slicetime.inputs.args ='-tpattern @%s' % os.path.abspath(order_file)
-                slicetime.inputs.tr = str(tr)+'s'
-                slicetime.inputs.outputtype = 'NIFTI_GZ'
-                res = slicetime.run()
-                file_to_realign = res.outputs.out_file
-
-                if not idx:
-                    extract = fsl.ExtractROI()
-                    extract.inputs.t_min = 0
-                    extract.inputs.t_size = 1
-                    extract.inputs.in_file = file_to_realign
-                    ref_vol = extract.run().outputs.roi_file
-
-            else:
-                file_to_realign = file
-
-            realign = afni.Volreg()
-            realign.inputs.in_file = file_to_realign
-            realign.inputs.outputtype = 'NIFTI_GZ'
-            realign.inputs.out_file = os.path.abspath("afni_corr_" + \
-                                      split_filename(file_to_realign)[1] + \
-                                      ".nii.gz")
-            realign.inputs.oned_file = "afni_realignment_parameters.par"
-            realign.inputs.basefile = ref_vol
-            Realign_res = realign.run()
-            out_file.append(Realign_res.outputs.out_file)
-            parameter_source = 'AFNI'
-            par_file.append(Realign_res.outputs.oned_file)
     return out_file, par_file, parameter_source
 
 def mod_smooth(in_file,brightness_threshold,usans,fwhm,
@@ -462,7 +545,8 @@ def mod_despike(in_file, do_despike):
     out_file=in_file
     if do_despike:
         from nipype.interfaces.afni import Despike
-        ds = Despike(in_file=in_file)
+        from nipype.utils.filemanip import fname_presuffix
+        ds = Despike(in_file=in_file,out_file=fname_presuffix(in_file,'','_despike'))
         out_file = ds.run().outputs.out_file
     return out_file
 

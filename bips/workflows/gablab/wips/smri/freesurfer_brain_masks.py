@@ -30,7 +30,7 @@ class config(HasTraits):
     base_dir = Directory(os.path.abspath('.'),mandatory=True, desc='Base directory of data. (Should be subject-independent)')
     sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
     crash_dir = Directory(mandatory=False, desc="Location to store crash files")
-    surf_dir = Directory(desc='Freesurfer subjects dir')
+    surf_dir = Directory(os.environ['SUBJECTS_DIR'],desc='Freesurfer subjects dir')
     save_script_only = traits.Bool(False)
     
     # Execution
@@ -106,7 +106,7 @@ def pickaparc(files):
 
 def create_custom_template(c):
     import nipype.pipeline.engine as pe
-    from nipype.interfaces.ants import BuildTemplate
+    #from nipype.interfaces.ants import BuildTemplate
     import nipype.interfaces.io as nio
     import nipype.interfaces.utility as niu
     import nipype.interfaces.freesurfer as fs
@@ -156,6 +156,10 @@ def main(config_file):
     
     if c.use_advanced_options:
         exec c.advanced_script
+
+    from nipype.utils.filemanip import fname_presuffix
+    workflow.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
+
     if c.run_using_plugin:
         workflow.run(plugin=c.plugin, plugin_args=c.plugin_args)
     else:

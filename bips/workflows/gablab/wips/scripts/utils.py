@@ -472,6 +472,7 @@ def get_regexp_substitutions(subject_id, use_fieldmap):
             #('motion/.*dtype', 'motion/%s' % subject_id),
             ('mean/corr.*nii', 'mean/%s_mean.nii' % subject_id),
             ('corr', ''),
+            ('_roi_dtype_out.txt', '.par'),
             ('_roi_dtype_',''),
             ('__','_')
             ]

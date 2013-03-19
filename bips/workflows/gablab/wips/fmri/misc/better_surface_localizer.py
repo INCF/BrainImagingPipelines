@@ -2,6 +2,7 @@ from .....base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool
 import traits.api as traits
 import os
+from .....flexible_datagrabber import Data, DataBase
 
 
 """
@@ -60,13 +61,15 @@ class config(HasTraits):
         desc='Affects whether where and if the workflow keeps its \
                             intermediary files. True to keep intermediary files. ')
     # Data
-    subject_id = traits.String()
-    contrast = traits.File()
-    mask_contrast = traits.File()
+    datagrabber = traits.Instance(Data, ())
+    #subject_id = traits.String()
+    #contrast = traits.File()
+    #mask_contrast = traits.File()
     use_contrast_mask = traits.Bool(True)
-    reg_file = traits.File()
-    mean_image = traits.File()
+    #reg_file = traits.File()
+    #mean_image = traits.File()
     background_thresh = traits.Float(0.5)
+    hemi = traits.List(['lh','rh'])
     roi = traits.List(['superiortemporal','bankssts'],traits.Enum('superiortemporal',
                        'bankssts',
                        'caudalanteriorcingulate',
@@ -104,11 +107,27 @@ class config(HasTraits):
                        'insula'),usedefault=True) #35 freesurfer regions,
     thresh = traits.Float(1.5)
 
+def create_datagrabber_config():
+    dg = Data(['contrast','mask_contrast','reg_file','mean_image'])
+    foo = DataBase()
+    foo.name="subject_id"
+    foo.iterable = True
+    foo.values=["sub01","sub02"]
+    dg.fields = [foo]
+    dg.field_template = dict(contrast='%s/modelfit/contrasts/_estimate_contrast0/zstat01*',
+                             mask_contrast='%s/modelfit/contrasts/_estimage_contrast0/zstat03*',
+                             mean_image = '%s/preproc/mean/*',
+                             reg_file='%s/preproc/reg_file/*')
+    dg.template_args = dict(contrast=[['subject_id']],
+                            mask_contrast=[['subject_id']],
+                            mean_image=[['subject_id']],
+                            reg_file=[['subject_id']])
+    return dg
 
 def create_config():
     c = config()
     c.uuid = mwf.uuid
-
+    c.datagrabber = create_datagrabber_config()
     return c
 
 mwf.config_ui = create_config
@@ -129,11 +148,9 @@ def create_view():
             Item(name='plugin_args', enabled_when="run_using_plugin"),
             Item(name='test_mode'),
             label='Execution Options', show_border=True),
-        Group(Item('subject_id'),
-            Item(name='contrast'),
-            Item(name='mask_contrast'),
+        Group(Item('datagrabber'),
             Item(name='use_contrast_mask'),
-            Item(name='reg_file'), Item(name='mean_image'), Item(name='roi'), Item(name='thresh'), Item('background_thresh'),
+            Item(name='roi'),Item('hemi'), Item(name='thresh'), Item('background_thresh'),
             label='Data', show_border=True),
         buttons=[OKButton, CancelButton],
         resizable=True,
@@ -149,24 +166,30 @@ Construct Workflow
 def get_surface_label(vertex, hemi,subject, overlay, reg, sd, thresh = 2.0):
     import os
     from glob import glob
-    if not os.environ["SUBJECTS_DIR"] == sd:
-        os.environ["SUBJECTS_DIR"] = sd
-    tcl_filename = os.path.abspath('hemi_%s_vertex_%d_subject_%s.tcl'%(hemi,vertex,subject))
     filename = os.path.abspath('%s_label.label'%hemi)
-    tcl = """select_vertex_by_vno %d
-mark_vertex %d on
-redraw
-puts "selected vertex"
-fill_flood_from_cursor 0 0 0 0 1 0 1 argument
-redraw
-labl_save label1 %s
-exit"""%(vertex, vertex, filename)
-    a = open(tcl_filename,'w')
-    a.write(tcl)
-    a.close()
-    cmd = 'tksurfer %s %s inflated -overlay %s -reg %s -abs -fthresh %s -tcl %s'%(subject, hemi, overlay, reg, thresh, tcl_filename)
-    os.system(cmd)
-    labels = glob(os.path.abspath('*.label'))
+    if vertex is not None:
+        if not os.environ["SUBJECTS_DIR"] == sd:
+            os.environ["SUBJECTS_DIR"] = sd
+        tcl_filename = os.path.abspath('hemi_%s_vertex_%d_subject_%s.tcl'%(hemi,vertex,subject))
+        tcl = """select_vertex_by_vno %d
+    mark_vertex %d on
+    redraw
+    puts "selected vertex"
+    fill_flood_from_cursor 0 0 0 0 1 0 1 argument
+    redraw
+    labl_save label1 %s
+    exit"""%(vertex, vertex, filename)
+        a = open(tcl_filename,'w')
+        a.write(tcl)
+        a.close()
+        cmd = 'tksurfer %s %s inflated -overlay %s -reg %s -abs -fthresh %s -tcl %s'%(subject, hemi, overlay, reg, thresh, tcl_filename)
+        os.system(cmd)
+        labels = glob(os.path.abspath('*.label'))
+    else:
+        #a = open(filename,'w')
+        #a.close()
+        filename = None
+        labels = []
     return filename, labels
 
 def get_vertices(sub,sd,overlay,reg,mean,hemi,roi=['superiortemporal'],thresh=1.5):
@@ -178,21 +201,27 @@ def get_vertices(sub,sd,overlay,reg,mean,hemi,roi=['superiortemporal'],thresh=1.
     os.system(cmd)
     img = nib.load(outfile)
     data = np.squeeze(img.get_data())
-    datax = (np.abs(data) > thresh).astype(int)
+    datax = (data > thresh).astype(int) #matrix of 0's and 1's
     values = nib.freesurfer.read_annot('%s/label/%s.aparc.annot'%(os.path.join(sd,sub),hemi))
-    names = values[2]
+    names = np.asarray(values[2])
     for i, ro in enumerate(roi):
-        names_idx = np.asarray(range(len(names)))[np.asarray(names)==ro]
-        names_idx = names_idx[0]
-        idxs = np.asarray(range(0,img.shape[0]))
+        names_idx = np.nonzero(names==ro)[0][0]
+        #idxs = np.asarray(range(0,img.shape[0]))
+        print ro, names_idx
         if not i:
             foo = (np.asarray(values[0]) == names_idx).astype(int)
         else:
-            foo += (np.asarray(values[0]) == names_idx).astype(int)
-  
-    valid_idxs = idxs[(datax + foo) ==len(roi)]
-    goo = data[(foo + datax)==len(roi)]
-    return int(valid_idxs[np.argmax(goo)])
+            foo += (np.asarray(values[0]) == names_idx).astype(int) #foo has all the vertices in the ROI
+    
+    valid_idxs = np.nonzero((datax + foo) == 2)[0] #valid idxs are the indices where data > threshold and data in rois
+    print "number of valid indices:", len(valid_idxs)
+    if not len(valid_idxs):
+        maxz = np.max(data[foo])
+        print "max score:", maxz, "threshold: ", thresh
+        return None 
+        #raise Exception('Your threshold is too high! Thresh = %2.2f, Max Z = %2.2f'%(thresh,maxz))
+    print "max score:", np.max(data[valid_idxs])
+    return int(valid_idxs[np.argmax(data[valid_idxs])])
 
 def mask_overlay(mask,overlay,use_mask_overlay, thresh):
     import os
@@ -234,6 +263,35 @@ def shorty(in_file):
     os.system(cmd)
     return out_file
 
+
+def labelvol(subjects_dir,template_file,reg_file,label_file):
+    import nipype.interfaces.freesurfer as fs
+    import nibabel as nib
+    import numpy as np
+    import os
+    labelfiles = [l for l in label_file if l is not None]
+    print labelfiles
+    if labelfiles:
+        node = fs.Label2Vol()
+        node.inputs.subjects_dir = subjects_dir
+        node.inputs.template_file = template_file
+        node.inputs.reg_file = reg_file
+        node.inputs.label_file = labelfiles
+        res = node.run()
+        vol_label_file = res.outputs.vol_label_file
+
+    else: # totally empty in L and R hemis
+        print "making empty volume"
+        img = nib.load(template_file)
+        aff =img.get_affine()
+        empty = np.zeros(img.shape)
+        out = nib.Nifti1Image(empty,affine = aff)
+        vol_label_file = os.path.abspath('empty.nii.gz')
+        out.to_filename(vol_label_file)
+
+    return vol_label_file
+
+
 def localizer(name='localizer'):
     import nipype.interfaces.freesurfer as fs
     import nipype.interfaces.fsl as fsl
@@ -246,6 +304,7 @@ def localizer(name='localizer'):
                                                       "overlay",
                                                       'reg',
                                                       'mean',
+                                                      'hemi',
                                                       'thresh',
                                                       'roi',
                                                       "mask_overlay",
@@ -260,7 +319,8 @@ def localizer(name='localizer'):
                                       output_names=['filename','labels'],
                                       function=get_surface_label),
         name='get_surface_label', iterfield=['hemi','vertex'])
-    surf_label.inputs.hemi=['lh','rh']
+    #surf_label.inputs.hemi=['lh','rh']
+    wf.connect(inputspec,'hemi',surf_label,'hemi')
     #surf_label.inputs.vertex = [61091, 60437]
     #surf_label.inputs.thresh = 1.5
 
@@ -285,7 +345,13 @@ def localizer(name='localizer'):
     #wf.connect(inputspec,"overlay",surf_label,"overlay")
     wf.connect(inputspec,"reg",surf_label,"reg")
 
-    label2vol = pe.Node(fs.Label2Vol(),name='labels2vol')
+    label2vol = pe.Node(niu.Function(input_names=['subjects_dir',
+                                                  'template_file',
+                                                  'reg_file',
+                                                  'label_file'],
+                                     output_names=['vol_label_file'],
+                                     function=labelvol),
+                        name='labels2vol')
     wf.connect(inputspec,'subjects_dir',label2vol,'subjects_dir')
     wf.connect(inputspec,'mean',label2vol,'template_file')
     wf.connect(inputspec,'reg',label2vol,'reg_file')
@@ -302,7 +368,8 @@ def localizer(name='localizer'):
                                  output_names=['vertex'],
                                  function=get_vertices),
         name='get_verts',iterfield=['hemi'])
-    verts.inputs.hemi = ['lh','rh']
+    #verts.inputs.hemi = ['lh','rh']
+    wf.connect(inputspec,'hemi',verts,'hemi')
     wf.connect(inputspec,'subject_id',verts,'sub')
     wf.connect(inputspec,'subjects_dir',verts,'sd')
     #wf.connect(inputspec,'overlay',verts,'overlay')
@@ -340,7 +407,7 @@ def localizer(name='localizer'):
 
     wf.connect(studyref,'study_ref', outputspec, 'study_ref')
     bin = pe.Node(fsl.ImageMaths(op_string = '-bin'),name="binarize_roi")
-    changetype = pe.Node(fsl.ChangeDataType(output_datatype='short'),name='to_short')
+    changetype = pe.Node(fsl.ChangeDataType(output_datatype='short',output_type='NIFTI'),name='to_short')
 
     wf.connect(bg,'outfile',do_bg_mask,"in_file")
     wf.connect(do_bg_mask,("out_file",shorty), outputspec,'reference')
@@ -357,7 +424,10 @@ def get_substitutions(subject_id):
             ('_get_surface_label0/','%s_'%subject_id),
             ('_get_surface_label1/','%s_'%subject_id),
             ('lh_label_vol_maths_chdt.nii','%s_roi.nii'%subject_id),
+            ('rh_label_vol_maths_chdt.nii','%s_roi.nii'%subject_id),
+            ('empty_maths_chdt.nii','%s_empty_roi.nii'%subject_id),
             ('background_masked','%s_background'%subject_id),
+            ('_subject_id_%s'%subject_id,''),
             ('study_ref','%s_study_ref'%subject_id)]
     return subs
 
@@ -381,22 +451,31 @@ def main(config_file):
     wk.connect(outputspec,'reference', sinker,'mask.@ref')
     wk.connect(outputspec,'study_ref', sinker,'xfm.@studyref')
     wk.connect(outputspec,'labels',sinker,'mask.@labels')
-    sinker.inputs.container = c.subject_id
-    sinker.inputs.substitutions = get_substitutions(c.subject_id)
 
     sinker.inputs.base_directory = c.sink_dir
-    wk.inputs.inputspec.subject_id = c.subject_id
+    #wk.inputs.inputspec.subject_id = c.subject_id
     wk.inputs.inputspec.subjects_dir = c.surf_dir
-    wk.inputs.inputspec.overlay = c.contrast
-    wk.inputs.inputspec.mean = c.mean_image
-    wk.inputs.inputspec.reg = c.reg_file
+    #wk.inputs.inputspec.overlay = c.contrast
+    #wk.inputs.inputspec.mean = c.mean_image
+    #wk.inputs.inputspec.reg = c.reg_file
     wk.inputs.inputspec.thresh = c.thresh
     wk.inputs.inputspec.roi = c.roi
-    wk.inputs.inputspec.mask_overlay = c.mask_contrast
+    wk.inputs.inputspec.hemi = c.hemi
+    #wk.inputs.inputspec.mask_overlay = c.mask_contrast
     wk.inputs.inputspec.use_mask_overlay = c.use_contrast_mask
     wk.inputs.inputspec.uthresh = c.background_thresh
     wk.base_dir = c.working_dir
 
+    datagrabber = c.datagrabber.create_dataflow()
+    subject_iterable = datagrabber.get_node("subject_id_iterable")
+    inputspec = wk.get_node('inputspec')
+    wk.connect(subject_iterable,'subject_id',inputspec,'subject_id')
+    wk.connect(datagrabber,'datagrabber.contrast',inputspec,'overlay')
+    wk.connect(datagrabber,'datagrabber.mask_contrast', inputspec,'mask_overlay')
+    wk.connect(datagrabber,'datagrabber.mean_image', inputspec,'mean')
+    wk.connect(datagrabber,'datagrabber.reg_file',inputspec,'reg')
+    wk.connect(subject_iterable,'subject_id',sinker,'container')
+    wk.connect(subject_iterable,('subject_id',get_substitutions),sinker,'substitutions')
     from nipype.utils.filemanip import fname_presuffix
     wk.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
     if c.save_script_only:

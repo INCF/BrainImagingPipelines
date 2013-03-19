@@ -468,6 +468,12 @@ def main(config_file):
         os.environ['SUBJECTS_DIR'] = prep_c.surf_dir
         
     #else:
+
+    from nipype.utils.filemanip import fname_presuffix
+    workflow.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
+    if c.save_script_only:
+        return 0
+
     if c.run_using_plugin:
         workflow.run(plugin=c.plugin, plugin_args=c.plugin_args)
     else:

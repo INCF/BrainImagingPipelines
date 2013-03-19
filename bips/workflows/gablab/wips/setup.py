@@ -16,6 +16,7 @@ def configuration(parent_package='',top_path=None):
     config.add_subpackage('fmri/group_analysis')
     config.add_subpackage('smri')
     config.add_subpackage('scripts')
+    config.add_subpackage('utils')
 
     # List all data directories to be loaded here
     return config

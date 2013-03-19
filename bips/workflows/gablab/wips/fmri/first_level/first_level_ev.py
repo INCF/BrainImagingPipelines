@@ -131,7 +131,7 @@ def create_view():
             Item(name='crash_dir'),
             Item(name='json_sink'),
             label='Directories', show_border=True),
-        Group(Item(name='run_using_plugin'),
+        Group(Item(name='run_using_plugin',enabled_when='save_script_only'),Item('save_script_only'),
             Item(name='plugin', enabled_when="run_using_plugin"),
             Item(name='plugin_args', enabled_when="run_using_plugin"),
             Item(name='test_mode'), Item(name="timeout"),
@@ -198,7 +198,10 @@ def gen_info(run_event_files):
                 name, _ = name.split('.txt')
             runinfo.conditions.append(name)
             event_info = np.loadtxt(event_file)
+            if len(event_info.shape) == 1:
+                event_info = event_info[:,None].T
             runinfo.onsets.append(event_info[:, 0].tolist())
+            
             if event_info.shape[1] > 1:
                 runinfo.durations.append(event_info[:, 1].tolist())
             else:
@@ -454,6 +457,12 @@ def main(config_file):
 
     if c.test_mode:
         first_level.write_graph()
+
+
+    from nipype.utils.filemanip import fname_presuffix
+    first_level.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
+    if c.save_script_only:
+        return 0
 
     if c.run_using_plugin:
         first_level.run(plugin=c.plugin, plugin_args = c.plugin_args)

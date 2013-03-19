@@ -14,13 +14,6 @@ This is documentation
         :maxdepth: 1
         :glob:
         
-        interfaces/generated/bips.workflows.workflow*
+        interfaces/generated/bips.workflows*
             
-  .. admonition:: Scripts         
-       
-     .. toctree::
-        :maxdepth: 1
-        :glob:
-       
-        interfaces/generated/bips.workflows.scripts.*
            

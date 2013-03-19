@@ -74,7 +74,7 @@ def create_view():
             Item(name='crash_dir'),
             Item(name='surf_dir'),
             label='Directories', show_border=True),
-        Group(Item(name='run_using_plugin'),
+        Group(Item(name='run_using_plugin',enabled_when='not save_script_only'), Item('save_script_only'),
             Item(name='plugin', enabled_when="run_using_plugin"),
             Item(name='plugin_args', enabled_when="run_using_plugin"),
             Item(name='test_mode'), Item(name="timeout"),
@@ -182,9 +182,10 @@ def divide_wf(c):
         return subs
 
     wf.connect(inputnode,("subject_id",get_subs),sinker,"substitutions")
-
-    wf.connect(divide_n,"out_annot",sinker,"divided_annotations")
-
+    try:
+        wf.connect(divide_n,"out_annot",sinker,"divided_annotations")
+    except:
+        print "Need some files!"
     return wf
 
 mwf.workflow_function = divide_wf
@@ -205,6 +206,12 @@ def main(config_file):
 
     if c.use_advanced_options:
         exec c.advanced_script
+
+    from nipype.utils.filemanip import fname_presuffix
+    workflow.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
+    if c.save_script_only:
+        return 0
+
     if c.run_using_plugin:
         workflow.run(plugin=c.plugin, plugin_args=c.plugin_args)
     else:

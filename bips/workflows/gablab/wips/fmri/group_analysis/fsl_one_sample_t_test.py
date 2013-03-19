@@ -103,7 +103,7 @@ def create_view():
                       Item(name='sink_dir'),
                       Item(name='crash_dir'),
                       label='Directories', show_border=True),
-                Group(Item(name='run_using_plugin'),
+                Group(Item(name='run_using_plugin',enabled_when='save_script_only'),Item('save_script_only'),
                       Item(name='plugin', enabled_when="run_using_plugin"),
                       Item(name='plugin_args', enabled_when="run_using_plugin"),
                       Item(name='test_mode'), Item(name='timeout'),
@@ -350,6 +350,10 @@ def main(config_file):
         wk.write_graph()
     if c.use_advanced_options:
         exec c.advanced_script
+
+    from nipype.utils.filemanip import fname_presuffix
+    wk.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
+
     if c.run_using_plugin:
         wk.run(plugin=c.plugin,plugin_args=c.plugin_args)
     else:

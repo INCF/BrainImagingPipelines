@@ -1,20 +1,22 @@
-from ....base import MetaWorkflow, load_config, register_workflow
+from .....base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool
 import traits.api as traits
-from ..scripts.smri_utils import fs_segment
-
+from .....flexible_datagrabber import Data, DataBase
 """
 Part 1: Define a MetaWorkflow
 """
 
 desc = """
-Kelly Kapowski
-================
+Apply BBreg Transforms
+======================
+
+This workflow will apply bbreg transforms in the directory of your input files
 """
 mwf = MetaWorkflow()
-mwf.uuid = '3c274ab2fc4c11e1a04700259080ab1a'
-mwf.tags = ['ANTS','cortical thickness']
-mwf.script_dir = 'u0a14c5b5899911e1bca80023dfa375f2'
+mwf.uuid = '0d500ebe715d11e2af0c00259080ab1a'
+mwf.tags = ['task','fMRI','preprocessing','anatomical', 'resting','apply reg']
+mwf.uses_outputs_of = ['63fcbb0a890211e183d30023dfa375f2','7757e3168af611e1b9d5001e4fb1404c']
+mwf.script_dir = 'fmri'
 mwf.help = desc
 
 """
@@ -27,8 +29,6 @@ class config(HasTraits):
     desc = traits.Str(desc='Workflow description')
     # Directories
     working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
-    base_dir = Directory(exists=True, desc='Base directory of data. (Should be subject-independent)')
-    sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
     crash_dir = Directory(mandatory=False, desc="Location to store crash files")
     surf_dir = Directory(mandatory=True, desc= "Freesurfer subjects directory")
     save_script_only = traits.Bool(False)
@@ -40,11 +40,9 @@ class config(HasTraits):
         desc="plugin to use, if run_using_plugin=True")
     plugin_args = traits.Dict({"qsub_args": "-q many"},
         usedefault=True, desc='Plugin arguments.')
-    test_mode = Bool(False, mandatory=False, usedefault=True,
-        desc='Affects whether where and if the workflow keeps its \
-                            intermediary files. True to keep intermediary files. ')
-    # Sub
-    subjects = traits.List(traits.Str)
+    # Subjects
+    interpolation = traits.Enum('trilin','nearest',usedefault=True)
+    datagrabber = traits.Instance(Data, ())
     # Advanced Options
     use_advanced_options = traits.Bool()
     advanced_script = traits.Code()
@@ -53,6 +51,14 @@ def create_config():
     c = config()
     c.uuid = mwf.uuid
     c.desc = mwf.help
+    c.datagrabber = Data(['input_files','reg'])
+    sub = DataBase()
+    sub.name="subject_id"
+    sub.values=[]
+    sub.iterable=True
+    c.datagrabber.fields.append(sub)
+    c.datagrabber.field_template = dict(input_files='%s/preproc/mean/*',reg='%s/preproc/bbreg/*.dat')
+    c.datagrabber.template_args = dict(input_files=[['subject_id']],reg=[['subject_id']])
     return c
 
 mwf.config_ui = create_config
@@ -62,22 +68,20 @@ Part 3: Create a View
 """
 
 def create_view():
-    from traitsui.api import View, Item, Group, CSVListEditor
+    from traitsui.api import View, Item, Group
     from traitsui.menu import OKButton, CancelButton
     view = View(Group(Item(name='uuid', style='readonly'),
         Item(name='desc', style='readonly'),
         label='Description', show_border=True),
         Group(Item(name='working_dir'),
-            Item(name='sink_dir'),
             Item(name='crash_dir'),
             Item('surf_dir'),
             label='Directories', show_border=True),
         Group(Item(name='run_using_plugin',enabled_when='not save_script_only'),Item('save_script_only'),
             Item(name='plugin', enabled_when="run_using_plugin"),
             Item(name='plugin_args', enabled_when="run_using_plugin"),
-            Item(name='test_mode'),
             label='Execution Options', show_border=True),
-        Group(Item(name='subjects', editor=CSVListEditor()),
+        Group(Item(name='datagrabber'),Item('interpolation'),
             label='Subjects', show_border=True),
         Group(Item(name='use_advanced_options'),
             Item(name='advanced_script',enabled_when='use_advanced_options'),
@@ -93,74 +97,45 @@ mwf.config_view = create_view
 Part 4: Workflow Construction
 """
 
-tolist = lambda x: [x]
-
-def run_kelly(in_file):
+def to_anat(img,reg,subid,surf_dir,interp='trilin'):
     import os
-    outfile = os.path.abspath('kellyk_cortical_thickness.nii.gz')
-    cmd = 'KellyKapowski -d 3 -s [%s,2,3] -o %s'%(in_file,outfile)
+    from nipype.utils.filemanip import fname_presuffix
+
+    outfile = fname_presuffix(img,'','_anat')
+    sd = surf_dir
+    cmd = 'mri_vol2vol --mov %s --targ %s --out %s --reg %s --interp %s'%(img,os.path.join(sd,subid,'mri','orig.mgz'),outfile,reg,interp)
+
     print cmd
     os.system(cmd)
     return outfile
 
-def kellyk(c):
-    import nipype.interfaces.io as nio
-    import nipype.interfaces.utility as niu
+def quick_transform(c):
     import nipype.pipeline.engine as pe
-    import nipype.interfaces.fsl as fsl
+    import nipype.interfaces.utility as niu
+    
+    datagrabber = c.datagrabber.create_dataflow()
+    xform = pe.MapNode(niu.Function(input_names=['img','reg','subid','surf_dir','interp'],
+                                    output_names=['outfile'],function=to_anat),name='to_anat',iterfield=['img'])
 
-    wf = pe.Workflow(name="KellyKapowski")
+    wf = pe.Workflow(name='fmri_extras')
+    infosource = datagrabber.get_node('subject_id_iterable')
 
-    infosource  = pe.Node(niu.IdentityInterface(fields=["subject_id"]),name="subjects")
-    infosource.iterables = ("subject_id", c.subjects)
+    wf.connect(datagrabber,'datagrabber.input_files',xform,'img')
+    wf.connect(datagrabber,'datagrabber.reg',xform,'reg')
+    wf.connect(infosource,'subject_id',xform,'subid')
 
-    seg = fs_segment()
-    wf.connect(infosource,"subject_id",seg,"inputspec.subject_id")
-    seg.inputs.inputspec.subjects_dir = c.surf_dir
-
-    combine = pe.Node(fsl.MultiImageMaths(op_string='-mul 1.5 -add %s -mul 2'),name="add23")
-    wf.connect(seg,'outputspec.wm', combine,'in_file')
-    wf.connect(seg,('outputspec.gm',tolist), combine, 'operand_files')
-
-    #kelly = pe.Node(niu.Function(input_names=['in_file'],output_names=['outfile'],function=run_kelly),name='kellyk')
-
-    sink = pe.Node(nio.DataSink(),name="sinker")
-    def get_subs(subject_id):
-        subs = []
-        subs.append(('_subject_id_%s/'%subject_id,'%s_'%subject_id))
-        return subs
-
-    wf.connect(infosource,"subject_id",sink,"container")
-    sink.inputs.base_directory = c.sink_dir
-    wf.connect(infosource,("subject_id",get_subs),sink,'substitutions')
-    wf.connect(combine,"out_file",sink,"kellykapowski.segment")
-    #wf.connect(kelly,'outfile',sink,'kellykapowski')
-
+    xform.inputs.surf_dir = c.surf_dir
+    xform.inputs.interp = c.interpolation
+    
     return wf
 
-mwf.workflow_function = kellyk
-
-"""
-Part 5: Define the main function
-"""
+mwf.workflow_function = quick_transform
 
 def main(config_file):
-    """Runs preprocessing QA workflow
 
-Parameters
-----------
-
-config_file : String
-              Filename to .json file of configuration parameters for the workflow
-
-"""
-    c = load_config(config_file, create_config)
-
-    a = kellyk(c)
+    c = load_config(config_file,create_config)
+    a = quick_transform(c)
     a.base_dir = c.working_dir
-
-    if c.test_mode:
-        a.write_graph()
 
     a.config = {'execution' : {'crashdump_dir' : c.crash_dir, 'job_finished_timeout' : 14}}
 
@@ -168,10 +143,12 @@ config_file : String
         exec c.advanced_script
 
     from nipype.utils.filemanip import fname_presuffix
+
+    from nipype.utils.filemanip import fname_presuffix
     a.export(fname_presuffix(config_file,'','_script_').replace('.json',''))
+
     if c.save_script_only:
         return 0
-
 
     if c.run_using_plugin:
         a.run(plugin=c.plugin,plugin_args=c.plugin_args)
@@ -180,8 +157,5 @@ config_file : String
 
 mwf.workflow_main_function = main
 
-"""
-Part 6: Register the Workflow
-"""
-
 register_workflow(mwf)
+
