@@ -466,7 +466,20 @@ def combine_table(roidev,roisnr,imagetable):
 
 
     return imagetable
-    
+
+
+
+def reduce_table(imagetable,custom_LUT_file):
+    import numpy as np
+    custom_LUT = np.genfromtxt(custom_LUT_file,dtype = str)
+    custom_roinames = custom_LUT[:,1]
+    reduced_imagetable = [['ROI','Timeseries','Spectra']]
+    for i, roi in enumerate(imagetable[1:]):
+        roi_label = imagetable[i+1][0].split("\n")[0]
+        if roi_label in custom_roinames:
+            reduced_imagetable.append(imagetable[i+1])
+    return reduced_imagetable
+ 
 def plot_motion(motion_parameters):
     import matplotlib.pyplot as plt
     import matplotlib
