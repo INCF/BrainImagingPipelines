@@ -245,10 +245,11 @@ def spm_realign(in_file,tr,do_slicetime,sliceorder,order="motion_slicetime"):
 def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
                 parameters={}):
     from bips.workflows.gablab.wips.scripts.modular_nodes import spm_realign, fsl_realign, afni_realign
-    import nipype.interfaces.nipy as nipy
 
     keys=parameters.keys()
     if node=="nipy":
+        import nipype.interfaces.nipy as nipy
+        import numpy as np
         realign = nipy.FmriRealign4d()
         realign.inputs.in_file = in_file
         realign.inputs.tr = tr
@@ -259,7 +260,7 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
         if "between_loops" in keys:
             realign.inputs.between_loops = parameters["between_loops"]
         if do_slicetime:
-            realign.inputs.slice_order = sliceorder
+            realign.inputs.slice_order = np.argsort(sliceorder).tolist()
             realign.inputs.time_interp = True
 
         res = realign.run()

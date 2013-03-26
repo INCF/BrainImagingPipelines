@@ -111,7 +111,7 @@ def otherfunc(roifiles,subjects):
     first = np.recfromcsv(roifiles[0])
     numcons = len(first.dtype.names)-1
     roinames = ["subject_id"]+first["roi"].tolist()
-    formats = ['a10']+['f4' for f in roinames[1:]]
+    formats = ['a20']+['f4' for f in roinames[1:]]
     confiles = []
     for con in range(0,numcons):
         recarray = np.zeros(len(roifiles),dtype={'names':roinames,"formats":formats})

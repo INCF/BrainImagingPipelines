@@ -311,6 +311,17 @@ def display_workflow_info(uuid):
 def query_workflows(query_str):
     pass
 
+def save_config(config,path=os.path.abspath('config.json')):
+    data = config.get()
+    d = {}
+    for key, item in data.iteritems():
+        if isinstance(item,Data):
+            d[key] = item.get_fields()
+        else:
+            d[key] = item
+    save_json(filename=path,data=d)
+    return path
+
 def debug_workflow(workflow):
     from traitsui.menu import OKButton, CancelButton
     names=workflow.list_node_names()

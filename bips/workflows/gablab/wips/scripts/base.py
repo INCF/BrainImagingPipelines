@@ -235,7 +235,7 @@ def create_prep(name='preproc'):
     #                         iterfield=['in_file'])
 
     # rapidArt for artifactual timepoint detection
-    ad = pe.Node(ra.ArtifactDetect(),
+    ad = pe.Node(ra.ArtifactDetect(save_plot=False),
                  name='artifactdetect')
 
     # extract the mean volume if the first functional run

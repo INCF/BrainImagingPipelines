@@ -3,6 +3,7 @@ import os
 import tempfile
 from tools.interfacedocgen import help
 from nipype.utils.misc import trim
+from bips.workflows.base import save_config
 
 base_dir = os.path.abspath('doc/workflows/generated')
 
@@ -62,7 +63,9 @@ for wf in workflows:
 
     foo.write(config)
     cls = mwf.config_ui()
-
+    jsonname = 'doc/configs/%s.txt'%uuid
+    jsonname = save_config(cls,jsonname)
+    foo.write(""":download:`download <../../configs/%s>`\n\n"""%(os.path.split(jsonname)[1]))
     foo.write(trim(help(cls,True))+'\n')
 
     (_,graphname) =  tempfile.mkstemp(suffix=".dot")

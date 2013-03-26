@@ -172,7 +172,7 @@ if __name__ == "__main__":
     dg = a.create_dataflow()
     d = a.get_fields()
     from nipype.utils.filemanip import save_json
-    from bips.workflows.base import load_json
+    from .bips.workflows.base import load_json
     save_json("test.json",d)
     foo = load_json("test.json")
     b = Data()

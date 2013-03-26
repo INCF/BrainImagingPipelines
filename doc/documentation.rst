@@ -14,6 +14,6 @@ This is documentation
         :maxdepth: 1
         :glob:
         
-        interfaces/generated/bips.workflows*
+        interfaces/generated/bips.workflows.*
             
            
