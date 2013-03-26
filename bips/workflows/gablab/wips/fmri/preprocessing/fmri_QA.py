@@ -68,6 +68,8 @@ class config(HasTraits):
         desc="plugin to use, if run_using_plugin=True")
     plugin_args = traits.Dict({"qsub_args": "-q many"},
         usedefault=True, desc='Plugin arguments.')
+    use_custom_ROI_list_file = Bool(False, usedefault=True, desc="True to limit the produced TSNR table to a more selective list of ROIs")
+    custom_ROI_list_file = traits.File(desc="Enter the full path to your customized FreeSurferColorLUT.txt")
     test_mode = Bool(False, mandatory=False, usedefault=True,
         desc='Affects whether where and if the workflow keeps its \
                             intermediary files. True to keep intermediary files. ')
@@ -109,6 +111,7 @@ def create_view():
         Group(Item(name='run_using_plugin',enabled_when='not save_script_only'),Item('save_script_only'),
             Item(name='plugin', enabled_when="run_using_plugin"),
             Item(name='plugin_args', enabled_when="run_using_plugin"),
+            Item(name='use_custom_ROI_list_file'),Item(name='custom_ROI_list_file',enabled_when='use_custom_ROI_list_file'),
             Item(name='test_mode'), Item(name='debug'),
             label='Execution Options', show_border=True),
         Group(Item(name='subjects', editor=CSVListEditor()),
@@ -267,8 +270,18 @@ table : List
 
 """
     table = []
-    table.append(['TR',str(c.TR)])
-    table.append(['Slice Order',str(c.SliceOrder)])
+
+    if not c.use_metadata:
+        table.append(['TR',str(c.TR)])
+        table.append(['Slice Order',str(c.SliceOrder)])
+    else:
+        from .....base import load_json
+        metadata_file = os.path.join(c.sink_dir, c_qa.subjects[0], 'preproc/metadata/metadata.json')
+        meta_so = load_json(metadata_file)["so"]
+        meta_tr = load_json(metadata_file)["tr"]
+        table.append(['TR',str(meta_tr)])
+        table.append(['Slice Order',str(meta_so)])
+
     table.append(['Realignment algorithm',c.motion_correct_node])
     if c.use_fieldmap:
         table.append(['Echo Spacing',str(c.echospacing)])
@@ -280,7 +293,7 @@ table : List
     table.append(['fwhm',str(c.fwhm)])
     table.append(['highpass freq',str(c.highpass_freq)])
     table.append(['lowpass freq',str(c.lowpass_freq)])
-    table.append(['A-compcor, T-compcor',str(c.compcor_select)])
+    table.append(['T-compcor, A-compcor',str(c.compcor_select)])
     return table
 
 # Workflow construction function should only take in 1 arg.
@@ -323,6 +336,7 @@ def QA_workflow(QAc,c=foo, name='QA'):
                                                                     tsdiffana,
                                                                     tsnr_roi,
                                                                     combine_table,
+                                                                    reduce_table,
                                                                     art_output,
                                                                     plot_motion,
                                                                     plot_ribbon,
@@ -356,6 +370,7 @@ def QA_workflow(QAc,c=foo, name='QA'):
         infosource.iterables = ('subject_id', [QAc.subjects[0]])
     else:
         infosource.iterables = ('subject_id', QAc.subjects)
+
     
     datagrabber = preproc_datagrabber(c)
     
@@ -378,7 +393,14 @@ def QA_workflow(QAc,c=foo, name='QA'):
     workflow.connect(datagrabber, ('tsnr_detrended',sort), inputspec, 'tsnr_detrended')
     workflow.connect(datagrabber, ('art_norm',sort), inputspec, 'ADnorm')
     
-    inputspec.inputs.TR = c.TR
+    if not c.use_metadata:
+        inputspec.inputs.TR = c.TR
+    else:
+        from .....base import load_json
+        metadata_file = os.path.join(c.sink_dir, QAc.subjects[0], 'preproc/metadata/metadata.json')
+        meta_tr = load_json(metadata_file)["tr"]
+        inputspec.inputs.TR = meta_tr
+
     inputspec.inputs.sd = c.surf_dir
     
     # Define Nodes
@@ -419,9 +441,24 @@ def QA_workflow(QAc,c=foo, name='QA'):
     plotmask = plotanat.clone('plot_mask')
     workflow.connect(datagrabber,'mask', plotmask,'brain')
     roidevplot = tsnr_roi(plot=False,name='tsnr_stddev_roi',roi=['all'],onsets=False)
-    roidevplot.inputs.inputspec.TR = c.TR
+
+    if not c.use_metadata:
+        roidevplot.inputs.inputspec.TR = c.TR
+    else:
+        from .....base import load_json
+        metadata_file = os.path.join(c.sink_dir, QAc.subjects[0], 'preproc/metadata/metadata.json')
+        meta_tr = load_json(metadata_file)["tr"]
+        roidevplot.inputs.inputspec.TR = meta_tr
+
     roisnrplot = tsnr_roi(plot=False,name='SNR_roi',roi=['all'],onsets=False)
-    roisnrplot.inputs.inputspec.TR = c.TR
+
+    if not c.use_metadata:
+        roisnrplot.inputs.inputspec.TR = c.TR
+    else:
+        from .....base import load_json
+        metadata_file = os.path.join(c.sink_dir, QAc.subjects[0], 'preproc/metadata/metadata.json')
+        meta_tr = load_json(metadata_file)["tr"]
+        roisnrplot.inputs.inputspec.TR = meta_tr
     
     workflow.connect(fssource, ('aparc_aseg', pickfirst), roisnrplot, 'inputspec.aparc_aseg')
     workflow.connect(fssource, ('aparc_aseg', pickfirst), roidevplot, 'inputspec.aparc_aseg')
@@ -436,7 +473,13 @@ def QA_workflow(QAc,c=foo, name='QA'):
                                          output_names = ['imagetable'],
                                          function = combine_table),
                            name='combinetable', iterfield=['roidev','roisnr','imagetable'])
+
     
+    tablereduce = pe.MapNode(util.Function(input_names = ['imagetable',
+                                                       'custom_LUT_file'],
+                                         output_names = ['reduced_imagetable'],
+                                         function = reduce_table),
+                           name='reducetable', iterfield=['imagetable'])
     
     
     adnormplot = pe.MapNode(util.Function(input_names = ['ADnorm','TR','norm_thresh','out'], 
@@ -475,8 +518,16 @@ def QA_workflow(QAc,c=foo, name='QA'):
     workflow.connect(inputspec,'reg_file', timeseries_segstats,'inputspec.reg_file')
     workflow.connect(infosource, 'subject_id', timeseries_segstats, 'inputspec.subject')
     workflow.connect(fssource, ('aparc_aseg', pickfirst), timeseries_segstats, 'inputspec.aparc_aseg')
-    timeseries_segstats.inputs.inputspec.TR = c.TR
-    ts_and_spectra.inputs.inputspec.tr = c.TR
+
+    if not c.use_metadata:
+        timeseries_segstats.inputs.inputspec.TR = c.TR
+        ts_and_spectra.inputs.inputspec.tr = c.TR
+    else:
+        from .....base import load_json
+        metadata_file = os.path.join(c.sink_dir, QAc.subjects[0], 'preproc/metadata/metadata.json')
+        meta_tr = load_json(metadata_file)["tr"]
+        timeseries_segstats.inputs.inputspec.TR = meta_tr
+        ts_and_spectra.inputs.inputspec.tr = meta_tr
 
     workflow.connect(timeseries_segstats,'outputspec.roi_file',ts_and_spectra, 'inputspec.stats_file')
 
@@ -534,7 +585,14 @@ def QA_workflow(QAc,c=foo, name='QA'):
     workflow.connect(inputspec,'reg_file',roisnrplot,'inputspec.reg_file')
     workflow.connect(inputspec,'tsnr',roisnrplot,'inputspec.tsnr_file')
     workflow.connect(roisnrplot,'outputspec.roi_table',tablecombine,'roisnr')
-    workflow.connect(tablecombine, ('imagetable',to1table), write_rep, 'tsnr_roi_table')
+
+    if QAc.use_custom_ROI_list_file:
+        workflow.connect(tablecombine, 'imagetable', tablereduce, 'imagetable')
+        tablereduce.inputs.custom_LUT_file = QAc.custom_ROI_list_file
+        workflow.connect(tablereduce, ('reduced_imagetable',to1table), write_rep, 'tsnr_roi_table')
+    else:
+        workflow.connect(tablecombine, ('imagetable',to1table), write_rep, 'tsnr_roi_table')
+
     workflow.connect(inputspec,'ADnorm',adnormplot,'ADnorm')
     workflow.connect(adnormplot,'plot',write_rep,'ADnorm')
     workflow.connect(fssource,'orig',convert,'in_file')
