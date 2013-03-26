@@ -150,7 +150,7 @@ def create_view():
 mwf.config_view = create_view
 
 def create_html_view():
-    from bips.workflows.flexible_datagrabber import create_datagrabber_html_view
+    from .....flexible_datagrabber import create_datagrabber_html_view
     import colander
     import deform
     from colander import SchemaNode as sn

@@ -192,10 +192,13 @@ def gen_info(run_event_files):
         runinfo = Bunch(conditions=[], onsets=[], durations=[], amplitudes=[],tmod=None, pmod=None, regressor_names=None, regressors=None)
         for event_file in event_files:
             _, name = os.path.split(event_file)
-            if '.run' in name:
-                name, _ = name.split('.run%03d'%(i+1))
-            elif '.txt' in name:
+            if name.endswith('.txt'):
                 name, _ = name.split('.txt')
+            
+            if '.run' in name:
+                name, _ = name.split('.run')
+            #elif '.txt' in name:
+            #    name, _ = name.split('.txt')
             runinfo.conditions.append(name)
             event_info = np.loadtxt(event_file)
             if len(event_info.shape) == 1:

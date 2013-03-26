@@ -222,7 +222,18 @@ def convert_dicoms(sid, dicom_dir_template, outputdir, queue=None, heuristic_fun
             os.system(convertcmd)
         else:
             import numpy as np
-            from bips.workflows.workflow19 import isMoco
+            def isMoco(dcmfile):
+                """Determine if a dicom file is a mocoseries
+                """
+                import subprocess
+                print dcmfile
+                cmd = ['mri_probedicom', '--i', dcmfile, '--t', '8', '103e']
+                proc  = subprocess.Popen(cmd,
+                                         stdout=subprocess.PIPE,
+                                         stderr=subprocess.PIPE)
+                stdout, stderr = proc.communicate()
+                return stdout.strip().startswith('MoCoSeries')
+
             foo = np.genfromtxt(os.path.join(tdir,'dicominfo.txt'),dtype=str)
             for f in foo:
                 if not isMoco(glob(os.path.join(sdir,f[1]))[0]):

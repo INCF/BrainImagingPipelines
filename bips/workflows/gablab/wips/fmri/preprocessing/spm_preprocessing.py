@@ -59,6 +59,7 @@ class config(HasTraits):
 
     do_slicetiming = Bool(True, usedefault=True, desc="Perform slice timing correction")
     SliceOrder = traits.List(traits.Int)
+    order = traits.Enum('motion_slicetime','slicetime_motion',use_default=True)
     TR = traits.Float(mandatory=True, desc = "TR of functional")
     motion_correct_node = traits.Enum('nipy','fsl','spm','afni',
         desc="motion correction algorithm to use",
@@ -124,7 +125,7 @@ def create_view():
             label='Subjects', show_border=True),
         Group(Item(name="motion_correct_node"),
             Item(name='TR'),
-            Item(name='do_slicetiming'),
+            Item(name='do_slicetiming'),Item('order'),
             Item(name='SliceOrder', editor=CSVListEditor()),
             label='Motion Correction', show_border=True),
         Group(Item('csf_prob'),
@@ -182,61 +183,19 @@ def do_symlink(in_file):
     return out_link
 
 def create_spm_preproc(c, name='preproc'):
-    """Create an spm preprocessing workflow with freesurfer registration and
-artifact detection.
-
-The workflow realigns and smooths and registers the functional images with
-the subject's freesurfer space.
-
-Example
--------
-
->>> preproc = create_spm_preproc()
->>> preproc.base_dir = '.'
->>> preproc.inputs.inputspec.fwhm = 6
->>> preproc.inputs.inputspec.subject_id = 's1'
->>> preproc.inputs.inputspec.subjects_dir = '.'
->>> preproc.inputs.inputspec.functionals = ['f3.nii', 'f5.nii']
->>> preproc.inputs.inputspec.norm_threshold = 1
->>> preproc.inputs.inputspec.zintensity_threshold = 3
-
-Inputs::
-
-inputspec.functionals : functional runs use 4d nifti
-inputspec.subject_id : freesurfer subject id
-inputspec.subjects_dir : freesurfer subjects dir
-inputspec.fwhm : smoothing fwhm
-inputspec.norm_threshold : norm threshold for outliers
-inputspec.zintensity_threshold : intensity threshold in z-score
-
-Outputs::
-
-outputspec.realignment_parameters : realignment parameter files
-outputspec.smoothed_files : smoothed functional files
-outputspec.outlier_files : list of outliers
-outputspec.outlier_stats : statistics of outliers
-outputspec.outlier_plots : images of outliers
-outputspec.mask_file : binary mask file in reference image space
-outputspec.reg_file : registration file that maps reference image to
-freesurfer space
-outputspec.reg_cost : cost of registration (useful for detecting misalignment)
+    """
 """
+
     from nipype.workflows.smri.freesurfer.utils import create_getmask_flow
     import nipype.algorithms.rapidart as ra
     import nipype.interfaces.spm as spm
     import nipype.interfaces.utility as niu
     import nipype.pipeline.engine as pe
     import nipype.interfaces.io as nio
+    import nipype.interfaces.freesurfer as fs
 
-    """
-Initialize the workflow
-"""
 
     workflow = pe.Workflow(name=name)
-
-    """
-Define the inputs to this workflow
-"""
 
     inputnode = pe.Node(niu.IdentityInterface(fields=['functionals',
                                                       'subject_id',
@@ -247,100 +206,102 @@ Define the inputs to this workflow
                                                       'tr',
                                                       'do_slicetime',
                                                       'sliceorder',
+                                                      'parameters',
                                                       'node',
                                                       'csf_prob','wm_prob','gm_prob']),
         name='inputspec')
 
-    """
-Setup the processing nodes and create the mask generation and coregistration
-workflow
-"""
-
     poplist = lambda x: x.pop()
-    #realign = pe.Node(spm.Realign(), name='realign')
     
     sym_func = pe.Node(niu.Function(input_names=['in_file'],output_names=['out_link'],function=do_symlink),name='func_symlink')
 
-    realign = pe.Node(niu.Function(input_names=['node','in_file','tr','do_slicetime','sliceorder'],
-        output_names=['out_file','par_file'],
+    # REALIGN
+
+    realign = pe.Node(niu.Function(input_names=['node','in_file','tr','do_slicetime','sliceorder','parameters'],
+        output_names=['out_file','par_file','parameter_source'],
         function=mod_realign),
         name="mod_realign")
+    workflow.connect(inputnode,'parameters',realign,'parameters')
+    workflow.connect(inputnode,'functionals', realign, 'in_file')
+    workflow.connect(inputnode, 'tr', realign, 'tr')
+    workflow.connect(inputnode, 'do_slicetime', realign, 'do_slicetime')
+    workflow.connect(inputnode, 'sliceorder', realign, 'sliceorder')
+    workflow.connect(inputnode, 'node', realign, 'node')
+
+   # TAKE MEAN IMAGE
 
     mean = art_mean_workflow()
     workflow.connect(realign,'out_file', mean, 'inputspec.realigned_files')
     workflow.connect(realign,'par_file', mean, 'inputspec.realignment_parameters')
-    mean.inputs.inputspec.parameter_source='FSL' # Modular realign puts it in FSL format for consistency
+    workflow.connect(realign,'parameter_source', mean, 'inputspec.parameter_source')
 
-    #workflow.connect(inputnode, 'functionals', realign, 'in_file')
-    workflow.connect(inputnode,'functionals', sym_func, 'in_file')
-    workflow.connect(sym_func,'out_link',realign,'in_file')
-
-    workflow.connect(inputnode, 'tr',
-        realign, 'tr')
-    workflow.connect(inputnode, 'do_slicetime',
-        realign, 'do_slicetime')
-    workflow.connect(inputnode, 'sliceorder',
-        realign, 'sliceorder')
-    workflow.connect(inputnode, 'node',
-        realign, 'node')
+    # CREATE BRAIN MASK
 
     maskflow = create_getmask_flow()
     workflow.connect([(inputnode, maskflow, [('subject_id','inputspec.subject_id'),
         ('subjects_dir', 'inputspec.subjects_dir')])])
     maskflow.inputs.inputspec.contrast_type = 't2'
     workflow.connect(mean, 'outputspec.mean_image', maskflow, 'inputspec.source_file')
-    smooth = pe.Node(spm.Smooth(), name='smooth')
 
-    normalize = pe.Node(spm.Normalize(jobtype='write'),name='normalize')
-    normalize_struct = normalize.clone('normalize_struct')
+    # SEGMENT
+
     segment = pe.Node(spm.Segment(csf_output_type=[True,True,False],
                                   gm_output_type=[True,True,False],
                                   wm_output_type=[True,True,False]),name='segment')
-
     mergefunc = lambda in1,in2,in3:[in1,in2,in3]
 
-    # merge = pe.Node(niu.Merge(),name='merge')
     merge = pe.Node(niu.Function(input_names=['in1','in2','in3'],output_names=['out'],function=mergefunc),name='merge')
     workflow.connect(inputnode,'csf_prob',merge,'in3')
     workflow.connect(inputnode,'wm_prob',merge,'in2')
     workflow.connect(inputnode,'gm_prob',merge,'in1')
 
-    #workflow.connect(merge,'out', segment,'tissue_prob_maps')
-
-    sym_prob = sym_func.clone('sym_prob')
+    sym_prob = sym_func
     workflow.connect(merge,'out',sym_prob,'in_file')
     workflow.connect(sym_prob,'out_link',segment,'tissue_prob_maps')
 
-    workflow.connect(maskflow,('outputspec.mask_file',pickfirst),segment,'mask_image')
-    workflow.connect(inputnode, 'fwhm', smooth, 'fwhm')
+    xform_mask = pe.Node(fs.ApplyVolTransform(fs_target=True),name='transform_mask')
+    workflow.connect(maskflow,('outputspec.reg_file',pickfirst),xform_mask,'reg_file')
+    workflow.connect(maskflow,('outputspec.mask_file',pickfirst),xform_mask,'source_file')
+    workflow.connect(xform_mask,"transformed_file",segment,'mask_image')
 
-    #sym_brain = sym_func.clone('sym_brain')
-    #workflow.connect(realign, 'mean_image', normalize, 'source')
-    #workflow.connect(maskflow,'fssource.brain',segment,'data')
     fssource = maskflow.get_node('fssource')
-    import nipype.interfaces.freesurfer as fs
-    convert_brain = pe.Node(interface=fs.ApplyVolTransform(inverse=True),name='convert')
-    workflow.connect(fssource,'brain',convert_brain,'target_file')
-    workflow.connect(maskflow,('outputspec.reg_file',pickfirst),convert_brain,'reg_file')
-    workflow.connect(mean,'outputspec.mean_image',convert_brain,'source_file')
     convert2nii = pe.Node(fs.MRIConvert(in_type='mgz',out_type='nii'),name='convert2nii')
-    workflow.connect(convert_brain,'transformed_file',convert2nii,'in_file')
+    workflow.connect(fssource,'brain',convert2nii,'in_file')
     workflow.connect(convert2nii,'out_file',segment,'data')    
 
+    # NORMALIZE
+
+    normalize = pe.MapNode(spm.Normalize(jobtype='write'),name='normalize',iterfield=['apply_to_files'])
+    normalize_struct = normalize.clone('normalize_struct')
+    normalize_mask = normalize.clone('normalize_mask')
+
     workflow.connect(segment, 'transformation_mat', normalize, 'parameter_file')
+    workflow.connect(segment, 'transformation_mat', normalize_mask, 'parameter_file')
     workflow.connect(segment, 'transformation_mat', normalize_struct, 'parameter_file')
     workflow.connect(convert2nii,'out_file',normalize_struct, 'apply_to_files')
-    workflow.connect(realign,'out_file',normalize, 'apply_to_files')
-    #normalize.inputs.template='/software/spm8/templates/EPI.nii'
+    workflow.connect(xform_mask,"transformed_file",normalize_mask,'apply_to_files')
+
+    xform_image = pe.MapNode(fs.ApplyVolTransform(fs_target=True),name='xform_image',iterfield=['source_file'])
+    workflow.connect(maskflow,('outputspec.reg_file',pickfirst),xform_image,'reg_file')
+    workflow.connect(realign,'out_file',xform_image,"source_file")
+    workflow.connect(xform_image,"transformed_file",normalize,"apply_to_files")
+
+
+    #SMOOTH
+
+    smooth = pe.Node(spm.Smooth(), name='smooth')
+
+    workflow.connect(inputnode, 'fwhm', smooth, 'fwhm')
     workflow.connect(normalize,'normalized_files',smooth,'in_files')
-    #workflow.connect(realign, 'realigned_files', smooth, 'in_files')
+
+    # ART
 
     artdetect = pe.Node(ra.ArtifactDetect(mask_type='file',
-        parameter_source='FSL',
         use_differences=[True,False],
         use_norm=True,
         save_plot=True),
         name='artdetect')
+    workflow.connect(realign,'parameter_source',artdetect,'parameter_source')
     workflow.connect([(inputnode, artdetect,[('norm_threshold', 'norm_threshold'),
         ('zintensity_threshold',
          'zintensity_threshold')])])
@@ -349,9 +310,8 @@ workflow
          'realignment_parameters')])])
     workflow.connect(maskflow, ('outputspec.mask_file', poplist), artdetect, 'mask_file')
 
-    """
-Define the outputs of the workflow and connect the nodes to the outputnode
-"""
+
+    # OUTPUTS
 
     outputnode = pe.Node(niu.IdentityInterface(fields=["realignment_parameters",
                                                        "smoothed_files",
@@ -371,7 +331,6 @@ Define the outputs of the workflow and connect the nodes to the outputnode
                                                        'unmod_gm',
                                                        'mean',
                                                        'normalized_struct',
-                                                       'struct_in_functional_space',
                                                        'normalization_parameters',
                                                        'reverse_normalize_parameters'
     ]),
@@ -379,7 +338,6 @@ Define the outputs of the workflow and connect the nodes to the outputnode
     workflow.connect([
         (maskflow, outputnode, [("outputspec.reg_file", "reg_file")]),
         (maskflow, outputnode, [("outputspec.reg_cost", "reg_cost")]),
-        (maskflow, outputnode, [(("outputspec.mask_file", poplist), "mask_file")]),
         (realign, outputnode, [('par_file', 'realignment_parameters')]),
         (smooth, outputnode, [('smoothed_files', 'smoothed_files')]),
         (artdetect, outputnode,[('outlier_files', 'outlier_files'),
@@ -387,6 +345,7 @@ Define the outputs of the workflow and connect the nodes to the outputnode
             ('plot_files','outlier_plots'),
             ('norm_files','norm_components')])
     ])
+    workflow.connect(normalize_mask,"normalized_files",outputnode,"mask_file")
     workflow.connect(segment,'modulated_csf_image',outputnode,'mod_csf')
     workflow.connect(segment,'modulated_wm_image',outputnode,'mod_wm')
     workflow.connect(segment,'modulated_gm_image',outputnode,'mod_gm')
@@ -397,7 +356,8 @@ Define the outputs of the workflow and connect the nodes to the outputnode
     workflow.connect(normalize_struct, 'normalized_files', outputnode, 'normalized_struct')
     workflow.connect(segment,'transformation_mat', outputnode,'normalization_parameters')
     workflow.connect(segment,'inverse_transformation_mat',outputnode,'reverse_normalize_parameters')
-    workflow.connect(convert2nii,'out_file',outputnode,'struct_in_functional_space')
+    
+    # CONNECT TO CONFIG
 
     workflow.inputs.inputspec.fwhm = c.fwhm
     workflow.inputs.inputspec.subjects_dir = c.surf_dir
@@ -410,6 +370,7 @@ Define the outputs of the workflow and connect the nodes to the outputnode
     workflow.inputs.inputspec.csf_prob = c.csf_prob
     workflow.inputs.inputspec.gm_prob = c.grey_prob
     workflow.inputs.inputspec.wm_prob = c.white_prob
+    workflow.inputs.inputspec.parameters = {"order": c.order}
     workflow.base_dir = c.working_dir
     workflow.config = {'execution': {'crashdump_dir': c.crash_dir}}
 
@@ -453,7 +414,6 @@ Define the outputs of the workflow and connect the nodes to the outputnode
     workflow.connect(outputspec,'normalized_struct', sinker, 'spm_preproc.normalized_struct')
     workflow.connect(outputspec,'normalization_parameters',sinker,'spm_preproc.normalization_parameters.@forward')
     workflow.connect(outputspec,'reverse_normalize_parameters',sinker,'spm_preproc.normalization_parameters.@reverse')
-    workflow.connect(outputspec,'struct_in_functional_space',sinker,'spm_preproc.struct_in_func_space')
 
     return workflow
 
@@ -465,7 +425,7 @@ Part 5: Main
 
 def main(config_file):
     c = load_config(config_file,config)
-    workflow = create_spm_preproc('spm_preproc')
+    workflow = create_spm_preproc(c,'spm_preproc')
     if c.test_mode:
         workflow.write_graph()
 

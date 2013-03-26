@@ -29,7 +29,7 @@ Part 2: Config
 class config(baseconfig):
     first_level_config = traits.File
     #overlay_thresh = traits.BaseTuple(traits.Float,traits.Float)
-    num_runs = traits.Int
+    #num_runs = traits.Int
     timeout = traits.Float(14.0)
     datagrabber = traits.Instance(Data, ())
 
@@ -91,8 +91,8 @@ def create_view():
         Group(Item(name='preproc_config'),
               Item(name='first_level_config'),
             label = 'Preproc & First Level Info'),
-        Group(Item(name='num_runs'),
-            label='Fixed Effects'),
+        #Group(Item(name='num_runs'),
+        #    label='Fixed Effects'),
         buttons = [OKButton, CancelButton],
         resizable=True,
         width=1050)
@@ -109,6 +109,12 @@ def num_copes(files):
         return len(files[0])
     else:
         return len(files)
+
+def num_copes_range(files):
+    if type(files[0]) is list:
+        return range(0,len(files[0]))
+    else:
+        return range(0,len(files))
 
 
 def getsubs(subject_id, cons):
@@ -143,27 +149,29 @@ def create_fixedfx(c, first_c=foo0, name='fixedfx'):
     import nipype.interfaces.io as nio           # i/o routines
     import nipype.interfaces.utility as util     # utility
     import nipype.pipeline.engine as pe          # pypeline engine
-    selectnode = pe.Node(interface=util.IdentityInterface(fields=['runs']),
-                         name='idselect')
-
-    selectnode.iterables = ('runs', [range(0,c.num_runs)]) # this is really bad.
-
+    
     copeselect = pe.MapNode(interface=util.Select(), name='copeselect',
-                            iterfield=['inlist'])
+                            iterfield=['inlist','index'])
 
     varcopeselect = pe.MapNode(interface=util.Select(), name='varcopeselect',
-                               iterfield=['inlist'])
+                               iterfield=['inlist','index'])
 
-    dofselect = pe.Node(interface=util.Select(), name='dofselect')
+    dofselect = pe.MapNode(interface=util.Select(), name='dofselect',iterfield=['inlist','index'])
 
     datasource = c.datagrabber.create_dataflow()
     infosource = datasource.get_node('subject_id_iterable')
+    
+    selectnode = pe.Node(interface=util.IdentityInterface(fields=['runs']),
+                         name='idselect')
+
+    #selectnode.iterables = ('runs', [range(0,c.num_runs)]) # this is really bad.
 
     fixedfx = create_fixed_effects_flow()
 
     fixedfxflow = pe.Workflow(name=name)
     fixedfxflow.config = {'execution' : {'crashdump_dir' : c.crash_dir}}
 
+    fixedfxflow.connect(datasource,('datagrabber.copes',num_copes_range), selectnode, 'runs')
     #overlay = create_overlay_workflow(c,name='overlay')
 
     #subjectinfo = pe.Node(util.Function(input_names=['subject_id'], output_names=['output']), name='subjectinfo')
@@ -200,14 +208,14 @@ def create_fixedfx(c, first_c=foo0, name='fixedfx'):
     #fixedfxflow.connect(get_info,'info',datasource,'template_args')
 
     #fixedfxflow.connect(infosource, 'fwhm',                 datasource, 'fwhm')
-    fixedfxflow.connect(datasource,('datagrabber.copes',doublelist),                 copeselect,'inlist')
-    fixedfxflow.connect(selectnode,'runs',                  copeselect,'index')
+    #fixedfxflow.connect(datasource,('datagrabber.copes',doublelist),                 copeselect,'inlist')
+    #fixedfxflow.connect(selectnode,'runs',                  copeselect,'index')
     fixedfxflow.connect(datasource,('datagrabber.copes',doublelist),                   fixedfx,'inputspec.copes')
-    fixedfxflow.connect(datasource,('datagrabber.varcopes',doublelist),               varcopeselect,'inlist')
-    fixedfxflow.connect(selectnode,'runs',                  varcopeselect,'index')
+    #fixedfxflow.connect(datasource,('datagrabber.varcopes',doublelist),               varcopeselect,'inlist')
+    #fixedfxflow.connect(selectnode,'runs',                  varcopeselect,'index')
     fixedfxflow.connect(datasource,('datagrabber.varcopes',doublelist),                 fixedfx,'inputspec.varcopes')
-    fixedfxflow.connect(datasource,'datagrabber.dof_files',             dofselect,'inlist')
-    fixedfxflow.connect(selectnode,'runs',                  dofselect,'index')
+    #fixedfxflow.connect(datasource,'datagrabber.dof_files',             dofselect,'inlist')
+    #fixedfxflow.connect(selectnode,'runs',                  dofselect,'index')
     fixedfxflow.connect(datasource,'datagrabber.dof_files',                    fixedfx,'inputspec.dof_files')
     fixedfxflow.connect(datasource,('datagrabber.copes',num_copes),       fixedfx,'l2model.num_copes')
     fixedfxflow.connect(datasource,'datagrabber.mask_file',             fixedfx,'flameo.mask_file')
