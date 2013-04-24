@@ -448,7 +448,7 @@ def get_substitutions(subject_id, use_fieldmap):
              '%s_brainmask' % subject_id),
             ('_threshold20/aparc+aseg_thresh_warped_thresh',
              '%s_brainmask' % subject_id),
-            ('st.','.'),
+            ('st.','.')
             ]
     if use_fieldmap:
         subs.append(('vsm.nii', '%s_vsm.nii' % subject_id))
@@ -462,6 +462,9 @@ def get_substitutions(subject_id, use_fieldmap):
         subs.append(('_z_score%d/' % i, '%s_r%02d_' % (subject_id, i)))
         subs.append(('_threshold%d/'%i,'%s_r%02d_'%(subject_id, i)))
         subs.append(('_compcor_components%d/'%i, '%s_r%02d_'%(subject_id, i)))
+        subs.append(('_scalemean2%d/'%i,'%s_r%02d_'%(subject_id,i)))
+        subs.append(('_applymask%d/'%i,'%s_r%02d_'%(subject_id,i)))
+        subs.append(('_mod_smooth%d/'%i,'%s_r%02d_'%(subject_id,i)))
     return subs
 
 def get_regexp_substitutions(subject_id, use_fieldmap):
