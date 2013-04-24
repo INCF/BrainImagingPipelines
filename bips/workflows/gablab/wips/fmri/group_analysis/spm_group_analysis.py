@@ -261,6 +261,7 @@ def get_regressors(csv,ids):
     cov = []
     for key,item in reg.iteritems():
         cov.append({'name':key,'vector':item})
+    print cov
     return cov
 
 
