@@ -425,7 +425,7 @@ def connect_to_config(c):
         #wk.connect(cluster,'outputspec.cuts',sinkd,'output.fdr_corrected.slices')
         wk.connect(cluster,'outputspec.localmax_txt',sinkd,'output.corrected.@localmax_txt')
         wk.connect(cluster,'outputspec.index_file',sinkd,'output.corrected.@index')
-        wk.connect(cluster,'outputspec.localmax_vol',sinkd,'output.fdr_corrected.@localmax_vol')
+        wk.connect(cluster,'outputspec.localmax_vol',sinkd,'output.corrected.@localmax_vol')
         #wk.connect(cluster,'outputspec.qrate',sinkd,'output.fdr_corrected.@qrate')
 
     if c.do_randomize:
