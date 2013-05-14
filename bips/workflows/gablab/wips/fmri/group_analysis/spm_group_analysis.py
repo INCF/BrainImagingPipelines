@@ -53,7 +53,7 @@ class config(HasTraits):
     reg_contrasts = traits.Code(desc="function named reg_contrasts which takes in 0 args and returns contrasts")
     use_regressors = traits.Bool()
     estimation_method = traits.Enum('Classical','Bayesian','Bayesian2')
-
+    include_intercept = traits.Bool(True)
     #Normalization
 
     norm_template = traits.File(desc='Template of files')
@@ -121,7 +121,7 @@ def create_view():
             Item(name='run_one_sample_T_test'),
             Item('run_regression'),
             Item('estimation_method'),
-            Item('use_regressors'),
+            Item('use_regressors'),Item('include_intercept'),
             Item(name='design_csv',enabled_when='use_regressors'),
             Item(name="reg_contrasts"),
             Item("p_threshold"),Item('height_threshold'),
@@ -152,7 +152,7 @@ def create_2lvl(do_one_sample,name="group",mask=None):
     wk = pe.Workflow(name=name)
 
     inputspec = pe.Node(niu.IdentityInterface(fields=['copes','estimation_method',
-                                                      'template', "contrasts",
+                                                      'template', "contrasts","include_intercept",
                                                       "regressors","p_thresh","height_thresh",'min_cluster_size']),name='inputspec')
 
     if do_one_sample:
@@ -160,6 +160,7 @@ def create_2lvl(do_one_sample,name="group",mask=None):
     else:
         model = pe.Node(spm.MultipleRegressionDesign(),name='l2model')
         wk.connect(inputspec, 'regressors', model, "user_covariates")
+        wk.connect(inputspec, 'include_intercept', model, 'include_intercept')
 
     est_model = pe.Node(spm.EstimateModel(),name='estimate_model')
     wk.connect(inputspec,'copes',model,'in_files')
@@ -260,7 +261,7 @@ def get_regressors(csv,ids):
             raise Exception("%s is missing from the CSV file!"%sub)
     cov = []
     for key,item in reg.iteritems():
-        cov.append({'name':key,'vector':item})
+        cov.append({'name':key,'vector':item,'centering':0})
     print cov
     return cov
 
@@ -297,11 +298,37 @@ def connect_to_config(c):
     #infosource.iterables = ('fwhm',c.fwhm)
 
     #wk.connect(infosource,'fwhm',datagrabber,'fwhm')
-    wk.connect(datagrabber,'datagrabber.con_images', inputspec, 'copes')
+
+    def gunzipper(in_files):
+        from nipype.algorithms.misc import Gunzip
+        if isinstance(in_files,list):
+            outputs = []
+            for i in in_files:
+                if i.endswith('.gz'):
+                    res = Gunzip(in_file=i).run()
+                    outputs.append(res.outputs.out_file)
+                else: outputs.append(i)
+        else:
+            if in_files.endswith('.gz'):
+                res = Gunzip(in_file=in_files).run()
+                outputs = res.outputs.out_file  
+            else: outputs = in_files
+        return outputs      
+
+    gunzip1 = pe.Node(niu.Function(input_names=['in_files'],output_names=['outputs'],function=gunzipper),name='gunzipper')
+    gunzip2 = gunzip1.clone('gunzipper2')     
+    wk.connect(datagrabber,'datagrabber.con_images',gunzip2,'in_files') 
+    wk.connect(gunzip2,'outputs',inputspec, 'copes')
+
+
     if not c.use_mask:
-        wk.inputs.inputspec.template = c.norm_template
+        gunzip1.inputs.in_files = c.norm_template
+        wk.connect(gunzip1,"outputs",inputspec,'template')
+        #wk.inputs.inputspec.template = c.norm_template
     else: 
-        wk.inputs.inputspec.template = c.mask_file
+        gunzip1.inputs.in_files = c.mask_file
+        wk.connect(gunzip1,'outputs',inputspec,'template')
+        #wk.inputs.inputspec.template = c.mask_file
     wk.inputs.inputspec.p_thresh = c.p_threshold
     wk.inputs.inputspec.min_cluster_size = c.min_cluster_size
     wk.inputs.inputspec.height_thresh = c.height_threshold
@@ -318,7 +345,7 @@ def connect_to_config(c):
         return None
 
     subjects = get_val(c.datagrabber,'subject_id')
-
+    wk.inputs.inputspec.include_intercept = c.include_intercept
     if c.use_regressors:
         wk.inputs.inputspec.regressors = get_regressors(c.design_csv,subjects)
     

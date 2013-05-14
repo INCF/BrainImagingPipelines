@@ -245,7 +245,6 @@ def spm_realign(in_file,tr,do_slicetime,sliceorder,order="motion_slicetime"):
 def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
                 parameters={}):
     from bips.workflows.gablab.wips.scripts.modular_nodes import spm_realign, fsl_realign, afni_realign
-
     keys=parameters.keys()
     if node=="nipy":
         import nipype.interfaces.nipy as nipy

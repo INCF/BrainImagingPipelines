@@ -159,7 +159,7 @@ def create_2lvl(name="group",mask=None):
 
     wk = pe.Workflow(name=name)
 
-    inputspec = pe.Node(niu.IdentityInterface(fields=['copes','varcopes',
+    inputspec = pe.Node(niu.IdentityInterface(fields=['copes','varcopes','group',
                                                       'template', "contrasts",
                                                       "regressors","run_mode"]),name='inputspec')
 
@@ -168,6 +168,7 @@ def create_2lvl(name="group",mask=None):
     #wk.connect(inputspec,('copes',get_len),model,'num_copes')
     wk.connect(inputspec, 'contrasts', model, "contrasts")
     wk.connect(inputspec, 'regressors', model, "regressors")
+    wk.connect(inputspec, 'group', model, 'groups')
 
     mergecopes = pe.Node(fsl.Merge(dimension='t'),name='merge_copes')
     mergevarcopes = pe.Node(fsl.Merge(dimension='t'),name='merge_varcopes')
@@ -228,13 +229,14 @@ def create_2lvl_rand(name="group_randomize",mask=None,iters=5000):
     wk = pe.Workflow(name=name)
     
     inputspec = pe.Node(niu.IdentityInterface(fields=['copes','varcopes',
-                                                      'template', "contrasts",
+                                                      'template', "contrasts","group",
                                                       "regressors"]),name='inputspec')
     
     model = pe.Node(fsl.MultipleRegressDesign(),name='l2model')
 
     wk.connect(inputspec, 'contrasts', model, "contrasts")
     wk.connect(inputspec, 'regressors', model, "regressors")
+    wk.connect(inputspec,'group',model,'group')
 
     mergecopes = pe.Node(fsl.Merge(dimension='t'),name='merge_copes')
     
@@ -315,7 +317,17 @@ def get_regressors(csv,ids):
                 reg[key].append(design[key][csv_ids==sub][0])
         else:
             raise Exception("%s is missing from the CSV file!"%sub)
-    return reg
+    if 'group' in names:
+        data = np.asarray(reg['group'])
+        vals = np.unique(data)
+        for i, v in enumerate(vals):
+            data[data==v] = i+1
+        group = data.astype(int).tolist()
+        reg.pop('group')
+        
+    else:
+        group = [1]*len(reg[names[-1]])
+    return reg, group
 
 
 def connect_to_config(c):
@@ -343,6 +355,9 @@ def connect_to_config(c):
     sinkd = pe.Node(nio.DataSink(),name='sinker')
     sinkd.inputs.base_directory = c.sink_dir
     wk.inputs.inputspec.run_mode = c.run_mode 
+    if c.run_mode == 'ols':
+        mergevarcopes = wk.get_node('merge_varcopes')
+        wk.remove_nodes([mergevarcopes])
     infosourcecon = datagrabber.get_node('contrast_iterable')
     
     if infosourcecon:
@@ -353,7 +368,7 @@ def connect_to_config(c):
     inputspec = wk.get_node('inputspec')
     outputspec = wk.get_node('outputspec')
     #datagrabber.inputs.subject_id = c.subjects
-    #infosource = pe.Node(niu.IdentityInterface(fields=['fwhm']),name='fwhm_infosource')
+    #infosource = pe.Node(niu.IdentituInterface(fields=['fwhm']),name='fwhm_infosource')
     #infosource.iterables = ('fwhm',c.fwhm)
 
     #wk.connect(infosource,'fwhm',datagrabber,'fwhm')
@@ -379,7 +394,10 @@ def connect_to_config(c):
 
     subjects = get_val(c.datagrabber,'subject_id')
 
-    wk.inputs.inputspec.regressors = get_regressors(c.design_csv,subjects)
+    regressors, group = get_regressors(c.design_csv,subjects)
+    wk.inputs.inputspec.regressors = regressors
+    wk.inputs.inputspec.group = group
+
     if not c.do_randomize:
         wk.connect(outputspec,'cope',sinkd,'output.@cope')
         wk.connect(outputspec,'varcope',sinkd,'output.@varcope')

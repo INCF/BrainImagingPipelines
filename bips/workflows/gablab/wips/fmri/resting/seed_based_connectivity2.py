@@ -118,6 +118,9 @@ def get_mean_timeseries(infile,roi,mask):
     roi_img = nib.load(roi) 
     roi_data, roi_affine = roi_img.get_data(), roi_img.get_affine()
 
+    if len(roi_data.shape) > 3:
+        roi_data = roi_data[:,:,:,0]
+
     mask = nib.load(mask).get_data()
     roi_data = (roi_data > 0).astype(int) + (mask>0).astype(int)
 
@@ -268,10 +271,10 @@ def roi_connectivity(c):
     workflow.connect(inputnode, 'subject_id', datasink, 'container')
     workflow.connect(inputnode, ("subject_id",getsubs),datasink,"substitutions")
     workflow.connect(corrmat, 'zfile', datasink, 'seed_connectivity.@zcorrmat')
-    workflow.connect(corrmat, 'rfile', datasink, 'seed_connectivity.@rcorrmat')
+    #workflow.connect(corrmat, 'rfile', datasink, 'seed_connectivity.@rcorrmat')
     workflow.connect(mean,'outfile',datasink,'seed_connectivity.mean_timeseries')
     workflow.connect(roitoroi,"z_outfile",datasink,'seed_connectivity.@zroi2roi')
-    workflow.connect(roitoroi,"r_outfile",datasink,'seed_connectivity.@rroi2roi')
+    #workflow.connect(roitoroi,"r_outfile",datasink,'seed_connectivity.@rroi2roi')
     return workflow
 
 

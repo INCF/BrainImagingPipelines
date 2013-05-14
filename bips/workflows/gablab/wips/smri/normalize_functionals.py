@@ -50,6 +50,7 @@ class config(HasTraits):
 
     #Normalization
     norm_template = traits.File(mandatory=True,desc='Template to warp to')
+    use_nearest = traits.Bool(False,desc="use nearest neighbor interpolation")
     do_segment = traits.Bool(True)
     surf_dir = traits.Directory()
     # Advanced Options
@@ -138,7 +139,7 @@ def create_view():
                 Group(Item(name='datagrabber'),
                       label='Subjects', show_border=True),
                 Group(Item(name='norm_template'),
-                      Item(name="do_segment"),
+                      Item(name="do_segment"),Item("use_nearest"),
                       Item(name="surf_dir", enabled_when="do_segment"),
                       label='Normalization', show_border=True),
                 Group(Item(name='use_advanced_options'),
@@ -233,7 +234,7 @@ def normalize_workflow(c):
     norm.connect(datagrab, 'datagrabber.unwarped_brain',
                  inputspec, 'unwarped_brain')
     norm.inputs.inputspec.template_file = c.norm_template
-
+    norm.inputs.inputspec.use_nearest = c.use_nearest
     sinkd = pe.Node(nio.DataSink(), name='sinkd')
     sinkd.inputs.base_directory = os.path.join(c.sink_dir)
 

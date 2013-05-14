@@ -788,7 +788,7 @@ def create_rest_prep(name='preproc',fieldmap=False,extra_args={}):
 def create_rest_NoFS(name='preproc',use_fieldmap=False,segmentation_type='FAST'):
     from alternate_brain_mask import new_getmask
     from utils import create_no_FS_compcor
-    wf = create_rest_prep(name,use_fieldmap)
+    wf = create_rest_prep(name,use_fieldmap,extra_args={"do_scaling":True,"do_detrend":True})
     getmask = wf.get_node('getmask')
     compcor = wf.get_node('CompCor')
     outputnode = wf.get_node('outputspec')
@@ -796,6 +796,7 @@ def create_rest_NoFS(name='preproc',use_fieldmap=False,segmentation_type='FAST')
     remove_noise = wf.get_node('regress_nuisance')
     smooth = wf.get_node('modular_smooth')
     medianval = wf.get_node('compute_median_val')
+    median2=wf.get_node('unmasked_median')
     ad = wf.get_node('artifactdetect')
     motion_correct = wf.get_node('mod_realign')
     meanfunc = wf.get_node('take_mean_art')
@@ -834,6 +835,8 @@ def create_rest_NoFS(name='preproc',use_fieldmap=False,segmentation_type='FAST')
         ad, 'mask_file')
     wf.connect(getmask, 'outputspec.mask',
         medianval, 'mask_file')
+    wf.connect(getmask, 'outputspec.mask',
+        median2, 'mask_file')
     wf.connect(inputspec,'anatomical',
         getmask,'inputspec.structural')
 

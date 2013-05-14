@@ -110,6 +110,7 @@ def get_post_struct_norm_workflow(name='normalize_post_struct'):
     inputspec.out_fsl_file :
     inputspec.moving_image :
     inputspec.mean_func :
+    inputspec.use_nearest:
 
     Outputs
     -------
@@ -128,7 +129,7 @@ def get_post_struct_norm_workflow(name='normalize_post_struct'):
         util.IdentityInterface(
             fields=['template_file', 'unwarped_brain', 'warp_field',
                 'affine_transformation', 'out_fsl_file', 'moving_image',
-                'mean_func']),
+                'mean_func',"use_nearest"]),
         name='inputspec')
 
     #makes fsl-style coregistration ANTS compatible
@@ -168,7 +169,7 @@ def get_post_struct_norm_workflow(name='normalize_post_struct'):
         (inputspec, warp_images, [('moving_image', 'input_image')]),
         (inputspec, warp_images, [(('moving_image', get_image_dimensions),
                                     'dimension')]),
-        (inputspec, warp_images, [('template_file', 'reference_image')]),
+        (inputspec, warp_images, [('template_file', 'reference_image'),('use_nearest','use_nearest')]),
         (collect_transforms, warp_images, [('out',
                                     'transformation_series')]),
         (warp_images, outputspec, [('output_image', 'warped_image')])])
