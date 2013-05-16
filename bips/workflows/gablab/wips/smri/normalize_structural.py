@@ -127,6 +127,7 @@ def func_datagrabber(c, name="resting_output_datagrabber"):
                                                               'fsl_mat']),
                          name=name)
     datasource.inputs.base_directory = os.path.join(c.base_dir)
+    datasource.inputs.sort_filelist = True
     datasource.inputs.template = '*'
     datasource.inputs.field_template = dict(
                                 inputs=c.inputs_template,
