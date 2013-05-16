@@ -60,7 +60,7 @@ class config(baseconfig):
     update_hash = traits.Bool(False)
     save_script_only = traits.Bool(False)
     order = traits.Enum('motion_slicetime','slicetime_motion',use_default=True)
-    do_scaling = traits.Bool(False)
+    do_scaling = traits.Bool(True)
     do_detrend = traits.Bool(True)
 
 
