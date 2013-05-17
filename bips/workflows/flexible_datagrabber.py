@@ -5,8 +5,9 @@ import traits.api as traits
 import os
 try:
     os.environ["DISPLAY"]
+    from traitsui.api import View
     use_view = True
-except KeyError:
+except:
     use_view = False
 
 import os

@@ -1118,7 +1118,7 @@ def cluster_image(name="threshold_cluster_makeimages"):
     import nipype.interfaces.utility as util
 
     workflow = pe.Workflow(name=name)
-    inputspec = pe.Node(util.IdentityInterface(fields=["zstat","mask","threshold","connectivity",'anatomical']),name="inputspec")
+    inputspec = pe.Node(util.IdentityInterface(fields=["zstat","mask","zthreshold","pthreshold","connectivity",'anatomical']),name="inputspec")
     smoothest = pe.MapNode(fsl.SmoothEstimate(), name='smooth_estimate', iterfield=['zstat_file'])
     workflow.connect(inputspec,'zstat', smoothest, 'zstat_file')
     workflow.connect(inputspec,'mask',smoothest, 'mask_file')
@@ -1129,22 +1129,18 @@ def cluster_image(name="threshold_cluster_makeimages"):
                          name='cluster', iterfield=['in_file','dlh','volume'])
     workflow.connect(smoothest,'dlh', cluster, 'dlh')
     workflow.connect(smoothest, 'volume', cluster, 'volume')
-    workflow.connect(inputspec,"threshold",cluster,"threshold")
+    workflow.connect(inputspec,"zthreshold",cluster,"threshold")
+    workflow.connect(inputspec,"pthreshold",cluster,"pthreshold")
     workflow.connect(inputspec,"connectivity",cluster,"connectivity")
-    #cluster.inputs.connectivity = csize
-    #cluster.inputs.threshold = thr
     cluster.inputs.out_threshold_file = True
     cluster.inputs.out_pval_file = True
     workflow.connect(inputspec,'zstat',cluster,'in_file')
-
-    #logp = pe.MapNode(fsl.UnaryMaths(operation='exp'),name='unlog_p')
-    #workflow.connect(cluster,"pval_file",logp,"in_file")
-
+    """
     labels = pe.MapNode(util.Function(input_names=['in_file','thr','csize'],
                                    output_names=['labels'],function=get_labels),
         name='labels',iterfield=["in_file"])
 
-    workflow.connect(inputspec,"threshold",labels,"thr")
+    workflow.connect(inputspec,"zthreshold",labels,"thr")
     workflow.connect(inputspec,"connectivity",labels,"csize")
     workflow.connect(cluster,"threshold_file",labels,"in_file")
     showslice=pe.MapNode(util.Function(input_names=['image_in','anat_file','coordinates','thr'],
@@ -1158,7 +1154,7 @@ def cluster_image(name="threshold_cluster_makeimages"):
 
     workflow.connect(cluster,'threshold_file',showslice,'image_in')
     workflow.connect(inputspec,'anatomical',showslice,"anat_file")
-    workflow.connect(inputspec,'threshold',showslice,'thr')
+    workflow.connect(inputspec,'zthreshold',showslice,'thr')
     workflow.connect(labels,'labels',coords,"img")
     workflow.connect(cluster,"threshold_file",coords,"in_file")
     workflow.connect(coords,"coords",showslice,"coordinates")
@@ -1170,15 +1166,13 @@ def cluster_image(name="threshold_cluster_makeimages"):
                          name='overlay', iterfield=["stat_image"])
     workflow.connect(inputspec,"anatomical", overlay,"background_image")
     workflow.connect(cluster,"threshold_file",overlay,"stat_image")
-    workflow.connect(inputspec,"threshold",overlay,"threshold")
-    #workflow.connect(cluster, 'threshold_file',imgflow,'inputspec.in_file')
-    #workflow.connect(dataflow,'func',imgflow, 'inputspec.in_file')
-    #workflow.connect(inputspec,'mask',imgflow, 'inputspec.mask_file')
-
+    workflow.connect(inputspec,"zthreshold",overlay,"threshold")
+    """
     outputspec = pe.Node(util.IdentityInterface(fields=["corrected_z","localmax_txt","index_file","localmax_vol","slices","cuts","corrected_p"]),name='outputspec')
     workflow.connect(cluster,'threshold_file',outputspec,'corrected_z')
-    workflow.connect(showslice,"outfiles",outputspec,"slices")
-    workflow.connect(overlay,"fnames",outputspec,"cuts")
+    workflow.connect(cluster,'index_file',outputspec,'index_file')
+    workflow.connect(cluster,'localmax_vol_file',outputspec,'localmax_vol')
+    #workflow.connect(showslice,"outfiles",outputspec,"slices")
+    #workflow.connect(overlay,"fnames",outputspec,"cuts")
     workflow.connect(cluster,'localmax_txt_file',outputspec,'localmax_txt')
-    #workflow.connect(logp,'out_file',outputspec,"corrected_p")
     return workflow

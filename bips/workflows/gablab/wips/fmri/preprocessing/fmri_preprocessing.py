@@ -60,6 +60,9 @@ class config(baseconfig):
     update_hash = traits.Bool(False)
     save_script_only = traits.Bool(False)
     order = traits.Enum('motion_slicetime','slicetime_motion',use_default=True)
+    do_scaling = traits.Bool(True)
+    do_detrend = traits.Bool(True)
+
 
 def create_config():
     c = config()
@@ -126,8 +129,8 @@ def create_view():
             Item(name='num_noise_components'),
             Item(name='regress_before_PCA'),
             label='CompCor',show_border=True),
-        Group(Item(name='reg_params'),
-            label='Nuisance Filtering',show_border=True),
+        Group(Item(name='reg_params'),Item("do_detrend"),
+            label='Nuisance Filtering & rsfMRI',show_border=True),
         Group(Item(name='smooth_type'),
             Item(name='fwhm', editor=CSVListEditor()),
             Item(name='surface_fwhm'),
@@ -135,7 +138,7 @@ def create_view():
         Group(Item(name='highpass_freq'),
             Item(name='lowpass_freq'),
             Item(name='filtering_algorithm'),
-            Item(name='do_whitening'),
+            Item(name='do_whitening'),Item("do_scaling"),
             label='Bandpass Filter',show_border=True),
         Group(Item(name='do_zscore'),
             Item(name='use_advanced_options'),
@@ -283,8 +286,14 @@ Preprocessing nipype workflow
     modelflow.connect(infosource, 'subject_id',
                       dataflow, 'subject_id')
     
+    # see if there are any extra args
+    args = {}
+    if c.do_detrend:
+        args["do_detrend"] = True
+    if c.do_scaling:
+        args["do_scaling"] = True
     # generate preprocessing workflow
-    preproc = create_rest_prep(fieldmap=fieldmap)
+    preproc = create_rest_prep(fieldmap=fieldmap,extra_args=args)
 
     if not c.do_zscore:
         z_score = preproc.get_node('z_score')
@@ -425,6 +434,8 @@ Preprocessing nipype workflow
                           sinkd, 'preproc.output.zscored')
     modelflow.connect(preproc, 'outputspec.scaled_files',
                       sinkd, 'preproc.output.fullspectrum')
+    modelflow.connect(preproc, 'outputspec.unmasked_fullspectrum',
+                      sinkd, 'preproc.output.fullspectrum.not_masked')
     modelflow.connect(preproc, 'outputspec.bandpassed_file',
                       sinkd, 'preproc.output.bandpassed')
 

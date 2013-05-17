@@ -34,7 +34,7 @@ class config(HasTraits):
     use_pattern = traits.Bool(False)
     hemi = traits.Enum('lh','rh')
     surface = traits.Enum('white','inflated')
-    target = traits.Enum('fsaverage5','fsaverage4','fsaverage')
+    target = traits.Enum('fsaverage5','fsaverage4','fsaverage','fsaverage3','fsaverage6')
 
 def create_config():
     c = config()

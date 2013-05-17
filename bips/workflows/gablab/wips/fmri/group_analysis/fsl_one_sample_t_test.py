@@ -45,9 +45,10 @@ class config(HasTraits):
                             intermediary files. True to keep intermediary files. ')
     timeout = traits.Float(14.0)
     datagrabber = traits.Instance(Data, ())
+    run_mode = traits.Enum("flame1","ols","flame12")
     save_script_only = traits.Bool(False)
     #Normalization
-    norm_template = traits.File(mandatory=True,desc='Template to warp to')
+    brain_mask = traits.File(mandatory=True,desc='Brain Mask')
     name_of_project = traits.String("group_analysis",usedefault=True)
     do_randomize = traits.Bool(True)
     num_iterations = traits.Int(5000)
@@ -55,7 +56,8 @@ class config(HasTraits):
     #Correction:
     run_correction = traits.Bool(True)
     z_threshold = traits.Float(2.3)
-    connectivity = traits.Int(25)
+    p_threshold = traits.Float(0.05)
+    connectivity = traits.Int(26)
 
     # Advanced Options
     use_advanced_options = traits.Bool()
@@ -110,10 +112,10 @@ def create_view():
                       label='Execution Options', show_border=True),
                 Group(Item(name='datagrabber'),
                       label='Datagrabber', show_border=True),
-                Group(Item(name='norm_template'),
+                Group(Item(name='brain_mask'),Item("run_mode"),
                       Item(name='do_randomize'),Item('num_iterations',enabled_when='do_randomize'),
                       label='Second Level', show_border=True),
-                Group(Item("run_correction"),Item("z_threshold"),Item("connectivity"),
+                Group(Item("run_correction"),Item("z_threshold"),Item('p_threshold'),Item("connectivity"),
                     label='Correction', show_border=True),
                 Group(Item(name='use_advanced_options'),
                     Item(name='advanced_script',enabled_when='use_advanced_options'),
@@ -138,7 +140,7 @@ def create_2lvl(name="group"):
 
     wk = pe.Workflow(name=name)
     
-    inputspec = pe.Node(niu.IdentityInterface(fields=['copes','varcopes','template']),name='inputspec')
+    inputspec = pe.Node(niu.IdentityInterface(fields=['copes','varcopes','brain_mask','run_mode']),name='inputspec')
     
     model = pe.Node(fsl.L2Model(),name='l2model')
     
@@ -147,7 +149,8 @@ def create_2lvl(name="group"):
     mergecopes = pe.Node(fsl.Merge(dimension='t'),name='merge_copes')
     mergevarcopes = pe.Node(fsl.Merge(dimension='t'),name='merge_varcopes')
     
-    flame = pe.Node(fsl.FLAMEO(run_mode='flame1'),name='flameo')
+    flame = pe.Node(fsl.FLAMEO(),name='flameo')
+    wk.connect(inputspec,"run_mode",flame,"run_mode")
     wk.connect(inputspec,'copes',mergecopes,'in_files')
     wk.connect(inputspec,'varcopes',mergevarcopes,'in_files')
     wk.connect(model,'design_mat',flame,'design_file')
@@ -156,9 +159,7 @@ def create_2lvl(name="group"):
     wk.connect(mergevarcopes,'merged_file',flame,'var_cope_file')
     wk.connect(model,'design_grp',flame,'cov_split_file')
     
-    bet = pe.Node(fsl.BET(mask=True,frac=0.3),name="template_brainmask")
-    wk.connect(inputspec,'template',bet,'in_file')
-    wk.connect(bet,'mask_file',flame,'mask_file')
+    wk.connect(inputspec,'brain_mask',flame,'mask_file')
 
     outputspec = pe.Node(niu.IdentityInterface(fields=['zstat','tstat','cope',
                                                        'varcope','mrefvars',
@@ -175,7 +176,6 @@ def create_2lvl(name="group"):
     wk.connect(flame,'zstats',outputspec,'zstat')
     wk.connect(flame,'tstats',outputspec,'tstat')
     wk.connect(flame,'tdof',outputspec,'tdof')
-    wk.connect(bet,'mask_file',outputspec,'mask')
 
     ztopval = pe.MapNode(interface=fsl.ImageMaths(op_string='-ztop',
         suffix='_pval'),
@@ -195,7 +195,7 @@ def create_2lvl_rand(name="group_randomize",iters=5000):
 
     wk = pe.Workflow(name=name)
     
-    inputspec = pe.Node(niu.IdentityInterface(fields=['copes','varcopes','template']),name='inputspec')
+    inputspec = pe.Node(niu.IdentityInterface(fields=['copes','varcopes','brain_mask']),name='inputspec')
     
     model = pe.Node(fsl.L2Model(),name='l2model')
     
@@ -213,9 +213,7 @@ def create_2lvl_rand(name="group_randomize",iters=5000):
     wk.connect(mergecopes, 'merged_file', rand, 'in_file')
     #wk.connect(model,'design_grp',rand,'cov_split_file')
     
-    bet = pe.Node(fsl.BET(mask=True,frac=0.3),name="template_brainmask")
-    wk.connect(inputspec,'template',bet,'in_file')
-    wk.connect(bet,'mask_file',rand,'mask')
+    wk.connect(inputspec,'brain_mask',rand,'mask')
 
     outputspec = pe.Node(niu.IdentityInterface(fields=['f_corrected_p_files',
                                                        'f_p_files',
@@ -231,7 +229,6 @@ def create_2lvl_rand(name="group_randomize",iters=5000):
     wk.connect(rand,'t_corrected_p_files',outputspec,'t_corrected_p_files')
     wk.connect(rand,'t_p_files',outputspec,'t_p_files')
     wk.connect(rand,'tstat_files',outputspec,'tstat_file')
-    wk.connect(bet,'mask_file',outputspec,'mask')
 
     return wk
 
@@ -278,6 +275,7 @@ def connect_to_config(c):
         wk  =create_2lvl_rand(iters=c.num_iterations)
 
     wk.base_dir = c.working_dir
+    wk.inputs.inputspec.run_mode = c.run_mode
     datagrabber = c.datagrabber.create_dataflow()  #get_datagrabber(c)
     #infosourcecon = pe.Node(niu.IdentityInterface(fields=["contrast"]),name="contrasts")
     #infosourcecon.iterables = ("contrast",c.contrasts)
@@ -298,7 +296,7 @@ def connect_to_config(c):
     #wk.connect(infosource,'fwhm',datagrabber,'fwhm')
     wk.connect(datagrabber,'datagrabber.copes', inputspec, 'copes')
     wk.connect(datagrabber,'datagrabber.varcopes', inputspec, 'varcopes')
-    wk.inputs.inputspec.template = c.norm_template
+    wk.inputs.inputspec.brain_mask = c.brain_mask
     if not c.do_randomize:
         wk.connect(outputspec,'cope',sinkd,'output.@cope')
         wk.connect(outputspec,'varcope',sinkd,'output.@varcope')
@@ -310,19 +308,19 @@ def connect_to_config(c):
         wk.connect(outputspec,'tstat',sinkd,'output.@tstat')
         wk.connect(outputspec,'pstat',sinkd,'output.@pstat')
         wk.connect(outputspec,'tdof',sinkd,'output.@tdof')
-        wk.connect(outputspec,'mask',sinkd,'output.@bet_mask')
-        wk.connect(inputspec,'template',sinkd,'output.@template')
 
     if c.run_correction and not c.do_randomize:
         cluster = cluster_image()
         wk.connect(outputspec,"zstat",cluster,'inputspec.zstat')
-        wk.connect(outputspec,"mask",cluster,"inputspec.mask")
-        wk.connect(inputspec,"template",cluster,"inputspec.anatomical")
-        cluster.inputs.inputspec.threshold = c.z_threshold
+        #wk.connect(outputspec,"mask",cluster,"inputspec.mask")
+        #wk.connect(inputspec,"template",cluster,"inputspec.anatomical")
+        cluster.inputs.inputspec.mask = c.brain_mask
+        cluster.inputs.inputspec.zthreshold = c.z_threshold
+        cluster.inputs.inputspec.pthreshold = c.p_threshold
         cluster.inputs.inputspec.connectivity = c.connectivity
         wk.connect(cluster,'outputspec.corrected_z',sinkd,'output.corrected.@zthresh')
-        wk.connect(cluster,'outputspec.slices',sinkd,'output.corrected.clusters')
-        wk.connect(cluster,'outputspec.cuts',sinkd,'output.corrected.slices')
+        #wk.connect(cluster,'outputspec.slices',sinkd,'output.corrected.clusters')
+        #wk.connect(cluster,'outputspec.cuts',sinkd,'output.corrected.slices')
         wk.connect(cluster,'outputspec.localmax_txt',sinkd,'output.corrected.@localmax_txt')
         wk.connect(cluster,'outputspec.index_file',sinkd,'output.corrected.@index')
         wk.connect(cluster,'outputspec.localmax_vol',sinkd,'output.corrected.@localmax_vol')

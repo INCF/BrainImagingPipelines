@@ -388,16 +388,39 @@ def combine_wkflw(c,prep_c=foo, name='work_dir'):
     sinkd.inputs.regexp_substitutions.append(('realigned/fwhm_([0-9])/_copy_geom([0-9]*)/','realigned/'))
     sinkd.inputs.regexp_substitutions.append(('motion/fwhm_([0-9])/','motion/'))
     sinkd.inputs.regexp_substitutions.append(('bbreg/fwhm_([0-9])/','bbreg/'))
-     
+
+    def gunzipper(in_files):
+        from nipype.algorithms.misc import Gunzip
+        if isinstance(in_files,list):
+            outputs = []
+            for i in in_files:
+                if i.endswith('.gz'):
+                    res = Gunzip(in_file=i).run()
+                    outputs.append(res.outputs.out_file)
+                else: outputs.append(i)
+        else:
+            if in_files.endswith('.gz'):
+                res = Gunzip(in_file=in_files).run()
+                outputs = res.outputs.out_file  
+            else: outputs = in_files
+        return outputs      
+
+    gunzip1 = pe.Node(util.Function(input_names=['in_files'],output_names=['outputs'],function=gunzipper),name='gunzipper')
+    gunzip2 = gunzip1.clone('gunzipper2')     
     # make connections
     modelflow.connect(preproc, 'datagrabber.motion_parameters',      trad_motn,  'files')
     modelflow.connect(preproc, 'datagrabber.noise_components',       noise_motn, 'files')
-    modelflow.connect(preproc, 'datagrabber.highpassed_files',       s,          'functional_runs')
+    modelflow.connect(preproc, 'datagrabber.highpassed_files', gunzip2, "in_files")
+    modelflow.connect(gunzip2,'outputs', s, 'functional_runs')
+
     modelflow.connect(preproc, 'datagrabber.outlier_files',          s,          'outlier_files')
     modelflow.connect(trad_motn,'subinfo',                          noise_motn, 'subinfo')
     modelflow.connect(noise_motn,'subinfo',                         s,          'subject_info')
     modelflow.connect(s,'session_info',                             modelfit,   'inputspec.session_info')
-    modelflow.connect(preproc, 'datagrabber.mask', modelfit, 'inputspec.mask')
+
+    modelflow.connect(preproc, 'datagrabber.mask',gunzip1,'in_files') 
+    modelflow.connect(gunzip1, 'outputs', modelfit, 'inputspec.mask')
+
     modelflow.connect(modelfit, 'outputspec.spm_mat_file',   sinkd,      'modelfit_spm.contrasts.@spm_mat')
     modelflow.connect(modelfit, 'outputspec.residual_image',              sinkd,      'modelfit_spm.design.@residual')
     modelflow.connect(modelfit, 'outputspec.con_images',                 sinkd,      'modelfit_spm.contrasts.@cons')

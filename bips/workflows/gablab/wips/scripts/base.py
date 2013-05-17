@@ -412,7 +412,7 @@ def create_prep(name='preproc'):
                 'stddev_file',
                 'tsnr_detrended',
                 'filter_file',
-                'scaled_files',
+                'scaled_files','unmasked_fullspectrum',
                 'z_img',
                 'motion_plots',
                 'FM_unwarped_epi',
@@ -558,7 +558,7 @@ def create_prep_fieldmap(name='preproc'):
     
                     
                     
-def create_rest_prep(name='preproc',fieldmap=False):
+def create_rest_prep(name='preproc',fieldmap=False,extra_args={}):
     """Rewiring of base fMRI workflow to add resting state preprocessing
     
     components.
@@ -718,20 +718,60 @@ def create_rest_prep(name='preproc',fieldmap=False):
                     smooth, 'inputnode.in_files')
     preproc.connect(remove_noise, 'out_file',
                     choosesusan, 'motion_files')
-    preproc.connect(compcor, 'tsnr.detrended_file',
+    if "do_detrend" in extra_args.keys():
+        print "adding detrending"
+        preproc.connect(compcor, 'tsnr.detrended_file',
                     remove_noise, 'in_file')
-
-    preproc.connect(meanscale, 'out_file',
+    else:
+        print "no detrending"
+        preproc.connect(motion_correct,"out_file", 
+                    remove_noise,"in_file")
+    if "do_scaling" in extra_args.keys():
+        print "adding scaling"
+        preproc.connect(choosesusan, 'cor_smoothed_files',
+                    medianval, 'in_file')
+        preproc.connect(meanscale, 'out_file',
                     whitening, "in_file")
-    preproc.connect(whitening, "out_file",
+        preproc.connect(whitening, "out_file",
                     bandpass_filter, 'in_file')
+        preproc.connect(meanscale, 'out_file',
+                    outputnode, 'scaled_files')
+        # run scaling on unmasked brain too
+        ch2 = choosesusan.clone('choose_susan_unmasked')
+        median2 = medianval.clone('unmasked_median')
+        scale2 = meanscale.clone('scalemean2')
+        whitening2 = whitening.clone('whitening2')
+        preproc.connect(ch2, 'cor_smoothed_files',
+                    median2, 'in_file')
+        preproc.connect(getmask, ('outputspec.mask_file', pickfirst),
+                    median2, 'mask_file')
+        preproc.connect(ch2, 'cor_smoothed_files',
+                    scale2, 'in_file')
+        preproc.connect(scale2, 'out_file',
+                    outputnode, 'unmasked_fullspectrum')
+        preproc.connect(smooth,'mod_smooth.smoothed_file',
+                    ch2,'smoothed_files')
+        preproc.connect(median2, ('out_stat', getmeanscale),
+                        scale2, 'op_string')
+        preproc.connect(preproc.get_node('fwhm_input'),'fwhm',ch2,'fwhm')
+        preproc.connect(motion_correct, 'out_file',
+                    ch2, 'motion_files')
+
+
+    else:
+        print "removing scaling"
+        preproc.connect(choosesusan,'cor_smoothed_files',
+                    whitening,"in_file")
+        preproc.connect(whitening,"out_file",
+                    bandpass_filter,"in_file")
+        preproc.remove_nodes([meanscale,medianval])
+        preproc.connect(whitening,"out_file",
+                    outputnode,"scaled_files")
+        preproc.connect(smooth,'mod_smooth.smoothed_file',
+                    outputnode,'unmasked_fullspectrum')
 
     preproc.connect(bandpass_filter, 'out_file',
                     outputnode, 'bandpassed_file')
-    preproc.connect(choosesusan, 'cor_smoothed_files',
-                    medianval, 'in_file')
-    preproc.connect(meanscale, 'out_file',
-                    outputnode, 'scaled_files')
     preproc.connect(inputnode, 'highpass_freq',
                     bandpass_filter, 'highpass_freq')
     preproc.connect(inputnode, 'lowpass_freq',
@@ -748,7 +788,7 @@ def create_rest_prep(name='preproc',fieldmap=False):
 def create_rest_NoFS(name='preproc',use_fieldmap=False,segmentation_type='FAST'):
     from alternate_brain_mask import new_getmask
     from utils import create_no_FS_compcor
-    wf = create_rest_prep(name,use_fieldmap)
+    wf = create_rest_prep(name,use_fieldmap,extra_args={"do_scaling":True,"do_detrend":True})
     getmask = wf.get_node('getmask')
     compcor = wf.get_node('CompCor')
     outputnode = wf.get_node('outputspec')
@@ -756,6 +796,7 @@ def create_rest_NoFS(name='preproc',use_fieldmap=False,segmentation_type='FAST')
     remove_noise = wf.get_node('regress_nuisance')
     smooth = wf.get_node('modular_smooth')
     medianval = wf.get_node('compute_median_val')
+    median2=wf.get_node('unmasked_median')
     ad = wf.get_node('artifactdetect')
     motion_correct = wf.get_node('mod_realign')
     meanfunc = wf.get_node('take_mean_art')
@@ -794,6 +835,8 @@ def create_rest_NoFS(name='preproc',use_fieldmap=False,segmentation_type='FAST')
         ad, 'mask_file')
     wf.connect(getmask, 'outputspec.mask',
         medianval, 'mask_file')
+    wf.connect(getmask, 'outputspec.mask',
+        median2, 'mask_file')
     wf.connect(inputspec,'anatomical',
         getmask,'inputspec.structural')
 
@@ -1004,7 +1047,6 @@ def create_first_SPM(name='modelfit'):
                                                        'mask',
                                                        'model_serial_correlations']),
                         name='inputspec')
-    
     
     
     level1design = pe.Node(interface=spm.Level1Design(timing_units='secs'), 
