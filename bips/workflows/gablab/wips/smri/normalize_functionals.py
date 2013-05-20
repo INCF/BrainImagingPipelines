@@ -1,5 +1,5 @@
 import os
-from ..scripts.smri_base import get_post_struct_norm_workflow
+from ..scripts.smri_base import get_post_struct_norm_workflow, get_post_struct_norm_WIMT_workflow
 from ..scripts.smri_utils import warp_segments
 from ....base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool, Button
@@ -53,6 +53,8 @@ class config(HasTraits):
     use_nearest = traits.Bool(False,desc="use nearest neighbor interpolation")
     do_segment = traits.Bool(True)
     surf_dir = traits.Directory()
+    moving_images_4D = traits.Bool(True, usedefault=True, desc="True if your moving image inputs \
+                                         are time series images, False if they are 3-dimensional")
     # Advanced Options
     use_advanced_options = traits.Bool()
     advanced_script = traits.Code()
@@ -141,6 +143,7 @@ def create_view():
                 Group(Item(name='norm_template'),
                       Item(name="do_segment"),Item("use_nearest"),
                       Item(name="surf_dir", enabled_when="do_segment"),
+                      Item(name="moving_images_4D"),
                       label='Normalization', show_border=True),
                 Group(Item(name='use_advanced_options'),
                     Item(name='advanced_script',enabled_when='use_advanced_options'),
@@ -202,7 +205,11 @@ def getsubstitutions(subject_id):
 def normalize_workflow(c):
     import nipype.pipeline.engine as pe
     import nipype.interfaces.io as nio
-    norm = get_post_struct_norm_workflow()
+
+    if c.moving_images_4D:
+        norm = get_post_struct_norm_workflow()
+    else:
+        norm = get_post_struct_norm_WIMT_workflow()
     
     datagrab = c.datagrabber.create_dataflow() #func_datagrabber(c)
     #fssource = pe.Node(interface=FreeSurferSource(), name='fssource')
