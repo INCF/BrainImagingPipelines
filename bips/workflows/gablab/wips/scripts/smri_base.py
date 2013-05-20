@@ -177,6 +177,89 @@ def get_post_struct_norm_workflow(name='normalize_post_struct'):
     return normalize_post_struct
 
 
+def get_post_struct_norm_WIMT_workflow(name='normalize_post_struct'):
+    """ Base post-structural workflow for normalization
+
+    Parameters
+    ----------
+    name : name of workflow. Default = 'normalize_post_struct'
+
+    Inputs
+    ------
+    inputspec.template_file :
+    inputspec.unwarped_brain :
+    inputspec.warp_field :
+    inputspec.affine_transformation :
+    inputspec.out_fsl_file :
+    inputspec.moving_image :
+    inputspec.mean_func :
+    inputspec.use_nearest:
+
+    Outputs
+    -------
+    outputspec.warped_image :
+
+    Returns
+    -------
+    workflow : post-structural normalization workflow
+    """
+    #inputs to workflow
+    import nipype.interfaces.freesurfer as fs
+    import nipype.interfaces.ants as ants
+    import nipype.pipeline.engine as pe
+    import nipype.interfaces.utility as util
+    inputspec = pe.Node(
+        util.IdentityInterface(
+            fields=['template_file', 'unwarped_brain', 'warp_field',
+                'affine_transformation', 'out_fsl_file', 'moving_image',
+                'mean_func',"use_nearest"]),
+        name='inputspec')
+
+    #makes fsl-style coregistration ANTS compatible
+    fsl_reg_2_itk = pe.Node(
+        util.Function(
+            input_names=['unwarped_brain', 'mean_func', 'out_fsl_file'],
+            output_names=['fsl2antsAffine'],
+            function=convert_affine),
+        name='fsl_reg_2_itk')
+
+    #collects series of transformations to be applied to the moving images
+    collect_transforms = pe.Node(
+        util.Merge(3),
+        name='collect_transforms')
+
+    #performs series of transformations on moving images
+    warp_images = pe.MapNode(
+        ants.WarpImageMultiTransform(),
+        name='warp_images',
+        iterfield=['input_image', 'dimension'])
+
+    #collects workflow outputs
+    outputspec = pe.Node(
+        util.IdentityInterface(
+            fields=['warped_image']),
+        name='outputspec')
+
+    #initializes and connects workflow nodes
+    normalize_post_struct = pe.Workflow(name=name)
+    normalize_post_struct.connect([
+        (inputspec, fsl_reg_2_itk, [('unwarped_brain', 'unwarped_brain')]),
+        (inputspec, fsl_reg_2_itk, [('out_fsl_file', 'out_fsl_file')]),
+        (inputspec, fsl_reg_2_itk, [('mean_func', 'mean_func')]),
+        (fsl_reg_2_itk, collect_transforms, [('fsl2antsAffine', 'in3')]),
+        (inputspec, collect_transforms, [('warp_field', 'in1'),
+            ('affine_transformation', 'in2')]),
+        (inputspec, warp_images, [('moving_image', 'input_image')]),
+        (inputspec, warp_images, [(('moving_image', get_image_dimensions),
+                                    'dimension')]),
+        (inputspec, warp_images, [('template_file', 'reference_image'),('use_nearest','use_nearest')]),
+        (collect_transforms, warp_images, [('out',
+                                    'transformation_series')]),
+        (warp_images, outputspec, [('output_image', 'warped_image')])])
+
+    return normalize_post_struct
+
+
 def get_full_norm_workflow(name="normalize_struct_and_post"):
     """ Combined tructural and post-structural workflow for normalization
 

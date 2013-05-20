@@ -68,8 +68,6 @@ class config(HasTraits):
         desc="plugin to use, if run_using_plugin=True")
     plugin_args = traits.Dict({"qsub_args": "-q many"},
         usedefault=True, desc='Plugin arguments.')
-    use_custom_ROI_list_file = Bool(False, usedefault=True, desc="True to limit the produced TSNR table to a more selective list of ROIs")
-    custom_ROI_list_file = traits.File(desc="Enter the full path to your customized FreeSurferColorLUT.txt")
     test_mode = Bool(False, mandatory=False, usedefault=True,
         desc='Affects whether where and if the workflow keeps its \
                             intermediary files. True to keep intermediary files. ')
@@ -80,6 +78,11 @@ class config(HasTraits):
 
     preproc_config = traits.File(desc="preproc config file")
     debug = traits.Bool(True)
+
+    #Preprocessing Info
+    use_custom_ROI_list_file = Bool(False, usedefault=True, desc="True to limit the produced TSNR table to a more selective list of ROIs")
+    custom_ROI_list_file = traits.File(desc="Enter the full path to your customized FreeSurferColorLUT.txt")
+
     # Advanced Options
     use_advanced_options = traits.Bool()
     advanced_script = traits.Code()
@@ -111,12 +114,12 @@ def create_view():
         Group(Item(name='run_using_plugin',enabled_when='not save_script_only'),Item('save_script_only'),
             Item(name='plugin', enabled_when="run_using_plugin"),
             Item(name='plugin_args', enabled_when="run_using_plugin"),
-            Item(name='use_custom_ROI_list_file'),Item(name='custom_ROI_list_file',enabled_when='use_custom_ROI_list_file'),
             Item(name='test_mode'), Item(name='debug'),
             label='Execution Options', show_border=True),
         Group(Item(name='subjects', editor=CSVListEditor()),
             label='Subjects', show_border=True),
-        Group(Item(name='preproc_config'),
+        Group(Item(name='preproc_config'),Item(name='use_custom_ROI_list_file'),
+            Item(name='custom_ROI_list_file',enabled_when='use_custom_ROI_list_file'),
             label = 'Preprocessing Info'),
         Group(Item(name='use_advanced_options'),
             Item(name='advanced_script',enabled_when='use_advanced_options'),
@@ -222,7 +225,7 @@ def preproc_datagrabber(c,name='preproc_datagrabber'):
                          name = name)
     datasource.inputs.base_directory = c.sink_dir
     datasource.inputs.template ='*'
-    datasource.sort_filelist = True
+    datasource.inputs.sort_filelist = True
     datasource.inputs.field_template = dict(motion_parameters='%s/preproc/motion/*.par',
                                             outlier_files='%s/preproc/art/*_outliers.txt',
                                             art_norm='%s/preproc/art/norm.*.txt',

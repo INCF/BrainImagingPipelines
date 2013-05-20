@@ -112,7 +112,7 @@ def create_view():
                       label='Execution Options', show_border=True),
                 Group(Item(name='datagrabber'),
                       label='Datagrabber', show_border=True),
-                Group(Item(name='brain_mask'),Item("run_mode"),
+                Group(Item(name='brain_mask'),Item("run_mode",enabled_when='not do_randomize'),
                       Item(name='do_randomize'),Item('num_iterations',enabled_when='do_randomize'),
                       label='Second Level', show_border=True),
                 Group(Item("run_correction"),Item("z_threshold"),Item('p_threshold'),Item("connectivity"),
@@ -271,11 +271,11 @@ def connect_to_config(c):
     import nipype.interfaces.io as nio
     if not c.do_randomize:
         wk = create_2lvl()
+        wk.inputs.inputspec.run_mode = c.run_mode
     else:
         wk  =create_2lvl_rand(iters=c.num_iterations)
 
     wk.base_dir = c.working_dir
-    wk.inputs.inputspec.run_mode = c.run_mode
     datagrabber = c.datagrabber.create_dataflow()  #get_datagrabber(c)
     #infosourcecon = pe.Node(niu.IdentityInterface(fields=["contrast"]),name="contrasts")
     #infosourcecon.iterables = ("contrast",c.contrasts)
