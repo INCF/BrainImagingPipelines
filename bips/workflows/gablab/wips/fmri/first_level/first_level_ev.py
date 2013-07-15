@@ -437,6 +437,7 @@ def combine_wkflw(c,prep_c=foo, name='work_dir'):
     modelflow.connect(modelfit, 'outputspec.design_cov',            sinkd,      'modelfit.design.@cov')
     modelflow.connect(modelfit, 'outputspec.design_file',           sinkd,      'modelfit.design.@matrix')
     modelflow.connect(modelfit, 'outputspec.pfiles',                sinkd,      'modelfit.contrasts.@pstats')
+    modelflow.connect(modelfit, 'outputspec.fsf_file',              sinkd,      'modelfit.design.@fsf_file') ###
     return modelflow
 
 mwf.workflow_function = combine_wkflw

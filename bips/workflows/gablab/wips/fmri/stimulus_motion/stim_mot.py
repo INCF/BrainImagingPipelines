@@ -169,9 +169,6 @@ def stim_corr(subinfo, inpath, sparse, subject_id):
                      dot = np.dot(c,o)
                      outc = 'Outlier in %s = %d' %(c_label[i], dot)
                      print outc
-                     #c_out = np.sum((param_o[:,i] > 0).astype(int) + (param_o[:,-1] > 0.9).astype(int)==2)
-                     #out_c = 'Outlier in %s = %d' %(c_label[i], c_out) 
-                     #print out_c
                      output_info.append([run, outc])
                      ofile.write('%s, ' %(dot))
 
@@ -284,7 +281,6 @@ def stim_corr(subinfo, inpath, sparse, subject_id):
             output_info.append([[run, out, regs, con, matr]])
             ofile.write(', '.join([str(subject_id)]+[str(r)]+[str(outlier)]))
             if outlier > 0:
-
                 o = param[:, count:columns]
                 o_sums = o.sum(axis=1)
                 param_o = np.column_stack((param, o_sums))
@@ -299,9 +295,9 @@ def stim_corr(subinfo, inpath, sparse, subject_id):
 
             else: 
                 param_o = param
-                c_out = 0
                 ofile.write(', ')
                 for i in range(cond):
+                    c_out = 0
                     out_c = 'Outlier in %s = %d' %(c_label[i], c_out) 
                     output_info.append([run, out_c])
                     ofile.write('%s, ' %(c_out))
