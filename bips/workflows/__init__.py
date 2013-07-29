@@ -8,7 +8,6 @@ from .gablab.wips.fmri.preprocessing import fmri_preprocessing, fmri_QA, spm_pre
                                             FIR_filter, preproc_no_freesurfer, group_preproc_QA, preproc_QA_json, \
                                             fmri_extras, simple_resting
 from .gablab.wips.fmri.resting import wip_resting_correlation_QA, map_correlations, seed_based_connectivity, seed_based_connectivity2
-from .gablab.wips.fmri.stimulus_motion import stim_mot
 from .gablab.wips.fmri.viz import synced_corr_display_h5
 from .gablab.wips.smri import test_freesurfer, normalize_structural, normalize_functionals, kelly_kapowski, freesurfer_brain_masks, wip_divide_parcellations
 from .gablab.wips.utils import take_mean_image, plot_contours, change_datatype

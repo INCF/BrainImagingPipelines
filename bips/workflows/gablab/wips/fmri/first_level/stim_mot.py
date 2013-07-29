@@ -16,7 +16,7 @@ mwf.uuid = '431e1fd2a37f11e2bff300259058e3f2'
 mwf.help = """
 Stimulus Motion Correlation
 ===========================
-This workflow can be used to compute and visualize stimulus-motion correlation.
+This workflow can be used to compute and visualize stimulus-motion correlation. T.
 
 """
 
@@ -61,7 +61,7 @@ def create_config():
     return c
 
 def create_datagrabber_config():
-    dg = Data(['design_matrices'])
+    dg = Data(['input_files'])
     foo = DataBase()
     foo.name="subject_id"
     foo.iterable = True
