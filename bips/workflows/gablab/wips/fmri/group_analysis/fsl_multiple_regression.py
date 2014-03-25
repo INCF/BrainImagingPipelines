@@ -236,7 +236,7 @@ def create_2lvl_rand(name="group_randomize",mask=None,iters=5000):
 
     wk.connect(inputspec, 'contrasts', model, "contrasts")
     wk.connect(inputspec, 'regressors', model, "regressors")
-    wk.connect(inputspec,'group',model,'group')
+    wk.connect(inputspec,'group',model,'groups')
 
     mergecopes = pe.Node(fsl.Merge(dimension='t'),name='merge_copes')
     
