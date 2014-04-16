@@ -5,6 +5,7 @@ from .....base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool
 import traits.api as traits
 from .....flexible_datagrabber import Data, DataBase
+from bips.workflows.base import BaseWorkflowConfig
 
 """
 Part 1: Define a MetaWorkflow
@@ -23,28 +24,16 @@ mwf.tags=['fMRI','First Level','ev files']
 Part 2: Define the config class & create_config function
 """
 
-class config(HasTraits):
+class config(BaseWorkflowConfig):
     uuid = traits.Str(desc="UUID")
     desc = traits.Str(desc="Workflow Description")
+    
     # Directories
-    working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
     sink_dir = Directory(os.path.abspath('.'), mandatory=True, desc="Location where the BIP will store the results")
-    crash_dir = Directory(mandatory=False, desc="Location to store crash files")
     json_sink = Directory(mandatory=False, desc= "Location to store json_files")
     surf_dir = Directory(mandatory=True, desc= "Freesurfer subjects directory")
     save_script_only = traits.Bool(False)
-    # Execution
 
-    run_using_plugin = Bool(False, usedefault=True, desc="True to run pipeline with plugin, False to run serially")
-    plugin = traits.Enum("PBS", "MultiProc", "SGE", "Condor",
-        usedefault=True,
-        desc="plugin to use, if run_using_plugin=True")
-    plugin_args = traits.Dict({"qsub_args": "-q many"},
-        usedefault=True, desc='Plugin arguments.')
-    test_mode = Bool(False, mandatory=False, usedefault=True,
-        desc='Affects whether where and if the workflow keeps its \
-                            intermediary files. True to keep intermediary files. ')
-    timeout = traits.Float(14.0)
     # Subjects
 
     #subjects= traits.List(traits.Str, mandatory=True, usedefault=True,

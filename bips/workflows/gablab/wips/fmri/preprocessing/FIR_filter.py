@@ -1,3 +1,4 @@
+from bips.workflows.base import BaseWorkflowConfig
 __author__ = 'keshavan'
 from .....base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool
@@ -15,25 +16,13 @@ Filtering workflow
 
 """
 
-class config(HasTraits):
+class config(BaseWorkflowConfig):
     uuid = traits.Str(desc="UUID")
 
     # Directories
-    working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
     sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
-    crash_dir = Directory(mandatory=False, desc="Location to store crash files")
     save_script_only = traits.Bool(False)
 
-    # Execution
-    run_using_plugin = Bool(False, usedefault=True, desc="True to run pipeline with plugin, False to run serially")
-    plugin = traits.Enum("PBS", "MultiProc", "SGE", "Condor",
-        usedefault=True,
-        desc="plugin to use, if run_using_plugin=True")
-    plugin_args = traits.Dict({"qsub_args": "-q many"},
-        usedefault=True, desc='Plugin arguments.')
-    test_mode = Bool(False, mandatory=False, usedefault=True,
-        desc='Affects whether where and if the workflow keeps its \
-                            intermediary files. True to keep intermediary files. ')
     # DataGrabber
     datagrabber = datagrabber = traits.Instance(Data, ())
 

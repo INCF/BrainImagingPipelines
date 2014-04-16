@@ -1,3 +1,4 @@
+from bips.workflows.base import BaseWorkflowConfig
 __author__ = 'keshavan'
 from ....base import MetaWorkflow, load_config, register_workflow
 from traits.api import HasTraits, Directory, Bool
@@ -25,22 +26,13 @@ Part 2: Define the config class & create_config function
 """
 
 # config_ui
-class config(HasTraits):
+class config(BaseWorkflowConfig):
     uuid = traits.Str(desc="UUID")
     desc = traits.Str(desc='Workflow description')
     # Directories
-    working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
-    crash_dir = Directory(mandatory=False, desc="Location to store crash files")
     save_script_only = traits.Bool(False)
     sink_dir = Directory(mandatory=True,desc="Location to store results")
-    # Execution
 
-    run_using_plugin = Bool(False, usedefault=True, desc="True to run pipeline with plugin, False to run serially")
-    plugin = traits.Enum("PBS", "PBSGraph","MultiProc", "SGE", "Condor",
-        usedefault=True,
-        desc="plugin to use, if run_using_plugin=True")
-    plugin_args = traits.Dict({"qsub_args": "-q many"},
-        usedefault=True, desc='Plugin arguments.')
     # Subjects
     datagrabber = traits.Instance(Data, ())
     name= traits.String('images')

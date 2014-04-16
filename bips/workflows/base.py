@@ -5,6 +5,7 @@ from nipype.utils.filemanip import save_json
 from nipype.interfaces.base import traits
 from traits.api import (HasTraits, HasStrictTraits, Str, Bool, Button, TraitError)
 from .flexible_datagrabber import Data
+from traits.api import HasTraits, Directory, Bool
 _workflow = {}
 
 def _decode_list(data):
@@ -345,3 +346,25 @@ def debug_workflow(workflow):
             a.run_without_submitting = True
 
     return workflow
+
+class BaseWorkflowConfig(HasTraits):
+
+    # Directories
+    working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
+    crash_dir = Directory(mandatory=False, desc="Location to store crash files")
+    save_script_only = traits.Bool(False)
+    
+    # Execution
+    run_using_plugin = Bool(False, usedefault=True, desc="True to run pipeline with plugin, False to run serially")
+    plugin = traits.Enum("PBS", "PBSGraph","MultiProc", "SGE", "Condor", "CondorDAGMan",
+        usedefault=True,
+        desc="plugin to use, if run_using_plugin=True")
+    plugin_args = traits.Dict(desc='Plugin arguments.')
+    test_mode = Bool(False, mandatory=False, usedefault=True,
+        desc='Affects whether where and if the workflow keeps its \
+                            intermediary files. True to keep intermediary files. ')
+    timeout = traits.Float(14.0)
+    
+    # Advanced Options
+    use_advanced_options = traits.Bool()
+    advanced_script = traits.Code()

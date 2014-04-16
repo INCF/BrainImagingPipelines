@@ -6,6 +6,7 @@ from traits.api import HasTraits, Directory, Bool, Button
 import traits.api as traits
 from glob import glob
 from ....flexible_datagrabber import Data, DataBase
+from bips.workflows.base import BaseWorkflowConfig
 
 """
 Part 1: MetaWorkflow
@@ -24,26 +25,13 @@ mwf.help = desc
 """
 Part 2: Config
 """
-class config(HasTraits):
+class config(BaseWorkflowConfig):
     uuid = traits.Str(desc="UUID")
 
     # Directories
-    working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
     base_dir = Directory(os.path.abspath('.'),mandatory=True, desc='Base directory of data. (Should be subject-independent)')
     sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
-    crash_dir = Directory(mandatory=False, desc="Location to store crash files")
 
-    # Execution
-    run_using_plugin = Bool(False, usedefault=True, desc="True to run pipeline with plugin, False to run serially")
-    plugin = traits.Enum("PBS", "MultiProc", "SGE", "Condor",
-                         usedefault=True,
-                         desc="plugin to use, if run_using_plugin=True")
-    plugin_args = traits.Dict({"qsub_args": "-q many"},
-                                                      usedefault=True, desc='Plugin arguments.')
-    test_mode = Bool(False, mandatory=False, usedefault=True,
-                     desc='Affects whether where and if the workflow keeps its \
-                            intermediary files. True to keep intermediary files. ')
-    timeout = traits.Float(14.0)
     # Subjects
 
     datagrabber = traits.Instance(Data, ())
