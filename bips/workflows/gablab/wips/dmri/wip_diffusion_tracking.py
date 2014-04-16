@@ -2,6 +2,7 @@ from traits.api import HasTraits, Directory, Bool
 import traits.api as traits
 from ....base import MetaWorkflow, load_config, register_workflow
 from wip_diffusion import config as pconfig
+from bips.workflows.base import BaseWorkflowConfig
 
 """
 Part 1: MetaWorkflow
@@ -20,25 +21,12 @@ mwf.script_dir = 'fmri'
 Part 2: Config
 """
 
-class config(HasTraits):
+class config(BaseWorkflowConfig):
     uuid = traits.Str(desc="UUID")
     desc = traits.Str(desc='Workflow description')
     # Directories
-    working_dir = Directory(mandatory=True, desc="Location of the Nipype working directory")
     sink_dir = Directory(mandatory=True, desc="Location where the BIP will store the results")
-    crash_dir = Directory(mandatory=False, desc="Location to store crash files")
-
-    # Execution
-
-    run_using_plugin = Bool(False, usedefault=True, desc="True to run pipeline with plugin, False to run serially")
-    plugin = traits.Enum("PBS", "PBSGraph","MultiProc", "SGE", "Condor",
-        usedefault=True,
-        desc="plugin to use, if run_using_plugin=True")
-    plugin_args = traits.Dict({"qsub_args": "-q many"},
-        usedefault=True, desc='Plugin arguments.')
-    test_mode = Bool(False, mandatory=False, usedefault=True,
-        desc='Affects whether where and if the workflow keeps its \
-                            intermediary files. True to keep intermediary files. ')
+    
     # Subjects
 
     subjects= traits.List(traits.Str, mandatory=True, usedefault=True,

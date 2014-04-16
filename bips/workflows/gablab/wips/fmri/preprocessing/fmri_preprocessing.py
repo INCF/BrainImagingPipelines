@@ -171,6 +171,7 @@ def create_html_view():
                                    widget=deform.widget.SelectWidget(values=[('PBS','PBS'),
                                     ('PBSGraph','PBSGraph'),
                                     ('Condor','Condor'),
+                                    ('CondorDAGMan','CondorDAGMan')
                                     ('MultiProc','MultiProc')]),
                                     name='plugin'))
     x_opts.add(sn(colander.String(),name='plugin_args',default='{\'qsub_args\':\'-q many\'}'))

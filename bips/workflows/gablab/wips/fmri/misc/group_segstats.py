@@ -3,6 +3,7 @@ import traits.api as traits
 from .....base import MetaWorkflow, load_config, register_workflow, debug_workflow
 from .....flexible_datagrabber import Data, DataBase
 from traits.api import HasTraits
+from bips.workflows.base import BaseWorkflowConfig
 
 mwf = MetaWorkflow()
 mwf.uuid = '31a16ceef77e11e196e800259080ab1a'
@@ -14,25 +15,13 @@ Segstats Group
 
 """
 
-class config(HasTraits):
+class config(BaseWorkflowConfig):
     uuid = traits.Str(desc="UUID")
 
     # Directories
-    working_dir = traits.Directory(mandatory=True, desc="Location of the Nipype working directory")
     sink_dir = traits.Directory(mandatory=True, desc="Location where the BIP will store the results")
-    crash_dir = traits.Directory(mandatory=False, desc="Location to store crash files")
     save_script_only = traits.Bool(False)
-    # Execution
-    run_using_plugin = traits.Bool(False, usedefault=True, desc="True to run pipeline with plugin, False to run serially")
-    plugin = traits.Enum("PBS", "MultiProc", "SGE", "Condor",
-        usedefault=True,
-        desc="plugin to use, if run_using_plugin=True")
-    plugin_args = traits.Dict({"qsub_args": "-q many"},
-        usedefault=True, desc='Plugin arguments.')
-    test_mode = traits.Bool(False, mandatory=False, usedefault=True,
-        desc='Affects whether where and if the workflow keeps its \
-                            intermediary files. True to keep intermediary files. ')
-    timeout = traits.Float(14.0)
+
     # DataGrabber
     datagrabber = traits.Instance(Data, ())
 
