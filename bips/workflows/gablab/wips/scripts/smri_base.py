@@ -1,4 +1,5 @@
 from smri_utils import (convert_affine, get_image_dimensions)
+from nipype.interfaces import c3
 
 
 def get_struct_norm_workflow(name='normalize_struct'):
@@ -134,10 +135,7 @@ def get_post_struct_norm_workflow(name='normalize_post_struct'):
 
     #makes fsl-style coregistration ANTS compatible
     fsl_reg_2_itk = pe.Node(
-        util.Function(
-            input_names=['unwarped_brain', 'mean_func', 'out_fsl_file'],
-            output_names=['fsl2antsAffine'],
-            function=convert_affine),
+        c3.C3dAffineTool(fsl2ras=True),
         name='fsl_reg_2_itk')
 
     #collects series of transformations to be applied to the moving images
@@ -160,10 +158,10 @@ def get_post_struct_norm_workflow(name='normalize_post_struct'):
     #initializes and connects workflow nodes
     normalize_post_struct = pe.Workflow(name=name)
     normalize_post_struct.connect([
-        (inputspec, fsl_reg_2_itk, [('unwarped_brain', 'unwarped_brain')]),
-        (inputspec, fsl_reg_2_itk, [('out_fsl_file', 'out_fsl_file')]),
-        (inputspec, fsl_reg_2_itk, [('mean_func', 'mean_func')]),
-        (fsl_reg_2_itk, collect_transforms, [('fsl2antsAffine', 'in3')]),
+        (inputspec, fsl_reg_2_itk, [('unwarped_brain', 'reference_file')]),
+        (inputspec, fsl_reg_2_itk, [('out_fsl_file', 'transform_file')]),
+        (inputspec, fsl_reg_2_itk, [('mean_func', 'source_file')]),
+        (fsl_reg_2_itk, collect_transforms, [('itk_transform', 'in3')]),
         (inputspec, collect_transforms, [('warp_field', 'in1'),
             ('affine_transformation', 'in2')]),
         (inputspec, warp_images, [('moving_image', 'input_image')]),
@@ -217,10 +215,7 @@ def get_post_struct_norm_WIMT_workflow(name='normalize_post_struct'):
 
     #makes fsl-style coregistration ANTS compatible
     fsl_reg_2_itk = pe.Node(
-        util.Function(
-            input_names=['unwarped_brain', 'mean_func', 'out_fsl_file'],
-            output_names=['fsl2antsAffine'],
-            function=convert_affine),
+        c3.C3dAffineTool(fsl2ras=True),
         name='fsl_reg_2_itk')
 
     #collects series of transformations to be applied to the moving images
@@ -243,10 +238,10 @@ def get_post_struct_norm_WIMT_workflow(name='normalize_post_struct'):
     #initializes and connects workflow nodes
     normalize_post_struct = pe.Workflow(name=name)
     normalize_post_struct.connect([
-        (inputspec, fsl_reg_2_itk, [('unwarped_brain', 'unwarped_brain')]),
-        (inputspec, fsl_reg_2_itk, [('out_fsl_file', 'out_fsl_file')]),
-        (inputspec, fsl_reg_2_itk, [('mean_func', 'mean_func')]),
-        (fsl_reg_2_itk, collect_transforms, [('fsl2antsAffine', 'in3')]),
+        (inputspec, fsl_reg_2_itk, [('unwarped_brain', 'reference_file')]),
+        (inputspec, fsl_reg_2_itk, [('out_fsl_file', 'transform_file')]),
+        (inputspec, fsl_reg_2_itk, [('mean_func', 'source_file')]),
+        (fsl_reg_2_itk, collect_transforms, [('itk_transform', 'in3')]),
         (inputspec, collect_transforms, [('warp_field', 'in1'),
             ('affine_transformation', 'in2')]),
         (inputspec, warp_images, [('moving_image', 'input_image')]),
