@@ -1,5 +1,6 @@
 from utils import (create_compcorr, choose_susan, art_mean_workflow, z_image,
                    getmeanscale, highpass_operand, pickfirst, whiten)
+from nipype.utils.filemanip import split_filename
 
 
 def create_filter_matrix(motion_params, composite_norm,
@@ -199,16 +200,22 @@ def create_prep(name='preproc'):
                              name='fwhm_input')
 
     # strip ids
-    strip_rois = pe.MapNode(fsl.ExtractROI(),name='extractroi',iterfield='in_file')
-    strip_rois.inputs.t_size = -1
+    def strip_rois_func(in_file, t_min):
+        import numpy as np
+        import nibabel as nb
+        import os
+        from nipype.utils.filemanip import split_filename
+        nii = nb.load(in_file)
+        new_nii = nb.Nifti1Image(nii.get_data()[:,:,:,t_min:], nii.get_affine(), nii.get_header())
+        new_nii.set_data_dtype(np.float32)
+        _, base, _ = split_filename(in_file)
+        nb.save(new_nii, base + "_roi.nii.gz")
+        return os.path.abspath(base + "_roi.nii.gz")
+    strip_rois = pe.MapNode(util.Function(input_names=['in_file','t_min'],
+                                          output_names=["out_file"],
+                                          function=strip_rois_func),
+                            name='extractroi', iterfield='in_file')
     preproc.connect(inputnode,'timepoints_to_remove',strip_rois,'t_min')
-
-    # convert BOLD images to float
-    img2float = pe.MapNode(interface=fsl.ImageMaths(out_data_type='float',
-                                                    op_string='',
-                                                    suffix='_dtype'),
-                           iterfield=['in_file'],
-                           name='img2float')
 
     #afni despike
     despike=pe.MapNode(util.Function(input_names=['in_file',"do_despike"],
@@ -324,9 +331,8 @@ def create_prep(name='preproc'):
     #preproc.connect(inputnode, 'func',
     #                img2float, 'in_file')
     preproc.connect(inputnode, 'func', strip_rois, 'in_file')
-    preproc.connect(strip_rois, 'roi_file', img2float, 'in_file')
 
-    preproc.connect(img2float, 'out_file', despike, "in_file")
+    preproc.connect(strip_rois, 'out_file', despike, "in_file")
     preproc.connect(despike,"out_file", motion_correct, 'in_file')
     #preproc.connect(motion_correct, 'par_file',
     #                plot_motion, 'in_file')
