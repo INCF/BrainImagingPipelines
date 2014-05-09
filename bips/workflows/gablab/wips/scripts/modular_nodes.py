@@ -283,34 +283,37 @@ def mod_smooth(in_file, mask_file, fwhm, smooth_type, reg_file, surface_fwhm, su
     import nipype.interfaces.fsl as fsl
     import nipype.interfaces.freesurfer as fs
     import os
-    if fwhm == 0 and surface_fwhm == 0:
-        return in_file
-    else:
-        if smooth_type == 'susan':
-            smooth = create_susan_smooth()
-            smooth.base_dir = os.getcwd()
-            smooth.inputs.inputnode.fwhm = fwhm
-            smooth.inputs.inputnode.mask_file = mask_file
-            smooth.inputs.inputnode.in_file = in_file
-            res = smooth.run()
-            smoothed_file = res.outputs.outputnode.smoothed_files
-        elif smooth_type=='isotropic':
-            smooth = fsl.IsotropicSmooth()
-            smooth.inputs.in_file = in_file
-            smooth.inputs.fwhm = fwhm
-            res = smooth.run()
-            smoothed_file = res.outputs.out_file
-        elif smooth_type == 'freesurfer':
-            smooth = fs.Smooth()
-            smooth.inputs.reg_file = reg_file
-            smooth.inputs.in_file = in_file
-            smooth.inputs.surface_fwhm = surface_fwhm
-            smooth.inputs.vol_fwhm = fwhm
-            smooth.inputs.proj_frac_avg = (0.0,1.0,0.1)
-            smooth.inputs.subjects_dir = subjects_dir
-            res = smooth.run()
-            smoothed_file = res.outputs.smoothed_file
-        return smoothed_file
+    if smooth_type == 'susan':
+        if fwhm == 0:
+            return in_file
+        smooth = create_susan_smooth()
+        smooth.base_dir = os.getcwd()
+        smooth.inputs.inputnode.fwhm = fwhm
+        smooth.inputs.inputnode.mask_file = mask_file
+        smooth.inputs.inputnode.in_file = in_file
+        res = smooth.run()
+        smoothed_file = res.outputs.outputnode.smoothed_files
+    elif smooth_type=='isotropic':
+        if fwhm == 0:
+            return in_file
+        smooth = fsl.IsotropicSmooth()
+        smooth.inputs.in_file = in_file
+        smooth.inputs.fwhm = fwhm
+        res = smooth.run()
+        smoothed_file = res.outputs.out_file
+    elif smooth_type == 'freesurfer':
+        if fwhm == 0 and surface_fwhm == 0:
+            return in_file
+        smooth = fs.Smooth()
+        smooth.inputs.reg_file = reg_file
+        smooth.inputs.in_file = in_file
+        smooth.inputs.surface_fwhm = surface_fwhm
+        smooth.inputs.vol_fwhm = fwhm
+        smooth.inputs.proj_frac_avg = (0.0,1.0,0.1)
+        smooth.inputs.subjects_dir = subjects_dir
+        res = smooth.run()
+        smoothed_file = res.outputs.smoothed_file
+    return smoothed_file
 
 def getbtthresh(medianvals):
     return [0.75*val for val in medianvals]
@@ -367,16 +370,6 @@ Set up a node to define all inputs required for the preprocessing workflow
                                                                  'surface_fwhm',
                                                                  'surf_dir']),
         name='inputnode')
-
-    """
-Smooth each run using SUSAN with the brightness threshold set to 75%
-of the median value for each run and a mask consituting the mean
-functional
-"""
-
-    #smooth = pe.MapNode(interface=fsl.SUSAN(),
-    #    iterfield=['in_file', 'brightness_threshold','usans'],
-    #    name='smooth')
 
     smooth = pe.MapNode(util.Function(input_names=['in_file',
                                                    'mask_file',
