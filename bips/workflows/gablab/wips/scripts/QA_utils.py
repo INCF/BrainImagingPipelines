@@ -276,8 +276,9 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False, onsets=False):
     def strip_ids(subject_id, summary_file, roi_file):
         import numpy as np
         import os
-        roi_idx = np.genfromtxt(summary_file)[:,1].astype(int)
-        roi_vals = np.genfromtxt(roi_file)
+        roi_idx = np.genfromtxt(summary_file, comments='#')[:,1].astype(int)
+        roi_vals = np.genfromtxt(roi_file, comments='#')
+	    roi_vals = np.atleast_2d(roi_vals)
         rois2skip = [0, 2, 4, 5, 7, 14, 15, 24, 30, 31, 41, 43, 44, 46,
                      62, 63, 77, 80, 85, 1000, 2000]
         ids2remove = []
