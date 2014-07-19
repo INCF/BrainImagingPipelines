@@ -1,3 +1,4 @@
+from nipype.workflows.fmri.fsl.preprocess import create_susan_smooth
 def afni_realign(in_file,tr,do_slicetime,sliceorder,order='motion_slicetime'):
     import nipype.interfaces.afni as afni
     import nipype.interfaces.fsl as fsl
@@ -278,25 +279,31 @@ def mod_realign(node,in_file,tr,do_slicetime,sliceorder,
 
     return out_file, par_file, parameter_source
 
-def mod_smooth(in_file,brightness_threshold,usans,fwhm,
-               smooth_type, reg_file, surface_fwhm, subjects_dir=None):
+def mod_smooth(in_file, mask_file, fwhm, smooth_type, reg_file, surface_fwhm, subjects_dir=None):
     import nipype.interfaces.fsl as fsl
     import nipype.interfaces.freesurfer as fs
+    import os
     if smooth_type == 'susan':
-        smooth = fsl.SUSAN()
-        smooth.inputs.fwhm = fwhm
-        smooth.inputs.brightness_threshold = brightness_threshold
-        smooth.inputs.usans = usans
-        smooth.inputs.in_file = in_file
+        if fwhm == 0:
+            return in_file
+        smooth = create_susan_smooth()
+        smooth.base_dir = os.getcwd()
+        smooth.inputs.inputnode.fwhm = fwhm
+        smooth.inputs.inputnode.mask_file = mask_file
+        smooth.inputs.inputnode.in_file = in_file
         res = smooth.run()
-        smoothed_file = res.outputs.smoothed_file
+        smoothed_file = res.outputs.outputnode.smoothed_files
     elif smooth_type=='isotropic':
+        if fwhm == 0:
+            return in_file
         smooth = fsl.IsotropicSmooth()
         smooth.inputs.in_file = in_file
         smooth.inputs.fwhm = fwhm
         res = smooth.run()
         smoothed_file = res.outputs.out_file
     elif smooth_type == 'freesurfer':
+        if fwhm == 0 and surface_fwhm == 0:
+            return in_file
         smooth = fs.Smooth()
         smooth.inputs.reg_file = reg_file
         smooth.inputs.in_file = in_file
@@ -364,19 +371,8 @@ Set up a node to define all inputs required for the preprocessing workflow
                                                                  'surf_dir']),
         name='inputnode')
 
-    """
-Smooth each run using SUSAN with the brightness threshold set to 75%
-of the median value for each run and a mask consituting the mean
-functional
-"""
-
-    #smooth = pe.MapNode(interface=fsl.SUSAN(),
-    #    iterfield=['in_file', 'brightness_threshold','usans'],
-    #    name='smooth')
-
     smooth = pe.MapNode(util.Function(input_names=['in_file',
-                                                   'brightness_threshold',
-                                                   'usans',
+                                                   'mask_file',
                                                    'fwhm',
                                                    'smooth_type',
                                                    'reg_file',
@@ -385,75 +381,17 @@ functional
         output_names=['smoothed_file'],
         function=mod_smooth),
         name='mod_smooth',
-        iterfield=['in_file', 'brightness_threshold','usans'])
+        iterfield=['in_file', 'mask_file'])
     susan_smooth.connect(inputnode, 'smooth_type', smooth, 'smooth_type')
     susan_smooth.connect(inputnode,'reg_file',smooth, 'reg_file')
     susan_smooth.connect(inputnode,'surface_fwhm', smooth,'surface_fwhm')
     susan_smooth.connect(inputnode,'surf_dir', smooth, 'subjects_dir')
-    """
-Determine the median value of the functional runs using the mask
-"""
-
-
-    if separate_masks:
-        median = pe.MapNode(interface=fsl.ImageStats(op_string='-k %s -p 50'),
-            iterfield = ['in_file', 'mask_file'],
-            name='median')
-    else:
-        median = pe.MapNode(interface=fsl.ImageStats(op_string='-k %s -p 50'),
-            iterfield = ['in_file'],
-            name='median')
-    susan_smooth.connect(inputnode, 'in_files', median, 'in_file')
-    susan_smooth.connect(inputnode, 'mask_file', median, 'mask_file')
-
-    """
-Mask the motion corrected functional runs with the dilated mask
-"""
-
-    if separate_masks:
-        mask = pe.MapNode(interface=fsl.ImageMaths(suffix='_mask',
-            op_string='-mas'),
-            iterfield=['in_file', 'in_file2'],
-            name='mask')
-    else:
-        mask = pe.MapNode(interface=fsl.ImageMaths(suffix='_mask',
-            op_string='-mas'),
-            iterfield=['in_file'],
-            name='mask')
-    susan_smooth.connect(inputnode, 'in_files', mask, 'in_file')
-    susan_smooth.connect(inputnode, 'mask_file', mask, 'in_file2')
-
-    """
-Determine the mean image from each functional run
-"""
-
-    meanfunc = pe.MapNode(interface=fsl.ImageMaths(op_string='-Tmean',
-        suffix='_mean'),
-        iterfield=['in_file'],
-        name='meanfunc2')
-    susan_smooth.connect(mask, 'out_file', meanfunc, 'in_file')
-
-    """
-Merge the median values with the mean functional images into a coupled list
-"""
-
-    merge = pe.Node(interface=util.Merge(2, axis='hstack'),
-        name='merge')
-    susan_smooth.connect(meanfunc,'out_file', merge, 'in1')
-    susan_smooth.connect(median,'out_stat', merge, 'in2')
-
-    """
-Define a function to get the brightness threshold for SUSAN
-"""
     susan_smooth.connect(inputnode, 'fwhm', smooth, 'fwhm')
     susan_smooth.connect(inputnode, 'in_files', smooth, 'in_file')
-    susan_smooth.connect(median, ('out_stat', getbtthresh), smooth, 'brightness_threshold')
-    susan_smooth.connect(merge, ('out', getusans), smooth, 'usans')
+    susan_smooth.connect(inputnode, 'mask_file', smooth, 'mask_file')
 
     outputnode = pe.Node(interface=util.IdentityInterface(fields=['smoothed_files']),
         name='outputnode')
-
-    #susan_smooth.connect(smooth, 'smoothed_file', outputnode, 'smoothed_files')
 
     if separate_masks:
         applymask = pe.MapNode(interface=fsl.ApplyMask(),
