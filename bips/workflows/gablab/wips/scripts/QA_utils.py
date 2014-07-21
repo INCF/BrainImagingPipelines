@@ -276,19 +276,19 @@ def tsnr_roi(roi=[1021],name='roi_flow',plot=False, onsets=False):
     def strip_ids(subject_id, summary_file, roi_file):
         import numpy as np
         import os
-	roi_idx = np.genfromtxt(summary_file, comments='#')[:,1].astype(int)
-	roi_vals = np.genfromtxt(roi_file, comments='#')
-	roi_vals = np.atleast_2d(roi_vals)
+        roi_idx = np.genfromtxt(summary_file)[:,1].astype(int)
+        roi_vals = np.genfromtxt(roi_file)
+        roi_vals = np.atleast_2d(roi_vals)
 	rois2skip = [0, 2, 4, 5, 7, 14, 15, 24, 30, 31, 41, 43, 44, 46, 62, 63, 77, 80, 85, 1000, 2000]
-	ids2remove = []
-	for roi in rois2skip:
-		idx, = np.nonzero(roi_idx==roi)
-		ids2remove.extend(idx)
-	ids2keep = np.setdiff1d(range(roi_idx.shape[0]), ids2remove)
-	filename = os.path.join(os.getcwd(), subject_id+'.csv')
-	newvals = np.vstack((roi_idx[ids2keep], roi_vals[:, np.array(ids2keep)])).T
-	np.savetxt(filename, newvals, '%.4f', delimiter=',')
-	return filename
+        ids2remove = []
+        for roi in rois2skip:
+            idx, = np.nonzero(roi_idx==roi)
+            ids2remove.extend(idx)
+        ids2keep = np.setdiff1d(range(roi_idx.shape[0]), ids2remove)
+        filename = os.path.join(os.getcwd(), subject_id+'.csv')
+        newvals = np.vstack((roi_idx[ids2keep], roi_vals[:, np.array(ids2keep)])).T
+        np.savetxt(filename, newvals, '%.4f', delimiter=',')
+        return filename
 
     roistripper = pe.MapNode(util.Function(input_names=['subject_id', 'summary_file', 'roi_file'],
                                        output_names=['roi_file'],
