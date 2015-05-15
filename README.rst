@@ -1,3 +1,9 @@
+BIPS not being maintained - See Nipype Workflows
+================================================
+
+This package is currently not being maintained. We have focused our efforts on improving example workflows 
+within the Nipype package and on Nipype itself. We would welcome contributions to improve the examples.
+
 Optimized Nipype_ pipelines for brain imaging
 =============================================
 
